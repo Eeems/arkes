@@ -71,6 +71,7 @@ def command(args: Namespace):
     now = datetime.now()
     new = f"{now.year}/{now.strftime('%m')}/{now.strftime('%d')}"
     has_updates = False
+    # TODO only do mirrorlist check against rootfs, and be smarter about missed days
     if current != new:
         url = f"{m.group(1)}/{new}/"
         res = requests.head(url)
