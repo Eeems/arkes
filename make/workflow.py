@@ -1,4 +1,3 @@
-import json
 import heapq
 
 from argparse import ArgumentParser
@@ -118,14 +117,11 @@ def command(_: Namespace):
             "  permissions: *permissions",
             "  with:",
             f"    variant: {job_id}",
+            "    push: ${{ github.event_name != 'pull_request' }}",
         ]
-        if job_id == "rootfs":
-            lines.append("    push: true")
-
-        else:
+        if job_id != "rootfs":
             lines += [
                 f"    updates: ${{{{ fromJson(needs['{depends}'].outputs.updates) }}}}",
-                "    push: ${{ github.event_name != 'pull_request' }}",
                 f"    artifact: {depends}",
                 f"    digest: ${{{{ needs['{depends}'].outputs.digest }}}}",
             ]
@@ -134,23 +130,6 @@ def command(_: Namespace):
             lines.append("    cleanup: true")
 
         return indent(lines)
-
-    def render_delta(job_id: str) -> list[str]:
-        return indent(
-            [
-                f"delta_{job_id}:",
-                f"  name: Generate deltas for {job_id}",
-                "  if: github.event_name != 'pull_request'",
-                f"  needs: {job_id}",
-                "  uses: ./.github/workflows/delta.yaml",
-                "  secrets: inherit",
-                "  permissions: *permissions",
-                "  with:",
-                f"    variant: {job_id}",
-                "    push: ${{ github.event_name != 'pull_request' }}",
-                "    recreate: false",
-            ]
-        )
 
     def render_scan(job_id: str) -> list[str]:
         return indent(
@@ -171,9 +150,9 @@ def command(_: Namespace):
         )
 
     def render_iso(job_id: str) -> list[str]:
-        def __(offline: bool):
-            return [
-                f"{'offline' if offline else 'online'}_iso_{job_id}:",
+        return indent(
+            [
+                f"iso_{job_id}:",
                 f"  name: Generate iso for {job_id}",
                 f"  needs: {job_id}",
                 "  uses: ./.github/workflows/iso.yaml",
@@ -184,11 +163,9 @@ def command(_: Namespace):
                 f"    artifact: {job_id}",
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
                 f"    pull: ${{{{ github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates) }}}}",
-                f"    offline: {json.dumps(offline)}",
                 "    push: ${{ github.event_name != 'pull_request' }}",
             ]
-
-        return indent([*__(False), "", *__(True)])
+        )
 
     build_order = topological_sort(graph, indegree)
 
@@ -207,21 +184,21 @@ def command(_: Namespace):
             "    paths:",
             "      - .github/workflows/build.yaml",
             "      - .github/workflows/build-variant.yaml",
-            "      - .github/workflows/delta.yaml",
             "      - .github/workflows/iso.yaml",
             "      - .github/workflows/manifest.yaml",
             '      - ".github/actions/**"',
             '      - "tools/dockerfile2llbjson/**"',
             '      - "make/__main__.py"',
             '      - "make/__init__.py"',
-            '      - "make/get-deltas.py"',
-            '      - "make/delta.py"',
             '      - "make/iso.py"',
             '      - "make/scan.py"',
+            '      - "make/pull.py"',
+            '      - "make/push.py"',
             '      - "make/build.py"',
             '      - "make/checkupdates.py"',
             '      - "make/manifest.py"',
             '      - "make/check.py"',
+            '      - "make/workflow.py"',
             "      - make.py",
             "      - seccomp.json",
             "      - .containerignore",
@@ -274,7 +251,7 @@ def command(_: Namespace):
                 "    contents: read",
                 "    packages: read",
                 "  container:",
-                f"    image: {BUILDER}:latest",
+                f"    image: {BUILDER}:${{{{ github.head_ref || github.ref_name }}}}",
                 "    options: >-",
                 "      --privileged",
                 "      --security-opt seccomp=unconfined",
@@ -285,8 +262,7 @@ def command(_: Namespace):
                 "      --tmpfs /tmp",
                 "      --tmpfs /run",
                 "      --userns=host",
-                "      -v /var/lib/containers:/var/lib/containers",
-                "      -v /:/run/host",
+                "      --volume=/:/run/host",
                 "  steps:",
                 "    - name: Checkout the repository",
                 "      uses: actions/checkout@v4",
@@ -321,7 +297,7 @@ def command(_: Namespace):
                 "  name: Generate manifest",
                 '  if: "!cancelled()"',
                 "  needs:",
-                *[f"    - delta_{j}" for j in sorted(build_order)],
+                *[f"    - {j}" for j in sorted(build_order)],
                 "  uses: ./.github/workflows/manifest.yaml",
                 "  secrets: inherit",
                 "  permissions: &permissions",
@@ -337,8 +313,6 @@ def command(_: Namespace):
         *[render_build(j) for j in build_order],
         comment("SCAN"),
         *[render_scan(j) for j in build_order],
-        comment("DELTA"),
-        *[render_delta(j) for j in build_order],
         comment("ISO"),
         *[render_iso(j) for j in build_order if j != "rootfs"],
     ]

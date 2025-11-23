@@ -2,6 +2,7 @@ import shutil
 import atexit
 import os
 import sys
+import shlex
 
 from datetime import datetime
 from argparse import ArgumentParser
@@ -17,30 +18,26 @@ from ..system import is_root
 from ..system import baseImage
 from ..system import execute
 from ..podman import podman
+from ..podman import podman_cmd
 from ..podman import export
 
 kwds = {"help": "Build a bootable ISO image to install your system"}
 
 
-def register(parser: ArgumentParser):
-    _ = parser.add_argument(
-        "--no-local-image",
-        help="If the image should be copied to the iso container storage",
-        dest="localImage",
-        action="store_false",
-    )
+def register(_: ArgumentParser):
+    pass
 
 
-def command(args: Namespace):
+def command(_: Namespace):
     if not is_root():
         print("Must be run as root")
         sys.exit(1)
 
-    name = iso(cast(bool, args.localImage))
+    name = iso()
     print(f"ISO Created: {name}")
 
 
-def iso(local_image: bool):
+def iso():
     cwd = os.getcwd()
     os.chdir(SYSTEM_PATH)
     if os.path.exists("archiso"):
@@ -48,6 +45,10 @@ def iso(local_image: bool):
 
     if os.path.exists("work"):
         shutil.rmtree("work")
+
+    cache = "/var/cache/pacman"
+    if not os.path.exists(cache):
+        os.makedirs(cache, exist_ok=True)
 
     uuid = datetime.now().strftime("%Y-%m-%d-%H-%M-%S-00")
     buildImage = baseImage()
@@ -59,6 +60,7 @@ def iso(local_image: bool):
         f"--build-arg=BASE_IMAGE={buildImage}",
         "--force-rm",
         "--pull=never",
+        f"--volume={cache}:{cache}",
         f"--tag=system:iso-{uuid}",
         "--file=/etc/system/Isofile",
     )
@@ -69,7 +71,6 @@ def iso(local_image: bool):
 
     with export(
         f"iso-{uuid}",
-        f"podman --remote save {buildImage} | podman load" if local_image else "",
         workingDir=SYSTEM_PATH,
     ) as t:
         if not os.path.exists(ROOTFS_PATH):
@@ -79,7 +80,25 @@ def iso(local_image: bool):
 
     atexit.unregister(exitFunc1)
     podman("rmi", f"system:iso-{uuid}")
-
+    execute(
+        "bash",
+        "-c",
+        " | ".join(
+            [
+                shlex.join(podman_cmd("save", buildImage)),
+                shlex.join(
+                    [
+                        "podman",
+                        f"--root={ROOTFS_PATH}/var/lib/containers/storage",
+                        "--runroot=/tmp/podman-runroot",
+                        "--storage-driver=overlay",
+                        "--events-backend=file",
+                        "load",
+                    ]
+                ),
+            ]
+        ),
+    )
     _ = shutil.copytree(os.path.join(ROOTFS_PATH, "etc/system/archiso"), "archiso")
     for path in [
         "loader/entries/01-archiso-x86_64-linux.conf",
