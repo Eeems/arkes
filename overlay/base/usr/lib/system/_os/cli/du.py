@@ -1,5 +1,6 @@
-import subprocess
+import os
 import sys
+import subprocess
 
 from argparse import ArgumentParser
 from argparse import Namespace
@@ -28,10 +29,7 @@ def command(_: Namespace):
                 [
                     "du",
                     "-hs",
-                    *[
-                        f"/ostree/deploy/{s}/deploy/{c}"
-                        for _, c, _, _, s in reversed(_deployments)
-                    ],
+                    *[x.path for x in reversed(_deployments)],
                 ]
             )
             .strip()
@@ -39,19 +37,17 @@ def command(_: Namespace):
             .split("\n")
         )
     )
-    for index, checksum, type, _pinned, stateroot in _deployments:
-        diffsize = sizes[index].split()[0]
+    for deployment in _deployments:
+        diffsize = sizes[deployment.index].split()[0]
         size = (
-            subprocess.check_output(
-                ["du", "-hs", f"/ostree/deploy/{stateroot}/deploy/{checksum}"]
-            )
+            subprocess.check_output(["du", "-hs", deployment.path])
             .strip()
             .decode("utf-8")
             .split()[0]
         )
-        print(f"{index}: {size} (+{diffsize})", end="")
-        if type:
-            print(f" ({type})", end="")
+        print(f"{deployment.index}: {size} (+{diffsize})", end="")
+        if deployment.type:
+            print(f" ({deployment.type})", end="")
 
         print()
 
@@ -60,7 +56,7 @@ def command(_: Namespace):
             [
                 "du",
                 "-hs",
-                *set([f"/ostree/deploy/{s}/deploy" for _, _, _, _, s in _deployments]),
+                *set([os.path.dirname(x.path) for x in _deployments]),
             ]
         )
         .strip()

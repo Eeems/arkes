@@ -94,7 +94,7 @@ def deploy(
 
     stateroot = OS_NAME
     if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
-        _, _, _, stateroot = current_deployment()
+        stateroot = current_deployment().stateroot
 
     cmd = shlex.join(
         [
@@ -150,7 +150,117 @@ def undeploy(
     )
 
 
-def deployments() -> Generator[tuple[int, str, str, bool, str], None, None]:
+class Deployment:
+    def __init__(self, data: dict[str, str | int | bool]):
+        self.data: dict[str, str | int | bool] = data
+
+    @property
+    def checksum(self) -> str:
+        checksum = self.data.get("checksum", "")
+        assert isinstance(checksum, str)
+        return checksum
+
+    @property
+    def stateroot(self) -> str:
+        stateroot = self.data.get("stateroot", "")
+        assert isinstance(stateroot, str)
+        return stateroot
+
+    @property
+    def unlocked(self) -> str:
+        unlocked = self.data.get("unlocked", "")
+        assert isinstance(unlocked, str)
+        return unlocked
+
+    @property
+    def booted(self) -> bool:
+        booted = self.data.get("booted", False)
+        assert isinstance(booted, bool)
+        return booted
+
+    @property
+    def pending(self) -> bool:
+        pending = self.data.get("pending", False)
+        assert isinstance(pending, bool)
+        return pending
+
+    @property
+    def rollback(self) -> bool:
+        rollback = self.data.get("rollback", False)
+        assert isinstance(rollback, bool)
+        return rollback
+
+    @property
+    def finalization_locked(self) -> bool:
+        finalization_locked = self.data.get("finalization-locked", False)
+        assert isinstance(finalization_locked, bool)
+        return finalization_locked
+
+    @property
+    def soft_reboot_target(self) -> bool:
+        soft_reboot_target = self.data.get("soft-reboot-target", False)
+        assert isinstance(soft_reboot_target, bool)
+        return soft_reboot_target
+
+    @property
+    def staged(self) -> bool:
+        staged = self.data.get("staged", False)
+        assert isinstance(staged, bool)
+        return staged
+
+    @property
+    def pinned(self) -> bool:
+        pinned = self.data.get("pinned", False)
+        assert isinstance(pinned, bool)
+        return pinned
+
+    @property
+    def serial(self) -> int:
+        serial = self.data.get("serial", -1)
+        assert isinstance(serial, int)
+        return serial
+
+    @property
+    def index(self) -> int:
+        index = self.data.get("index", -1)
+        assert isinstance(index, int)
+        return index
+
+    @property
+    def path(self) -> str:
+        path = f"/ostree/deploy/{self.stateroot}/deploy/{self.checksum}.{self.serial}"
+        assert os.path.exists(path)
+        assert os.path.isdir(path)
+        return path
+
+    @property
+    def os_info(self) -> dict[str, str]:
+        with open(os.path.join(self.path, "/usr/lib/os-release"), "r") as f:
+            return {
+                x[0]: x[1]
+                for x in [
+                    x.strip().split("=", 1)
+                    for x in f.readlines()
+                    if "=" in x
+                    if not x.startswith("#")
+                ]
+            }
+
+    @property
+    def type(self) -> str:
+        if self.booted:
+            return "current"
+
+        if self.pending:
+            return "pending"
+
+        if self.rollback:
+            return "rollback"
+
+        return ""
+
+
+def deployments() -> Generator[Deployment, None, None]:
     status = json.loads(  # pyright: ignore[reportAny]
         subprocess.check_output(["ostree", "admin", "status", "--json"])
     )
@@ -159,32 +269,13 @@ def deployments() -> Generator[tuple[int, str, str, bool, str], None, None]:
         list[dict[str, str | int | bool]],
         status.get("deployments", []),  # pyright: ignore[reportUnknownMemberType]
     )
-    index = 0
     for deployment in deployments:
-        type = ""
-        if cast(bool, deployment["booted"]):
-            type = "current"
-
-        elif cast(bool, deployment["pending"]):
-            type = "pending"
-
-        elif cast(bool, deployment["rollback"]):
-            type = "rollback"
-
-        yield (
-            index,
-            f"{deployment['checksum']}.{deployment['serial']}",
-            type,
-            cast(bool, deployment["pinned"]),
-            cast(str, deployment["stateroot"]),
-        )
-        index += 1
+        yield Deployment(deployment)
 
 
-def current_deployment() -> tuple[int, str, bool, str]:
-    candidates = [x for x in deployments() if x[2] == "current"]
+def current_deployment() -> Deployment:
+    candidates = [x for x in deployments() if x.booted]
     assert len(candidates) == 1, (
         f"There should be one current deployment, not {len(candidates)}"
     )
-    index, checksum, _, pinned, stateroot = candidates[0]
-    return index, checksum, pinned, stateroot
+    return candidates[0]

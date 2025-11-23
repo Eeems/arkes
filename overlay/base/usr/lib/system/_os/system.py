@@ -249,6 +249,7 @@ def in_nspawn_system(*args: str, check: bool = False):
     if not is_root():
         raise RuntimeError("in_nspawn_system can only be called as root")
 
+    _ostree_root = ""
     if os.path.exists("/ostree") and os.path.isdir("/ostree"):
         _ostree = "/ostree"
         if not os.path.exists(SYSTEM_PATH):
@@ -261,6 +262,7 @@ def in_nspawn_system(*args: str, check: bool = False):
         _ostree = f"{SYSTEM_PATH}/ostree"
         os.makedirs(_ostree, exist_ok=True)
         repo = os.path.join(_ostree, "repo")
+        _ostree_root = f"{SYSTEM_PATH}/"
         from .ostree import ostree
 
         setattr(ostree, "repo", repo)
@@ -271,7 +273,7 @@ def in_nspawn_system(*args: str, check: bool = False):
     if not os.path.exists(cache):
         os.makedirs(cache, exist_ok=True)
 
-    _, checksum, _, stateroot = current_deployment()
+    deployment = current_deployment()
     os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
     # TODO overlay /usr/lib/pacman somehow
     cmd = [
@@ -283,8 +285,8 @@ def in_nspawn_system(*args: str, check: bool = False):
         "--bind=/boot:/boot",
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
         f"--bind={cache}:{cache}",
-        f"--bind=+/sysroot/ostree/deploy/{stateroot}/var:/var",
-        f"--pivot-root={_ostree}/deploy/{stateroot}/deploy/{checksum}:/sysroot",
+        f"--bind=+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var",
+        f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
     ]
     ret = _execute(shlex.join(cmd))

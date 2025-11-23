@@ -4,44 +4,32 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ..system import baseImage
 from ..ostree import deployments
+from ..ostree import Deployment
 
 
 def register(_: ArgumentParser):
     pass
 
 
-def get_status(data: tuple[int, str, str, bool, str]) -> str:
-    index, checksum, type, pinned, stateroot = data
-    with open(
-        f"/ostree/deploy/{stateroot}/deploy/{checksum}/usr/lib/os-release", "r"
-    ) as f:
-        osInfo = {
-            x[0]: x[1]
-            for x in [
-                x.strip().split("=", 1)
-                for x in f.readlines()
-                if x.startswith("VERSION_ID=")
-                or x.startswith("VERSION=")
-                or x.startswith("BUILD_ID=")
-            ]
-        }
-
-    ref = baseImage(
-        f"/ostree/deploy/{stateroot}/deploy/{checksum}/etc/system/Systemfile"
-    )
+def get_status(deployment: Deployment) -> str:
+    osInfo = deployment.os_info
+    ref = baseImage(f"{deployment.path}/etc/system/Systemfile")
     version = osInfo.get("VERSION", "0")
     version_id = osInfo.get("VERSION_ID", "0")
     build_id = osInfo.get("BUILD_ID", "0")
-    status = f"{index}: {ref}"
+    status = f"{deployment.index}: {ref}"
     if type:
-        status += f" ({type})"
+        status += f" ({deployment.type})"
 
-    if pinned:
+    if deployment.pinned:
         status += " (pinned)"
 
-    status += f"\n  Version: {version}.{version_id}"
-    status += f"\n  Build:   {build_id}"
-    status += f"\n  Stateroot: {stateroot}"
+    status += f"\n  Version:   {version}.{version_id}"
+    status += f"\n  Build:     {build_id}"
+    status += f"\n  Stateroot: {deployment.stateroot}"
+    if deployment.unlocked and deployment.unlocked != "none":
+        status += f"\n  Unlocked:  {deployment.unlocked}"
+
     return status
 
 
