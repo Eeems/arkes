@@ -387,7 +387,7 @@ jobs:
   #             ISO                #
   ######################################
 
-  online_iso_base:
+  iso_base:
     name: Generate iso for base
     needs: base
     uses: ./.github/workflows/iso.yaml
@@ -398,24 +398,9 @@ jobs:
       artifact: base
       digest: ${{ needs['base'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_base:
-    name: Generate iso for base
-    needs: base
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: base
-      artifact: base
-      digest: ${{ needs['base'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_atomic:
+  iso_atomic:
     name: Generate iso for atomic
     needs: atomic
     uses: ./.github/workflows/iso.yaml
@@ -426,24 +411,9 @@ jobs:
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_atomic:
-    name: Generate iso for atomic
-    needs: atomic
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: atomic
-      artifact: atomic
-      digest: ${{ needs['atomic'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_atomic-nvidia:
+  iso_atomic-nvidia:
     name: Generate iso for atomic-nvidia
     needs: atomic-nvidia
     uses: ./.github/workflows/iso.yaml
@@ -454,24 +424,9 @@ jobs:
       artifact: atomic-nvidia
       digest: ${{ needs['atomic-nvidia'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_atomic-nvidia:
-    name: Generate iso for atomic-nvidia
-    needs: atomic-nvidia
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: atomic-nvidia
-      artifact: atomic-nvidia
-      digest: ${{ needs['atomic-nvidia'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_base-slim:
+  iso_base-slim:
     name: Generate iso for base-slim
     needs: base-slim
     uses: ./.github/workflows/iso.yaml
@@ -482,24 +437,9 @@ jobs:
       artifact: base-slim
       digest: ${{ needs['base-slim'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_base-slim:
-    name: Generate iso for base-slim
-    needs: base-slim
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: base-slim
-      artifact: base-slim
-      digest: ${{ needs['base-slim'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_eeems:
+  iso_eeems:
     name: Generate iso for eeems
     needs: eeems
     uses: ./.github/workflows/iso.yaml
@@ -510,24 +450,9 @@ jobs:
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_eeems:
-    name: Generate iso for eeems
-    needs: eeems
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: eeems
-      artifact: eeems
-      digest: ${{ needs['eeems'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_eeems-nvidia:
+  iso_eeems-nvidia:
     name: Generate iso for eeems-nvidia
     needs: eeems-nvidia
     uses: ./.github/workflows/iso.yaml
@@ -538,24 +463,9 @@ jobs:
       artifact: eeems-nvidia
       digest: ${{ needs['eeems-nvidia'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-nvidia'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_eeems-nvidia:
-    name: Generate iso for eeems-nvidia
-    needs: eeems-nvidia
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: eeems-nvidia
-      artifact: eeems-nvidia
-      digest: ${{ needs['eeems-nvidia'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-nvidia'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_eeems-system76:
+  iso_eeems-system76:
     name: Generate iso for eeems-system76
     needs: eeems-system76
     uses: ./.github/workflows/iso.yaml
@@ -566,24 +476,9 @@ jobs:
       artifact: eeems-system76
       digest: ${{ needs['eeems-system76'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-system76'].outputs.updates) }}
-      offline: false
       push: ${{ github.event_name != 'pull_request' }}
 
-  offline_iso_eeems-system76:
-    name: Generate iso for eeems-system76
-    needs: eeems-system76
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: eeems-system76
-      artifact: eeems-system76
-      digest: ${{ needs['eeems-system76'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-system76'].outputs.updates) }}
-      offline: true
-      push: ${{ github.event_name != 'pull_request' }}
-
-  online_iso_gnome:
+  iso_gnome:
     name: Generate iso for gnome
     needs: gnome
     uses: ./.github/workflows/iso.yaml
@@ -594,19 +489,4 @@ jobs:
       artifact: gnome
       digest: ${{ needs['gnome'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates) }}
-      offline: false
-      push: ${{ github.event_name != 'pull_request' }}
-
-  offline_iso_gnome:
-    name: Generate iso for gnome
-    needs: gnome
-    uses: ./.github/workflows/iso.yaml
-    secrets: inherit
-    permissions: *permissions
-    with:
-      variant: gnome
-      artifact: gnome
-      digest: ${{ needs['gnome'].outputs.digest }}
-      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates) }}
-      offline: true
       push: ${{ github.event_name != 'pull_request' }}

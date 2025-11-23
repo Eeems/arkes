@@ -1,4 +1,3 @@
-import json
 import heapq
 
 from argparse import ArgumentParser
@@ -151,9 +150,9 @@ def command(_: Namespace):
         )
 
     def render_iso(job_id: str) -> list[str]:
-        def __(offline: bool):
-            return [
-                f"{'offline' if offline else 'online'}_iso_{job_id}:",
+        return indent(
+            [
+                f"iso_{job_id}:",
                 f"  name: Generate iso for {job_id}",
                 f"  needs: {job_id}",
                 "  uses: ./.github/workflows/iso.yaml",
@@ -164,11 +163,9 @@ def command(_: Namespace):
                 f"    artifact: {job_id}",
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
                 f"    pull: ${{{{ github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates) }}}}",
-                f"    offline: {json.dumps(offline)}",
                 "    push: ${{ github.event_name != 'pull_request' }}",
             ]
-
-        return indent([*__(False), "", *__(True)])
+        )
 
     build_order = topological_sort(graph, indegree)
 

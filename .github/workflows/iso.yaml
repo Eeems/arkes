@@ -12,11 +12,6 @@ on:
         type: boolean
         default: false
         required: false
-      offline:
-        description: Offline installable?
-        type: boolean
-        default: true
-        required: false
       artifact:
         description: Artifact to load base image from
         type: string
@@ -42,7 +37,7 @@ permissions:
 
 jobs:
   run:
-    name: arkes:${{ inputs.variant }} iso${{ inputs.offline && ' (offline)' || ''}}
+    name: arkes:${{ inputs.variant }} iso
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/eeems/arkes-builder:${{ github.head_ref || github.ref_name }}
@@ -110,12 +105,7 @@ jobs:
       - name: Build
         uses: ./.github/actions/run-with-podman-service
         with:
-          run: |
-            args=""
-            if [[ "${{ inputs.offline }}" != "true" ]];then
-              args="$args --no-local-image"
-            fi
-            ./make.py iso $args ${{ inputs.variant }}
+          run: ./make.py iso ${{ inputs.variant }}
 
       - name: Pacman cache
         uses: actions/cache/save@v4
@@ -126,5 +116,5 @@ jobs:
       - name: Upload iso
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.offline && 'offline' || 'online' }}_arkes-${{ inputs.variant }}.iso
+          name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
