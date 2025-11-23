@@ -12,11 +12,16 @@ ln -sf "/usr/share/zoneinfo/${TIMEZONE:-UTC}" /etc/localtime
 echo "KEYMAP=${KEYMAP:-us}" >/etc/vconsole.conf
 echo "FONT=${FONT:-ter-124n}" >>/etc/vconsole.conf
 echo "LANG=${LANGUAGE:-en_US}.${ENCODING:-UTF-8}" >/etc/locale.conf
-echo "${LANGUAGE:-en_US}.${ENCODING:-UTF-8} ${ENCODING:-UTF-8}" >/etc/locale.gen
+echo "" >/etc/locale.gen
+language="${LANGUAGE:-en_US}"
+encoding="${ENCODING:-UTF-8}"
+if [[ "${language}.${encoding}" != "en_US.UTF-8" ]]; then
+  echo "${language}.${encoding} ${encoding}" >>/etc/locale.gen
+fi
 echo "[system] Generating locale"
 chronic locale-gen
 echo "[system] Removing unused locales"
-cat >/etc/locale.nopurge <<EOF
+cat >/etc/locale.nopurge <<'EOF'
 MANDELETE
 SHOWFREEDSPACE
 VERBOSE
