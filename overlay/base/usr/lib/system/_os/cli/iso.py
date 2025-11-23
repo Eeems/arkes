@@ -97,7 +97,7 @@ def iso(local_image: bool):
                             "podman",
                             f"--root={ROOTFS_PATH}/var/lib/containers/storage",
                             "--runroot=/tmp/podman-runroot",
-                            "--storage-driver=vfs",
+                            "--storage-driver=overlay",
                             "--events-backend=file",
                             "load",
                         ]

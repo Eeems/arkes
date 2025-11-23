@@ -193,7 +193,7 @@ def install(
                         "podman",
                         f"--root={rootfs}/var/lib/containers/storage",
                         "--runroot=/tmp/podman-runroot",
-                        "--storage-driver=vfs",
+                        "--storage-driver=overlay",
                         "--events-backend=file",
                         "load",
                     ]
