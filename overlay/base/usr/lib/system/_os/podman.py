@@ -7,6 +7,7 @@ import string
 import tarfile
 import subprocess
 import json
+import podman as _podman
 
 from time import time
 from hashlib import sha256
@@ -22,12 +23,32 @@ from . import REGISTRY
 from . import IMAGE
 from . import REPO
 
+from .system import is_root
 from .system import execute
 from .system import _execute  # pyright:ignore [reportPrivateUsage]
 from .ostree import ostree
 
 from .console import bytes_to_stdout
 from .console import bytes_to_stderr
+
+
+client: _podman.PodmanClient | None = None
+
+
+def get_client() -> _podman.PodmanClient:
+    global client
+    if client is not None:
+        return client
+
+    _socket = (
+        "http+unix:///run/podman/podman.sock"
+        if is_root()
+        else f"http+unix:///run/user/{os.getuid()}/podman/podman.sock"
+    )
+    client = _podman.PodmanClient(base_url=_socket)
+    _ = atexit.register(client.close)
+    assert client.ping(), "Unable to connect to podman"
+    return client
 
 
 def podman_cmd(*args: str) -> list[str]:
@@ -191,6 +212,10 @@ def image_info(image: str, remote: bool = True) -> dict[str, object]:
 
 
 def image_labels(image: str, remote: bool = True) -> dict[str, str]:
+    if not remote:
+        image = image_qualified_name(image)
+        return cast(dict[str, str], get_client().images.get(image).labels)
+
     return cast(dict[str, dict[str, str]], image_info(image, remote)).get("Labels", {})
 
 
@@ -199,11 +224,11 @@ def image_hash(image: str, remote: bool = True) -> str:
 
 
 def image_exists(image: str, remote: bool = True, skip_manifest: bool = False) -> bool:
-    image_exists = not _execute(shlex.join(podman_cmd("image", "exists", image)))
+    image = image_qualified_name(image)
+    image_exists = get_client().images.exists(image)
     if image_exists or not remote:
         return image_exists
 
-    image = image_qualified_name(image)
     registry, image, tag, ref = image_name_parts(image)
     if ref is not None:
         raise NotImplementedError()

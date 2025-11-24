@@ -74,6 +74,7 @@ RUN mkdir /var/home \
   && /usr/lib/system/package_layer \
   --aur \
   localepurge \
+  python-podman \
   && rmdir /var/home
 
 RUN systemctl enable \
