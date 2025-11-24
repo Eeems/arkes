@@ -1,16 +1,7 @@
 name: Build builder image
 on:
-  pull_request: &on-filter
-    branches:
-      - master
-    paths:
-      - .github/workflows/tool-builder.yaml
-      - "tools/builder/**"
-      - "tools/dockerfile2llbjson/**"
-  push: *on-filter
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * 0"
+  workflow_call:
 
 permissions:
   contents: read

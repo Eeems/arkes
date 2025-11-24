@@ -9,12 +9,14 @@ on:
     branches:
       - master
     paths:
+      - .github/workflows/tool-builder.yaml
       - .github/workflows/build.yaml
       - .github/workflows/build-variant.yaml
       - .github/workflows/iso.yaml
       - .github/workflows/manifest.yaml
       - ".github/actions/**"
       - "tools/dockerfile2llbjson/**"
+      - "tools/builder/**"
       - "make/__main__.py"
       - "make/__init__.py"
       - "make/iso.py"
@@ -26,12 +28,12 @@ on:
       - "make/manifest.py"
       - "make/check.py"
       - "make/workflow.py"
-      - make.py
-      - seccomp.json
-      - .containerignore
       - "overlay/**"
       - "templates/**"
       - "variants/**"
+      - make.py
+      - seccomp.json
+      - .containerignore
   push: *on-filter
   workflow_dispatch:
   schedule:
@@ -58,23 +60,18 @@ jobs:
         with:
           pat: ${{ secrets.NOTIFICATION_PAT }}
 
-  wait:
-    name: Wait for builder to finish
-    runs-on: ubuntu-latest
+  builder:
+    name: Build builder image
+    uses: ./.github/workflows/tool-builder.yaml
+    secrets: inherit
     permissions:
       contents: read
-      actions: read
-    steps:
-      - name: Wait
-        uses: NathanFirmo/wait-for-other-action@8241e29ea2e9661a8af6d319b1d074825a299730
-        with:
-          token: ${{ github.token }}
-          workflow: 'tool-builder.yaml'
+      packages: write
 
   check:
     name: Ensure config is valid
     runs-on: ubuntu-latest
-    needs: wait
+    needs: builder
     permissions:
       contents: read
       packages: read
