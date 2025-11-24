@@ -113,7 +113,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/restore@v4
         with:
-          key: pacman-build-${{ inputs.variant }}
+          key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Build
@@ -194,7 +194,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/save@v4
         with:
-          key: pacman-build-${{ inputs.variant }}
+          key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Save manifest cache

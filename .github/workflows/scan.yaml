@@ -109,7 +109,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/restore@v4
         with:
-          key: pacman-scan-${{ inputs.variant }}
+          key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Scan container
@@ -125,7 +125,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/save@v4
         with:
-          key: pacman-scan-${{ inputs.variant }}
+          key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Upload Scan results to GitHub Security tab

@@ -92,7 +92,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/restore@v4
         with:
-          key: pacman-iso-${{ inputs.variant }}
+          key: pacman-iso-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Force digest
@@ -110,7 +110,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/save@v4
         with:
-          key: pacman-iso-${{ inputs.variant }}
+          key: pacman-iso-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Upload iso
