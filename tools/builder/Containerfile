@@ -16,7 +16,7 @@ RUN data="$(echo "FROM ${_IMAGE}" | /app/dockerfile2llbjson)" \
     && diff -U3 <(echo "${_LLB}" | jq) <(echo "$data" | jq) \
     && echo "Test passed"
 
-FROM ubuntu:24.04
+FROM ubuntu:25.04
 
 COPY --from=dockerfile2llbjson /app/dockerfile2llbjson /usr/bin/dockerfile2llbjson
 
