@@ -1,12 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-path="$(realpath "${1:-/}")"
-timestamp=$(TZ=UTC date -d "@946684800" '+%Y%m%d%H%M.%S')
-
 echo "[system] Committing $path"
-
-timestamp=$timestamp \
+path="$(realpath "${1:-/}")"
+timestamp=$(TZ=UTC date -d "@946684800" '+%Y%m%d%H%M.00') \
 chronic find "$path" -xdev \
   \( \
     -path /dev -o \
@@ -14,9 +11,11 @@ chronic find "$path" -xdev \
     -path /sys -o \
     -path /run -o \
     -path /tmp \
-  \) -prune \
-  -exec sh -c '
-      for f; do
-          touch -h -t "$timestamp" "$f" 2>/dev/null ||:
-      done
-  ' sh {} +
+  \) -prune -o \
+  -not \( \
+    -ctime "$timestamp" -o \
+    -mtime "$timestamp" -o \
+    -atime "$timestamp" \
+  \) \
+  -print0 \
+| xargs -0 -r -P$(nproc) -n500 touch -h -t "$timestamp"
