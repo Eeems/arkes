@@ -276,7 +276,7 @@ def command(_: Namespace):
                 "      uses: actions/cache@v4",
                 "      with:",
                 "        path: .venv",
-                "        key: venv-${{ hashFiles('.github/workflows/Dockerfile.builder') }}-${{ hashFiles('make.py') }}",
+                "        key: venv-${{ needs.builder.outputs.unique_tag }}-${{ hashFiles('make/check.py') }}",
                 "    - name: Cache go",
                 "      uses: actions/cache@v4",
                 "      with:",
