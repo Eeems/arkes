@@ -73,14 +73,11 @@ def push(target: str):
     for tag in tags:
         results.extend(client.images.remove(f"{REPO}:{tag}"))
 
-    results = [x for x in results if x.get("ExitCode") != 0]
-    if results:
+    errors = [x.get("Errors") for x in results if x.get("Errors") is not None]
+    if errors:
         raise ExceptionGroup(  # noqa: F821
             "Failed to remove tags",
-            [
-                Exception(f"{x.get('ExitCode')} {x.get('Errors', 'Unknown')}")
-                for x in results
-            ],
+            [Exception(x) for x in errors],
         )
 
 
