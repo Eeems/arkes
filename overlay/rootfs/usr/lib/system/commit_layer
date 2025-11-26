@@ -2,13 +2,11 @@
 set -euo pipefail
 
 path="$(realpath "${1:-/}")"
-timestamp=$(TZ=UTC date -d "@946684800" '+%Y%m%d%H%M.00')
 ref_exact=$(mktemp)
-ref_next=$(mktemp)
-touch -t "$timestamp" "$ref_exact"
-touch -t "$timestamp" -d "+1 second" "$ref_next"
+ref_before=$(mktemp)
+touch -d "@946684800" "$ref_exact"
+touch -d "@946684799" "$ref_before"
 echo "[system] Committing $path"
-timestamp=$timestamp \
 find "$path" -xdev \
   \( \
     -path /dev \
@@ -17,8 +15,10 @@ find "$path" -xdev \
     -o -path /run \
     -o -path /tmp \
   \) -prune \
-  -o -newer "$ref_exact" \
-  -a -not -newer "$ref_next" \
+  -o ! \( \
+    -newer "$ref_before" \
+    -a ! -newer "$ref_exact" \
+  \) \
   -print0 \
-| xargs -0 -r -P$(nproc) -n500 touch -h -t "$timestamp"
-rm -f "$ref_exact" "$ref_next"
+| xargs -0 -r -P$(nproc) -n500 touch -h -d "@946684800"
+rm -f "$ref_exact" "$ref_before"
