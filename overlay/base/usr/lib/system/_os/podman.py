@@ -9,6 +9,7 @@ import subprocess
 import json
 import podman as _podman
 
+from podman.errors import APIError
 from time import time
 from hashlib import sha256
 from glob import iglob
@@ -355,14 +356,15 @@ def _image_digest_remote(image: str) -> str:
 
 
 def _latest_manifest() -> bool:
-    return (
-        subprocess.run(
-            podman_cmd("pull", f"{REPO}:_manifest"),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode
-        == 0
-    )
+    try:
+        get_client().images.pull(  # pyright: ignore[reportUnknownMemberType, reportUnusedCallResult]
+            REPO,
+            "_manifest",
+        )
+        return True
+
+    except APIError:
+        return False
 
 
 def image_digest(image: str, remote: bool = True) -> str:
@@ -494,7 +496,11 @@ def export_stream(
     os.chdir(workingDir)
     timestamp = int(time())
     name = f"export-{tag}-{timestamp}"
-    exitFunc1 = atexit.register(podman, "rm", name)
+
+    def rm(name: str):
+        get_client().containers.get(name).remove()  # pyright: ignore[reportUnknownMemberType]
+
+    exitFunc1 = atexit.register(rm, name)
     podman(
         "run",
         f"--name={name}",
@@ -520,7 +526,7 @@ def export_stream(
             raise subprocess.CalledProcessError(process.returncode, cmd, None, None)
 
         atexit.unregister(exitFunc1)
-        podman("rm", name, onstdout=onstdout, onstderr=onstderr)
+        rm(name)
         os.chdir(cwd)
 
 
