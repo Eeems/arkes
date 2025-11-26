@@ -1,21 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "[system] Committing $path"
 path="$(realpath "${1:-/}")"
-timestamp=$(TZ=UTC date -d "@946684800" '+%Y%m%d%H%M.00') \
-chronic find "$path" -xdev \
+timestamp=$(TZ=UTC date -d "@946684800" '+%Y%m%d%H%M.00')
+ref_exact=$(mktemp)
+ref_next=$(mktemp)
+touch -t "$timestamp" "$ref_exact"
+touch -t "$timestamp" -d "+1 second" "$ref_next"
+echo "[system] Committing $path"
+timestamp=$timestamp \
+find "$path" -xdev \
   \( \
-    -path /dev -o \
-    -path /proc -o \
-    -path /sys -o \
-    -path /run -o \
-    -path /tmp \
-  \) -prune -o \
-  -not \( \
-    -ctime "$timestamp" -o \
-    -mtime "$timestamp" -o \
-    -atime "$timestamp" \
-  \) \
+    -path /dev \
+    -o -path /proc \
+    -o -path /sys \
+    -o -path /run \
+    -o -path /tmp \
+  \) -prune \
+  -o -newer "$ref_exact" \
+  -a -not -newer "$ref_next" \
   -print0 \
 | xargs -0 -r -P$(nproc) -n500 touch -h -t "$timestamp"
+rm -f "$ref_exact" "$ref_next"
