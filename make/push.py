@@ -61,7 +61,7 @@ def push(target: str):
         tags.append(tag)
         assert _image.tag(REPO, tag), "Failed to tag image"
 
-    for tag in [*tags, image]:
+    for tag in [*tags, target]:
         tag = f"{REPO}:{tag}"
         podman("push", "--retry=5", "--compression-format=zstd:chunked", tag)
         print(f"Pushed {tag}")
@@ -78,9 +78,8 @@ def push(target: str):
         raise ExceptionGroup(  # noqa: F821
             "Failed to remove tags",
             [
-                Exception(
-                    f"{x.get('ExitCode')} {x.get('Errors', 'Unknown')}" for x in results
-                )
+                Exception(f"{x.get('ExitCode')} {x.get('Errors', 'Unknown')}")
+                for x in results
             ],
         )
 
