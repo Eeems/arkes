@@ -76,7 +76,7 @@ jobs:
       contents: read
       packages: read
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ github.head_ref || github.ref_name }}
+      image: ghcr.io/eeems/arkes-builder:${{ needs.builder.outputs.unique_tag }}
       options: >-
         --privileged
         --security-opt seccomp=unconfined
@@ -122,6 +122,7 @@ jobs:
     name: Generate manifest
     if: "!cancelled()"
     needs:
+      - builder
       - atomic
       - atomic-nvidia
       - base
@@ -140,6 +141,7 @@ jobs:
       security-events: write
     with:
       cache: false
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   ######################################
   #             BUILD              #
@@ -147,114 +149,141 @@ jobs:
 
   rootfs:
     name: Build eeems/arkes:rootfs image
-    needs: check
+    needs:
+      - builder
+      - check
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: rootfs
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   base:
     name: Build eeems/arkes:base image
-    needs: rootfs
+    needs:
+      - builder
+      - rootfs
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: base
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['rootfs'].outputs.updates) }}
       artifact: rootfs
       digest: ${{ needs['rootfs'].outputs.digest }}
 
   atomic:
     name: Build eeems/arkes:atomic image
-    needs: base
+    needs:
+      - builder
+      - base
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: atomic
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
       digest: ${{ needs['base'].outputs.digest }}
 
   atomic-nvidia:
     name: Build eeems/arkes:atomic-nvidia image
-    needs: atomic
+    needs:
+      - builder
+      - atomic
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: atomic-nvidia
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
 
   base-slim:
     name: Build eeems/arkes:base-slim image
-    needs: base
+    needs:
+      - builder
+      - base
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: base-slim
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
       digest: ${{ needs['base'].outputs.digest }}
 
   eeems:
     name: Build eeems/arkes:eeems image
-    needs: atomic
+    needs:
+      - builder
+      - atomic
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: eeems
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
 
   eeems-nvidia:
     name: Build eeems/arkes:eeems-nvidia image
-    needs: eeems
+    needs:
+      - builder
+      - eeems
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: eeems-nvidia
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
 
   eeems-system76:
     name: Build eeems/arkes:eeems-system76 image
-    needs: eeems
+    needs:
+      - builder
+      - eeems
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: eeems-system76
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
 
   gnome:
     name: Build eeems/arkes:gnome image
-    needs: base
+    needs:
+      - builder
+      - base
     uses: ./.github/workflows/build-variant.yaml
     secrets: inherit
     permissions: *permissions
     with:
       variant: gnome
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
       digest: ${{ needs['base'].outputs.digest }}
@@ -266,7 +295,9 @@ jobs:
   scan_rootfs:
     name: Scan image for rootfs
     if: github.event_name != 'pull_request' || fromJson(needs['rootfs'].outputs.updates)
-    needs: rootfs
+    needs:
+      - builder
+      - rootfs
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -275,11 +306,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['rootfs'].outputs.updates) && 'rootfs' || '' }}
       digest: ${{ needs['rootfs'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_base:
     name: Scan image for base
     if: github.event_name != 'pull_request' || fromJson(needs['base'].outputs.updates)
-    needs: base
+    needs:
+      - builder
+      - base
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -288,11 +322,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['base'].outputs.updates) && 'base' || '' }}
       digest: ${{ needs['base'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_atomic:
     name: Scan image for atomic
     if: github.event_name != 'pull_request' || fromJson(needs['atomic'].outputs.updates)
-    needs: atomic
+    needs:
+      - builder
+      - atomic
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -301,11 +338,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['atomic'].outputs.updates) && 'atomic' || '' }}
       digest: ${{ needs['atomic'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_atomic-nvidia:
     name: Scan image for atomic-nvidia
     if: github.event_name != 'pull_request' || fromJson(needs['atomic-nvidia'].outputs.updates)
-    needs: atomic-nvidia
+    needs:
+      - builder
+      - atomic-nvidia
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -314,11 +354,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['atomic-nvidia'].outputs.updates) && 'atomic-nvidia' || '' }}
       digest: ${{ needs['atomic-nvidia'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_base-slim:
     name: Scan image for base-slim
     if: github.event_name != 'pull_request' || fromJson(needs['base-slim'].outputs.updates)
-    needs: base-slim
+    needs:
+      - builder
+      - base-slim
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -327,11 +370,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['base-slim'].outputs.updates) && 'base-slim' || '' }}
       digest: ${{ needs['base-slim'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_eeems:
     name: Scan image for eeems
     if: github.event_name != 'pull_request' || fromJson(needs['eeems'].outputs.updates)
-    needs: eeems
+    needs:
+      - builder
+      - eeems
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -340,11 +386,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['eeems'].outputs.updates) && 'eeems' || '' }}
       digest: ${{ needs['eeems'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_eeems-nvidia:
     name: Scan image for eeems-nvidia
     if: github.event_name != 'pull_request' || fromJson(needs['eeems-nvidia'].outputs.updates)
-    needs: eeems-nvidia
+    needs:
+      - builder
+      - eeems-nvidia
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -353,11 +402,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['eeems-nvidia'].outputs.updates) && 'eeems-nvidia' || '' }}
       digest: ${{ needs['eeems-nvidia'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_eeems-system76:
     name: Scan image for eeems-system76
     if: github.event_name != 'pull_request' || fromJson(needs['eeems-system76'].outputs.updates)
-    needs: eeems-system76
+    needs:
+      - builder
+      - eeems-system76
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -366,11 +418,14 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['eeems-system76'].outputs.updates) && 'eeems-system76' || '' }}
       digest: ${{ needs['eeems-system76'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   scan_gnome:
     name: Scan image for gnome
     if: github.event_name != 'pull_request' || fromJson(needs['gnome'].outputs.updates)
-    needs: gnome
+    needs:
+      - builder
+      - gnome
     uses: ./.github/workflows/scan.yaml
     secrets: inherit
     permissions: *permissions
@@ -379,6 +434,7 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       artifact: ${{ fromJson(needs['gnome'].outputs.updates) && 'gnome' || '' }}
       digest: ${{ needs['gnome'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   ######################################
   #             ISO                #
@@ -386,7 +442,9 @@ jobs:
 
   iso_base:
     name: Generate iso for base
-    needs: base
+    needs:
+      - builder
+      - base
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -396,10 +454,13 @@ jobs:
       digest: ${{ needs['base'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_atomic:
     name: Generate iso for atomic
-    needs: atomic
+    needs:
+      - builder
+      - atomic
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -409,10 +470,13 @@ jobs:
       digest: ${{ needs['atomic'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_atomic-nvidia:
     name: Generate iso for atomic-nvidia
-    needs: atomic-nvidia
+    needs:
+      - builder
+      - atomic-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -422,10 +486,13 @@ jobs:
       digest: ${{ needs['atomic-nvidia'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_base-slim:
     name: Generate iso for base-slim
-    needs: base-slim
+    needs:
+      - builder
+      - base-slim
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -435,10 +502,13 @@ jobs:
       digest: ${{ needs['base-slim'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_eeems:
     name: Generate iso for eeems
-    needs: eeems
+    needs:
+      - builder
+      - eeems
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -448,10 +518,13 @@ jobs:
       digest: ${{ needs['eeems'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_eeems-nvidia:
     name: Generate iso for eeems-nvidia
-    needs: eeems-nvidia
+    needs:
+      - builder
+      - eeems-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -461,10 +534,13 @@ jobs:
       digest: ${{ needs['eeems-nvidia'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-nvidia'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_eeems-system76:
     name: Generate iso for eeems-system76
-    needs: eeems-system76
+    needs:
+      - builder
+      - eeems-system76
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -474,10 +550,13 @@ jobs:
       digest: ${{ needs['eeems-system76'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-system76'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   iso_gnome:
     name: Generate iso for gnome
-    needs: gnome
+    needs:
+      - builder
+      - gnome
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
     permissions: *permissions
@@ -487,3 +566,4 @@ jobs:
       digest: ${{ needs['gnome'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}

@@ -1,3 +1,4 @@
+import os
 import string
 
 from glob import glob
@@ -28,9 +29,13 @@ def command(args: Namespace):
             ".github/workflows/tool-builder.yaml",
             "make/builder.py",
             "make/hash-builder.py",
-            *glob("tools/builder/**"),
+            *glob("tools/builder/**", recursive=True),
         ]
     ):
+        if os.path.isdir(path):
+            m.update(path.encode("utf-8"))
+            continue
+
         with open(path, "rb") as f:
             m.update(f.read())
 

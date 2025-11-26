@@ -39,7 +39,7 @@ jobs:
           echo "unique_tag=${HASH}" >> $GITHUB_OUTPUT
           echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "tags=${IMAGE_NAME}:${{ github.head_ref || github.ref_name }},${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
-          echo "missing=$(skopeo list-tags docker://ghcr.io/eeems/arkes-builder | jq 'any(.Tags[]; . == "${HASH}") | not')" >> $GITHUB_OUTPUT
+          echo "missing=$(skopeo list-tags docker://ghcr.io/eeems/arkes-builder | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
       - name: Build and push

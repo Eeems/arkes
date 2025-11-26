@@ -111,13 +111,16 @@ def command(_: Namespace):
         lines = [
             f"{job_id}:",
             f"  name: Build {IMAGE}:{job_id} image",
-            f"  needs: {depends}",
+            "  needs:",
+            "    - builder",
+            f"    - {depends}",
             "  uses: ./.github/workflows/build-variant.yaml",
             "  secrets: inherit",
             "  permissions: *permissions",
             "  with:",
             f"    variant: {job_id}",
             "    push: ${{ github.event_name != 'pull_request' }}",
+            "    builder: ${{ needs.builder.outputs.unique_tag }}",
         ]
         if job_id != "rootfs":
             lines += [
@@ -137,7 +140,9 @@ def command(_: Namespace):
                 f"scan_{job_id}:",
                 f"  name: Scan image for {job_id}",
                 f"  if: github.event_name != 'pull_request' || fromJson(needs['{job_id}'].outputs.updates)",
-                f"  needs: {job_id}",
+                "  needs:",
+                "    - builder",
+                f"    - {job_id}",
                 "  uses: ./.github/workflows/scan.yaml",
                 "  secrets: inherit",
                 "  permissions: *permissions",
@@ -146,6 +151,7 @@ def command(_: Namespace):
                 "    push: ${{ github.event_name != 'pull_request' }}",
                 f"    artifact: ${{{{ fromJson(needs['{job_id}'].outputs.updates) && '{job_id}' || '' }}}}",
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         )
 
@@ -154,7 +160,9 @@ def command(_: Namespace):
             [
                 f"iso_{job_id}:",
                 f"  name: Generate iso for {job_id}",
-                f"  needs: {job_id}",
+                "  needs:",
+                "    - builder",
+                f"    - {job_id}",
                 "  uses: ./.github/workflows/iso.yaml",
                 "  secrets: inherit",
                 "  permissions: *permissions",
@@ -164,6 +172,7 @@ def command(_: Namespace):
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
                 f"    pull: ${{{{ github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates) }}}}",
                 "    push: ${{ github.event_name != 'pull_request' }}",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         )
 
@@ -248,7 +257,7 @@ def command(_: Namespace):
                 "    contents: read",
                 "    packages: read",
                 "  container:",
-                f"    image: {BUILDER}:${{{{ github.head_ref || github.ref_name }}}}",
+                f"    image: {BUILDER}:${{{{ needs.builder.outputs.unique_tag }}}}",
                 "    options: >-",
                 "      --privileged",
                 "      --security-opt seccomp=unconfined",
@@ -294,6 +303,7 @@ def command(_: Namespace):
                 "  name: Generate manifest",
                 '  if: "!cancelled()"',
                 "  needs:",
+                "    - builder",
                 *[f"    - {j}" for j in sorted(build_order)],
                 "  uses: ./.github/workflows/manifest.yaml",
                 "  secrets: inherit",
@@ -304,6 +314,7 @@ def command(_: Namespace):
                 "    security-events: write",
                 "  with:",
                 "    cache: false",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         ),
         comment("BUILD"),
