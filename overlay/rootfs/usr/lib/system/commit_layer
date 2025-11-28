@@ -4,8 +4,8 @@ set -euo pipefail
 path="$(realpath "${1:-/}")"
 ref_exact=$(mktemp)
 ref_before=$(mktemp)
-touch -d "@946684800" "$ref_exact"
-touch -d "@946684799" "$ref_before"
+touch -d "@1735689640" "$ref_exact"
+touch -d "@1735689639" "$ref_before"
 echo "[system] Committing $path"
 find "$path" -xdev \
   \( \
@@ -20,5 +20,5 @@ find "$path" -xdev \
     -a ! -newer "$ref_exact" \
   \) \
   -print0 \
-| xargs -0 -r -P$(nproc) -n500 touch -h -d "@946684800"
+| xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
 rm -f "$ref_exact" "$ref_before"
