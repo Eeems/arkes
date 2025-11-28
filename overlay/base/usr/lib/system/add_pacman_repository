@@ -88,6 +88,7 @@ with open(script, "w") as f:
             raise FileNotFoundError(keyfile)
 
         runAndAppend("pacman-key", "--lsign", key)
+        runAndAppend("pacman-key", "--updatedb")
 
 os.chmod(script, os.stat(script).st_mode | stat.S_IEXEC)
 print(f"[system] Adding repository {name}")
