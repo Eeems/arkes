@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # x-depends=rootfs
 # x-templates=slim
+# x-clean
 ARG HASH
 
 FROM arkes:rootfs as overlay

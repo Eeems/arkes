@@ -175,6 +175,7 @@ jobs:
       updates: ${{ fromJson(needs['rootfs'].outputs.updates) }}
       artifact: rootfs
       digest: ${{ needs['rootfs'].outputs.digest }}
+      cleanup: true
 
   atomic:
     name: Build eeems/arkes:atomic image

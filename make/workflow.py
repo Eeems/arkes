@@ -42,18 +42,19 @@ def command(_: Namespace):
 
             graph[variant] = {
                 "depends": data.get("depends", None) or "rootfs",
-                "cleanup": False,
+                "cleanup": cast(bool, data.get("clean", False)),
             }
             indegree[variant] = 0
             for template in cast(list[str], data["templates"]):
                 full_id = f"{variant}-{template}"
+                # TODO get clean for template
                 graph[full_id] = {
                     "depends": (
                         f"{variant}-{template.rsplit('-', 1)[0]}"
                         if "-" in template
                         else variant
                     ),
-                    "cleanup": cast(bool, data.get("clean", False)),
+                    "cleanup": False,
                 }
                 indegree[full_id] = 0
 
