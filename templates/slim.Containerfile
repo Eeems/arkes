@@ -55,7 +55,9 @@ ARG \
   PRETTY_NAME \
   ID \
   HOME_URL \
-  BUG_REPORT_URL
+  BUG_REPORT_URL \
+  TAR_DETERMINISTIC \
+  TAR_SORT
 
 LABEL \
   os-release.NAME="${NAME}" \

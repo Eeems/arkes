@@ -90,7 +90,7 @@ RUN systemctl enable \
   && chmod 644 /etc/pam.d/sudo{,-i} \
   && /usr/lib/system/commit_layer
 
-ARG VERSION_ID HASH
+ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \

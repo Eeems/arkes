@@ -30,7 +30,7 @@ RUN systemctl enable gdm \
 
 COPY --from=overlay /overlay /
 
-ARG VERSION_ID HASH
+ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \

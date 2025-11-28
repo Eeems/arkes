@@ -13,7 +13,9 @@ ARG \
   VARIANT \
   VARIANT_ID \
   VERSION_ID \
-  HASH
+  HASH \
+  TAR_DETERMINISTIC \
+  TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \
