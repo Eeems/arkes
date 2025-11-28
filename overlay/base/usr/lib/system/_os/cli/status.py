@@ -18,7 +18,7 @@ def get_status(deployment: Deployment) -> str:
     version_id = osInfo.get("VERSION_ID", "0")
     build_id = osInfo.get("BUILD_ID", "0")
     status = f"{deployment.index}: {ref}"
-    if type:
+    if deployment.type:
         status += f" ({deployment.type})"
 
     if deployment.pinned:
