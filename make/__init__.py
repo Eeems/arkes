@@ -47,7 +47,6 @@ in_system = cast(Callable[..., int], _os.podman.in_system)  # pyright:ignore [re
 in_system_output = cast(Callable[..., bytes], _os.podman.in_system_output)  # pyright:ignore [reportUnknownMemberType]
 is_root = cast(Callable[[], bool], _os.system.is_root)  # pyright:ignore [reportUnknownMemberType]
 image_hash = cast(Callable[[str], str], _os.podman.image_hash)  # pyright:ignore [reportUnknownMemberType]
-image_info = cast(Callable[[str, bool], dict[str, object]], _os.podman.image_info)  # pyright:ignore [reportUnknownMemberType]
 image_labels = cast(Callable[[str, bool], dict[str, str]], _os.podman.image_labels)  # pyright:ignore [reportUnknownMemberType]
 image_exists = cast(Callable[[str, bool, bool], bool], _os.podman.image_exists)  # pyright:ignore [reportUnknownMemberType]
 image_tags = cast(Callable[[str, bool], list[str]], _os.podman.image_tags)  # pyright:ignore [reportUnknownMemberType]

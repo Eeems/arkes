@@ -7,7 +7,9 @@ import string
 import tarfile
 import subprocess
 import json
+import podman as _podman
 
+from podman.errors import APIError
 from time import time
 from hashlib import sha256
 from glob import iglob
@@ -22,12 +24,32 @@ from . import REGISTRY
 from . import IMAGE
 from . import REPO
 
+from .system import is_root
 from .system import execute
 from .system import _execute  # pyright:ignore [reportPrivateUsage]
 from .ostree import ostree
 
 from .console import bytes_to_stdout
 from .console import bytes_to_stderr
+
+
+client: _podman.PodmanClient | None = None
+
+
+def get_client() -> _podman.PodmanClient:
+    global client
+    if client is not None:
+        return client
+
+    _socket = (
+        "http+unix:///run/podman/podman.sock"
+        if is_root()
+        else f"http+unix:///run/user/{os.getuid()}/podman/podman.sock"
+    )
+    client = _podman.PodmanClient(base_url=_socket)
+    _ = atexit.register(client.close)
+    assert client.ping(), "Unable to connect to podman"
+    return client
 
 
 def podman_cmd(*args: str) -> list[str]:
@@ -191,6 +213,10 @@ def image_info(image: str, remote: bool = True) -> dict[str, object]:
 
 
 def image_labels(image: str, remote: bool = True) -> dict[str, str]:
+    if not remote:
+        image = image_qualified_name(image)
+        return cast(dict[str, str], get_client().images.get(image).labels)
+
     return cast(dict[str, dict[str, str]], image_info(image, remote)).get("Labels", {})
 
 
@@ -199,11 +225,11 @@ def image_hash(image: str, remote: bool = True) -> str:
 
 
 def image_exists(image: str, remote: bool = True, skip_manifest: bool = False) -> bool:
-    image_exists = not _execute(shlex.join(podman_cmd("image", "exists", image)))
+    image = image_qualified_name(image)
+    image_exists = get_client().images.exists(image)
     if image_exists or not remote:
         return image_exists
 
-    image = image_qualified_name(image)
     registry, image, tag, ref = image_name_parts(image)
     if ref is not None:
         raise NotImplementedError()
@@ -330,14 +356,15 @@ def _image_digest_remote(image: str) -> str:
 
 
 def _latest_manifest() -> bool:
-    return (
-        subprocess.run(
-            podman_cmd("pull", f"{REPO}:_manifest"),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode
-        == 0
-    )
+    try:
+        get_client().images.pull(  # pyright: ignore[reportUnknownMemberType, reportUnusedCallResult]
+            REPO,
+            "_manifest",
+        )
+        return True
+
+    except APIError:
+        return False
 
 
 def image_digest(image: str, remote: bool = True) -> str:
@@ -381,13 +408,14 @@ def image_size(image: str) -> int:
 CONTAINER_POST_STEPS = r"""
 ARG \
   KARGS \
-  VERSION_ID \
   TAR_DETERMINISTIC \
   TAR_SORT
 
 RUN fc-cache -f \
-  && /usr/lib/system/build_kernel \
+  && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
   && /usr/lib/system/prepare_fs
+
+ARG VERSION_ID
 
 RUN /usr/lib/system/set_build_id
 """
@@ -444,6 +472,7 @@ def build(
             f"--volume={cache}:{cache}",
             f"--file={containerfile}",
             "--format=oci",
+            "--timestamp=1735689640",
             onstdout=onstdout,
             onstderr=onstderr,
         )
@@ -469,7 +498,13 @@ def export_stream(
     os.chdir(workingDir)
     timestamp = int(time())
     name = f"export-{tag}-{timestamp}"
-    exitFunc1 = atexit.register(podman, "rm", name)
+
+    def rm(name: str):
+        containers = get_client().containers
+        if containers.exists(name):
+            containers.get(name).remove()  # pyright: ignore[reportUnknownMemberType]
+
+    exitFunc1 = atexit.register(rm, name)
     podman(
         "run",
         f"--name={name}",
@@ -495,7 +530,7 @@ def export_stream(
             raise subprocess.CalledProcessError(process.returncode, cmd, None, None)
 
         atexit.unregister(exitFunc1)
-        podman("rm", name, onstdout=onstdout, onstderr=onstderr)
+        rm(name)
         os.chdir(cwd)
 
 

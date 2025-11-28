@@ -32,6 +32,10 @@ on:
         type: string
         required: false
         default: ""
+      builder:
+        description: Builder tag to use
+        required: false
+        type: string
     outputs:
       updates:
         value: ${{ jobs.run.outputs.updates }}
@@ -53,7 +57,7 @@ jobs:
       updates: ${{ steps.build.outputs.updates }}
       digest: ${{ steps.image.outputs.digest }}
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ github.head_ref || github.ref_name }}
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt seccomp=unconfined
@@ -113,7 +117,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/restore@v4
         with:
-          key: pacman-build-${{ inputs.variant }}
+          key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Build
@@ -194,7 +198,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/save@v4
         with:
-          key: pacman-build-${{ inputs.variant }}
+          key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Save manifest cache

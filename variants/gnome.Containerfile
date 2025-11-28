@@ -2,11 +2,6 @@
 # x-depends=base
 ARG HASH
 
-FROM arkes:base as overlay
-
-COPY overlay/gnome /overlay
-RUN /usr/lib/system/commit_layer /overlay
-
 FROM arkes:base
 
 ARG \
@@ -25,12 +20,11 @@ RUN /usr/lib/system/package_layer \
   gnome-tweaks \
   gnome-control-center
 
-RUN systemctl enable gdm \
-  && /usr/lib/system/commit_layer
+RUN systemctl enable gdm
 
-COPY --from=overlay /overlay /
+COPY overlay/gnome /
 
-ARG VERSION_ID HASH
+ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \
@@ -39,5 +33,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant

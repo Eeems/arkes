@@ -27,4 +27,3 @@ if [ ${#aur_packages[@]} -gt 0 ]; then
   /usr/lib/system/install_aur_packages "${aur_packages[@]}"
 fi
 /usr/lib/system/remove_pacman_files
-/usr/lib/system/commit_layer

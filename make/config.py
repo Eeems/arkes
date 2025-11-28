@@ -63,8 +63,8 @@ def parse_config(containerfile: str) -> tuple[str, ConfigItem]:
     if templates is not None:
         config["templates"] = templates
 
-    # TODO sort out how to set clean property in a way so it's only for
-    #      one template if it's set for a template
+    # TODO get x-clean for templates
+    config["clean"] = bool(_get_config_data(lines, "# x-clean", multiple=True))
     return filename[:-14], config
 
 

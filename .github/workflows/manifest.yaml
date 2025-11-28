@@ -8,6 +8,10 @@ on:
         default: true
         required: false
         type: boolean
+      builder:
+        description: Builder tag to use
+        required: false
+        type: string
   workflow_call:
     inputs: *inputs
 
@@ -61,7 +65,7 @@ jobs:
     name: Build manifest
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ github.head_ref || github.ref_name }}
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt seccomp=unconfined
