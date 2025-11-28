@@ -31,6 +31,12 @@ def register(parser: ArgumentParser):
         help="Push the image after the build",
     )
     _ = parser.add_argument(
+        "--no-cache",
+        action="store_false",
+        dest="cache",
+        help="Do not reuse the previous layer cache when building",
+    )
+    _ = parser.add_argument(
         "target",
         action="extend",
         nargs="+",
@@ -46,12 +52,12 @@ def command(args: Namespace):
         sys.exit(1)
 
     for target in cast(list[str], args.target):
-        build(target)
+        build(target, cast(bool, args.cache))
         if cast(bool, args.push):
             push(target)
 
 
-def build(target: str):
+def build(target: str, cache: bool = True):
     now = datetime.now(UTC)
     uuid = f"{now.strftime('%H%M%S')}{int(now.microsecond / 10000)}"
     build_args: dict[str, str] = {
@@ -89,13 +95,14 @@ def build(target: str):
         "build",
         f"--tag={REPO}:{target}",
         *[f"--build-arg={k}={v}" for k, v in build_args.items()],
+        *[] if cache else ["--no-cache"],
         "--force-rm",
         "--pull=never",
         "--jobs=1",
         "--volume=/var/cache/pacman:/var/cache/pacman",
         f"--file={containerfile}",
         "--format=oci",
-        "--timestamp=946684800",
+        "--timestamp=1735689640",
         ".",
     )
 

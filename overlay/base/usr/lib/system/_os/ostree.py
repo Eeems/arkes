@@ -124,7 +124,7 @@ def prune(
     ostree(
         "prune",
         "--commit-only",
-        f"--retain-branch-depth={branch}={RETAIN}",
+        f"--retain-branch-depth={OS_NAME}/{branch}={RETAIN}",
         f"--only-branch={OS_NAME}/{branch}",
         "--keep-younger-than=1 second",
         onstdout=onstdout,

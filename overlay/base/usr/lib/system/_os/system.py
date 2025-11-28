@@ -324,6 +324,15 @@ def upgrade(
         setup="""
         rm -f /etc
         rm -rf /var/*
+        find / -xdev \\
+          \\( \\
+            -path /dev \\
+            -o -path /proc \\
+            -o -path /sys \\
+            -o -path /run \\
+            -o -path /tmp \\
+          \\) -prune -o -print0 \\
+        | xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
         """,
         workingDir=SYSTEM_PATH,
         onstdout=onstdout,
@@ -339,7 +348,9 @@ def upgrade(
             "--tar-pathname-filter=^,./",
             "--tar-autocreate-parents",
         )
-        ostree_proc = subprocess.Popen(cmd, stdin=stdout)
+        env = os.environ.copy()
+        env["SOURCE_DATE_EPOCH"] = "0"
+        ostree_proc = subprocess.Popen(cmd, stdin=stdout, env=env)
         ostree_out, ostree_err = ostree_proc.communicate()
         if ostree_out is not None:  # pyright: ignore[reportUnnecessaryComparison]
             onstdout(ostree_out)

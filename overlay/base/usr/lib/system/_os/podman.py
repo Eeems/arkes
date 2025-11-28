@@ -408,13 +408,15 @@ def image_size(image: str) -> int:
 CONTAINER_POST_STEPS = r"""
 ARG \
   KARGS \
-  VERSION_ID \
   TAR_DETERMINISTIC \
   TAR_SORT
 
 RUN fc-cache -f \
-  && /usr/lib/system/build_kernel \
+  && /usr/lib/system/commit_layer \
+  && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
   && /usr/lib/system/prepare_fs
+
+ARG VERSION_ID
 
 RUN /usr/lib/system/set_build_id
 """
