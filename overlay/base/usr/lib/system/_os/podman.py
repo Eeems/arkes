@@ -412,7 +412,6 @@ ARG \
   TAR_SORT
 
 RUN fc-cache -f \
-  && /usr/lib/system/commit_layer \
   && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
   && /usr/lib/system/prepare_fs
 
@@ -473,6 +472,7 @@ def build(
             f"--volume={cache}:{cache}",
             f"--file={containerfile}",
             "--format=oci",
+            "--timestamp=1735689640",
             onstdout=onstdout,
             onstderr=onstderr,
         )

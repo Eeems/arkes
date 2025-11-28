@@ -3,11 +3,6 @@
 # x-templates=nvidia
 ARG HASH
 
-FROM arkes:base as overlay
-
-COPY overlay/atomic /overlay
-RUN /usr/lib/system/commit_layer /overlay
-
 FROM arkes:base
 
 ARG \
@@ -65,15 +60,13 @@ RUN /usr/lib/system/package_layer \
 
 RUN systemctl enable \
   greetd \
-  udisks2 \
-  && /usr/lib/system/commit_layer
+  udisks2
 
-COPY --from=overlay /overlay /
+COPY overlay/atomic /
 
 RUN systemctl enable \
   dconf.service \
-  prelockd.service \
-  && /usr/lib/system/commit_layer
+  prelockd.service
 
 ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
@@ -84,5 +77,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant

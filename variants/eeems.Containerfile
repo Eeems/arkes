@@ -3,11 +3,6 @@
 # x-templates=nvidia,system76
 ARG HASH
 
-FROM arkes:atomic as overlay
-
-COPY overlay/eeems /overlay
-RUN /usr/lib/system/commit_layer /overlay
-
 FROM arkes:atomic
 
 ARG \
@@ -25,8 +20,7 @@ RUN /usr/lib/system/add_pacman_repository \
   --server=https://repo.eeems.codes/\$repo \
   eeems-linux \
   && /usr/lib/system/install_packages eeems-keyring \
-  && /usr/lib/system/remove_pacman_files \
-  && /usr/lib/system/commit_layer
+  && /usr/lib/system/remove_pacman_files
 
 RUN /usr/lib/system/package_layer \
   sublime-text \
@@ -45,10 +39,9 @@ RUN /usr/lib/system/package_layer \
   --aur \
   wego
 
-RUN systemctl enable zerotier-one \
-  && /usr/lib/system/commit_layer
+RUN systemctl enable zerotier-one
 
-COPY --from=overlay /overlay /
+COPY overlay/eeems /
 
 ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
@@ -59,5 +52,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant

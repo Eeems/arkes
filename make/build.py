@@ -98,7 +98,6 @@ def build(target: str, cache: bool = True):
         *[] if cache else ["--no-cache"],
         "--force-rm",
         "--pull=never",
-        "--jobs=1",
         "--volume=/var/cache/pacman:/var/cache/pacman",
         f"--file={containerfile}",
         "--format=oci",

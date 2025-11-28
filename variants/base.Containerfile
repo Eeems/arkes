@@ -3,11 +3,6 @@
 # x-templates=slim
 ARG HASH
 
-FROM arkes:rootfs as overlay
-
-COPY overlay/base /overlay
-RUN /usr/lib/system/commit_layer /overlay
-
 FROM arkes:rootfs
 
 ARG \
@@ -64,10 +59,9 @@ RUN /usr/lib/system/package_layer \
   && ln -s /usr/bin/su{-rs,} \
   && ln -s /usr/bin/sudo{-rs,} \
   && ln -s /usr/bin/visudo{-rs,} \
-  && chmod u+s /usr/bin/new{u,g}idmap \
-  && /usr/lib/system/commit_layer /usr/bin
+  && chmod u+s /usr/bin/new{u,g}idmap
 
-COPY --from=overlay /overlay /
+COPY overlay/base /
 
 # install_aur_packages is part of the overlay
 RUN mkdir /var/home \
@@ -87,8 +81,7 @@ RUN systemctl enable \
   systemd-timesyncd \
   && mkdir -p /var/lib/system \
   && chmod 400 /etc/sudoers \
-  && chmod 644 /etc/pam.d/sudo{,-i} \
-  && /usr/lib/system/commit_layer
+  && chmod 644 /etc/pam.d/sudo{,-i}
 
 ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
 
@@ -99,5 +92,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant
