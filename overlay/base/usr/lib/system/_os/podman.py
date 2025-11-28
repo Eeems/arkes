@@ -500,7 +500,9 @@ def export_stream(
     name = f"export-{tag}-{timestamp}"
 
     def rm(name: str):
-        get_client().containers.get(name).remove()  # pyright: ignore[reportUnknownMemberType]
+        containers = get_client().containers
+        if containers.exists(name):
+            containers.get(name).remove()  # pyright: ignore[reportUnknownMemberType]
 
     exitFunc1 = atexit.register(rm, name)
     podman(
