@@ -13,7 +13,9 @@ ARG \
   VARIANT \
   VARIANT_ID \
   VERSION_ID \
-  HASH
+  HASH \
+  TAR_DETERMINISTIC \
+  TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \
@@ -22,5 +24,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant

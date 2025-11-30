@@ -1,12 +1,15 @@
 import json
+import _os  # pyright: ignore[reportMissingImports]
 
 from argparse import ArgumentParser
 from argparse import Namespace
 from typing import Any
 from typing import cast
+from typing import Callable
 
-from . import image_info
 from . import REPO
+
+image_info = cast(Callable[[str, bool], dict[str, object]], _os.podman.image_info)  # pyright:ignore [reportUnknownMemberType]
 
 kwds: dict[str, str] = {
     "help": "Return the JSON manifest of an image",

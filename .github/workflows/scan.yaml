@@ -22,6 +22,10 @@ on:
         type: string
         required: false
         default: ""
+      builder:
+        description: Builder tag to use
+        required: false
+        type: string
   workflow_dispatch:
     inputs: *inputs
 
@@ -35,7 +39,7 @@ jobs:
     name: arkes:${{ inputs.variant }} image
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ github.head_ref || github.ref_name }}
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt seccomp=unconfined
@@ -109,7 +113,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/restore@v4
         with:
-          key: pacman-scan-${{ inputs.variant }}
+          key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Scan container
@@ -125,7 +129,7 @@ jobs:
       - name: Pacman cache
         uses: actions/cache/save@v4
         with:
-          key: pacman-scan-${{ inputs.variant }}
+          key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
 
       - name: Upload Scan results to GitHub Security tab

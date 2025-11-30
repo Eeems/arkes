@@ -42,18 +42,19 @@ def command(_: Namespace):
 
             graph[variant] = {
                 "depends": data.get("depends", None) or "rootfs",
-                "cleanup": False,
+                "cleanup": cast(bool, data.get("clean", False)),
             }
             indegree[variant] = 0
             for template in cast(list[str], data["templates"]):
                 full_id = f"{variant}-{template}"
+                # TODO get clean for template
                 graph[full_id] = {
                     "depends": (
                         f"{variant}-{template.rsplit('-', 1)[0]}"
                         if "-" in template
                         else variant
                     ),
-                    "cleanup": cast(bool, data.get("clean", False)),
+                    "cleanup": False,
                 }
                 indegree[full_id] = 0
 
@@ -111,13 +112,16 @@ def command(_: Namespace):
         lines = [
             f"{job_id}:",
             f"  name: Build {IMAGE}:{job_id} image",
-            f"  needs: {depends}",
+            "  needs:",
+            "    - builder",
+            f"    - {depends}",
             "  uses: ./.github/workflows/build-variant.yaml",
             "  secrets: inherit",
             "  permissions: *permissions",
             "  with:",
             f"    variant: {job_id}",
             "    push: ${{ github.event_name != 'pull_request' }}",
+            "    builder: ${{ needs.builder.outputs.unique_tag }}",
         ]
         if job_id != "rootfs":
             lines += [
@@ -137,7 +141,9 @@ def command(_: Namespace):
                 f"scan_{job_id}:",
                 f"  name: Scan image for {job_id}",
                 f"  if: github.event_name != 'pull_request' || fromJson(needs['{job_id}'].outputs.updates)",
-                f"  needs: {job_id}",
+                "  needs:",
+                "    - builder",
+                f"    - {job_id}",
                 "  uses: ./.github/workflows/scan.yaml",
                 "  secrets: inherit",
                 "  permissions: *permissions",
@@ -146,6 +152,7 @@ def command(_: Namespace):
                 "    push: ${{ github.event_name != 'pull_request' }}",
                 f"    artifact: ${{{{ fromJson(needs['{job_id}'].outputs.updates) && '{job_id}' || '' }}}}",
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         )
 
@@ -154,7 +161,9 @@ def command(_: Namespace):
             [
                 f"iso_{job_id}:",
                 f"  name: Generate iso for {job_id}",
-                f"  needs: {job_id}",
+                "  needs:",
+                "    - builder",
+                f"    - {job_id}",
                 "  uses: ./.github/workflows/iso.yaml",
                 "  secrets: inherit",
                 "  permissions: *permissions",
@@ -164,6 +173,7 @@ def command(_: Namespace):
                 f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
                 f"    pull: ${{{{ github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates) }}}}",
                 "    push: ${{ github.event_name != 'pull_request' }}",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         )
 
@@ -182,12 +192,14 @@ def command(_: Namespace):
             "    branches:",
             "      - master",
             "    paths:",
+            "      - .github/workflows/tool-builder.yaml",
             "      - .github/workflows/build.yaml",
             "      - .github/workflows/build-variant.yaml",
             "      - .github/workflows/iso.yaml",
             "      - .github/workflows/manifest.yaml",
             '      - ".github/actions/**"',
             '      - "tools/dockerfile2llbjson/**"',
+            '      - "tools/builder/**"',
             '      - "make/__main__.py"',
             '      - "make/__init__.py"',
             '      - "make/iso.py"',
@@ -199,12 +211,12 @@ def command(_: Namespace):
             '      - "make/manifest.py"',
             '      - "make/check.py"',
             '      - "make/workflow.py"',
-            "      - make.py",
-            "      - seccomp.json",
-            "      - .containerignore",
             '      - "overlay/**"',
             '      - "templates/**"',
             '      - "variants/**"',
+            "      - make.py",
+            "      - seccomp.json",
+            "      - .containerignore",
             "  push: *on-filter",
             "  workflow_dispatch:",
             "  schedule:",
@@ -230,28 +242,23 @@ def command(_: Namespace):
                 "      with:",
                 "        pat: ${{ secrets.NOTIFICATION_PAT }}",
                 "",
-                "wait:",
-                "  name: Wait for builder to finish",
-                "  runs-on: ubuntu-latest",
+                "builder:",
+                "  name: Build builder image",
+                "  uses: ./.github/workflows/tool-builder.yaml",
+                "  secrets: inherit",
                 "  permissions:",
                 "    contents: read",
-                "    actions: read",
-                "  steps:",
-                "    - name: Wait",
-                "      uses: NathanFirmo/wait-for-other-action@8241e29ea2e9661a8af6d319b1d074825a299730",
-                "      with:",
-                "        token: ${{ github.token }}",
-                "        workflow: 'tool-builder.yaml'",
+                "    packages: write",
                 "",
                 "check:",
                 "  name: Ensure config is valid",
                 "  runs-on: ubuntu-latest",
-                "  needs: wait",
+                "  needs: builder",
                 "  permissions:",
                 "    contents: read",
                 "    packages: read",
                 "  container:",
-                f"    image: {BUILDER}:${{{{ github.head_ref || github.ref_name }}}}",
+                f"    image: {BUILDER}:${{{{ needs.builder.outputs.unique_tag }}}}",
                 "    options: >-",
                 "      --privileged",
                 "      --security-opt seccomp=unconfined",
@@ -270,7 +277,7 @@ def command(_: Namespace):
                 "      uses: actions/cache@v4",
                 "      with:",
                 "        path: .venv",
-                "        key: venv-${{ hashFiles('.github/workflows/Dockerfile.builder') }}-${{ hashFiles('make.py') }}",
+                "        key: venv-${{ needs.builder.outputs.unique_tag }}-${{ hashFiles('make/check.py') }}",
                 "    - name: Cache go",
                 "      uses: actions/cache@v4",
                 "      with:",
@@ -297,6 +304,7 @@ def command(_: Namespace):
                 "  name: Generate manifest",
                 '  if: "!cancelled()"',
                 "  needs:",
+                "    - builder",
                 *[f"    - {j}" for j in sorted(build_order)],
                 "  uses: ./.github/workflows/manifest.yaml",
                 "  secrets: inherit",
@@ -307,6 +315,7 @@ def command(_: Namespace):
                 "    security-events: write",
                 "  with:",
                 "    cache: false",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
             ]
         ),
         comment("BUILD"),

@@ -1,16 +1,10 @@
 name: Build builder image
 on:
-  pull_request: &on-filter
-    branches:
-      - master
-    paths:
-      - .github/workflows/tool-builder.yaml
-      - "tools/builder/**"
-      - "tools/dockerfile2llbjson/**"
-  push: *on-filter
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * 0"
+  workflow_call:
+    outputs:
+      unique_tag:
+        value: ${{ jobs.builder.outputs.unique_tag }}
 
 permissions:
   contents: read
@@ -19,6 +13,8 @@ permissions:
 jobs:
   builder:
     runs-on: ubuntu-latest
+    outputs:
+      unique_tag: ${{ steps.meta.outputs.unique_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,10 +35,15 @@ jobs:
         id: meta
         run: |
           IMAGE_NAME=ghcr.io/eeems/arkes-builder
+          HASH="$(python ./make/hash-builder.py --no-newline)"
+          echo "unique_tag=${HASH}" >> $GITHUB_OUTPUT
           echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-          echo "tags=${IMAGE_NAME}:${{ github.sha }},${IMAGE_NAME}:${{ github.head_ref || github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "tags=${IMAGE_NAME}:${{ github.head_ref || github.ref_name }},${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
+          echo "missing=$(skopeo list-tags docker://ghcr.io/eeems/arkes-builder | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Build and push
+        if: fromJson(steps.meta.outputs.missing)
         uses: docker/build-push-action@v6
         with:
           context: .

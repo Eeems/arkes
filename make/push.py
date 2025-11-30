@@ -1,9 +1,13 @@
 import sys
+import _os  # pyright: ignore[reportMissingImports]
 
 from argparse import ArgumentParser
 from argparse import Namespace
 from typing import Any
 from typing import cast
+from typing import Literal
+from typing import Callable
+from podman import PodmanClient
 
 from . import is_root
 from . import image_labels
@@ -11,6 +15,8 @@ from . import podman
 from . import image_digest
 from . import _image_digests_write_cache  # pyright: ignore[reportPrivateUsage]
 from . import REPO
+
+get_client = cast(Callable[[], PodmanClient], _os.podman.get_client)  # pyright: ignore[reportUnknownMemberType]
 
 kwds: dict[str, str] = {
     "help": "Push one or more tags to the remote repository",
@@ -38,29 +44,41 @@ def command(args: Namespace):
 
 
 def push(target: str):
+    client = get_client()
     image = f"{REPO}:{target}"
+    _image = client.images.get(image)
     labels = image_labels(image, False)
     tags: list[str] = []
-    # TODO handle when trying to push a versioned image
     if labels.get("os-release.VERSION", None):
         version = labels["os-release.VERSION"]
         version_id = labels.get("os-release.VERSION_ID", None)
         if version_id and version != version_id:
-            tag = f"{image}_{version}.{version_id}"
+            tag = f"{target}_{version}.{version_id}"
             tags.append(tag)
-            podman("tag", image, tag)
+            assert _image.tag(REPO, tag), "Failed to tag image"
 
-        tag = f"{image}_{version}"
+        tag = f"{target}_{version}"
         tags.append(tag)
-        podman("tag", image, tag)
+        assert _image.tag(REPO, tag), "Failed to tag image"
 
-    for tag in [*tags, image]:
+    for tag in [*tags, target]:
+        tag = f"{REPO}:{tag}"
         podman("push", "--retry=5", "--compression-format=zstd:chunked", tag)
         print(f"Pushed {tag}")
         _image_digests_write_cache(tag, image_digest(tag, False))
 
-    if tags:
-        podman("rmi", *tags)
+    results: list[
+        dict[Literal["Deleted", "Untagged", "Errors", "ExitCode"], str | int]
+    ] = []
+    for tag in tags:
+        results.extend(client.images.remove(f"{REPO}:{tag}"))
+
+    errors = [x.get("Errors") for x in results if x.get("Errors") is not None]
+    if errors:
+        raise ExceptionGroup(  # noqa: F821
+            "Failed to remove tags",
+            [Exception(x) for x in errors],
+        )
 
 
 if __name__ == "__main__":

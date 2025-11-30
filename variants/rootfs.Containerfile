@@ -3,8 +3,7 @@ ARG ARCHIVE_YEAR=2025
 ARG ARCHIVE_MONTH=11
 ARG ARCHIVE_DAY=29
 ARG PACSTRAP_TAG=20250427.0.341977
-ARG HASH
-ARG VERSION_ID
+ARG HASH VERSION_ID
 
 FROM golang:1.25.4-alpine as dockerfile2llbjson
 
@@ -53,14 +52,13 @@ RUN rm usr/share/libalpm/hooks/60-mkinitcpio-remove.hook \
   --owner=0 --group=0 \
   --numeric-owner \
   --pax-option=exthdr.name=%d/PaxHeaders/%p,delete=atime,delete=ctime \
-  --mtime="@946684800" \
+  --mtime="@1735689640" \
   -C rootfs \
   -cf rootfs.tar . \
   && rm -rf rootfs \
   && mkdir rootfs \
   && tar -C rootfs -xf rootfs.tar \
-  && rm rootfs.tar \
-  && /overlay/usr/lib/system/commit_layer /rootfs
+  && rm rootfs.tar
 
 FROM scratch AS rootfs
 
@@ -69,7 +67,9 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
   PACSTRAP_TAG \
-  HASH
+  HASH \
+  TAR_DETERMINISTIC \
+  TAR_SORT
 
 LABEL \
   os-release.NAME="Arkēs" \
@@ -104,7 +104,6 @@ RUN  echo 'NAME="Arkēs"' > /usr/lib/os-release \
   && echo "VERSION=${ARCHIVE_YEAR}.${ARCHIVE_MONTH}.${ARCHIVE_DAY}" >> /usr/lib/os-release \
   && echo "VERSION_ID=${ARCHIVE_YEAR}.${ARCHIVE_MONTH}.${ARCHIVE_DAY}" >> /usr/lib/os-release \
   && echo "VARIANT=Base" >> /usr/lib/os-release \
-  && echo "VARIANT_ID=base" >> /usr/lib/os-release \
-  && /usr/lib/system/commit_layer
+  && echo "VARIANT_ID=base" >> /usr/lib/os-release
 
 ENTRYPOINT [ "/bin/bash" ]

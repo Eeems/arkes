@@ -145,6 +145,7 @@ def command(args: Namespace):
                         "dbus-python",
                         "PyGObject",
                         "xattr",
+                        "podman",
                     ]
                 ),
             ]

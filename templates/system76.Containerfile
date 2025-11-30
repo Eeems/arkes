@@ -2,11 +2,6 @@
 ARG HASH
 ARG BASE_VARIANT_ID
 
-FROM arkes:${BASE_VARIANT_ID} as overlay
-
-COPY overlay/system76 /overlay
-RUN /usr/lib/system/commit_layer /overlay
-
 FROM arkes:${BASE_VARIANT_ID}
 
 RUN /usr/lib/system/add_pacman_repository \
@@ -14,8 +9,7 @@ RUN /usr/lib/system/add_pacman_repository \
   --server=https://repo.eeems.website/\$repo \
   --server=https://repo.eeems.codes/\$repo \
   eeems-system76 \
-  && /usr/lib/system/remove_pacman_files \
-  && /usr/lib/system/commit_layer
+  && /usr/lib/system/remove_pacman_files
 
 RUN /usr/lib/system/package_layer \
   system76-driver \
@@ -31,16 +25,17 @@ RUN systemctl enable \
   system76 \
   system76-firmware-daemon \
   com.system76.PowerDaemon \
-  com.system76.Scheduler \
-  && /usr/lib/system/commit_layer
+  com.system76.Scheduler
 
-COPY --from=overlay /overlay /
+COPY overlay/system76 /
 
 ARG \
   VARIANT \
   VARIANT_ID \
   VERSION_ID \
-  HASH
+  HASH \
+  TAR_DETERMINISTIC \
+  TAR_SORT
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \
@@ -49,5 +44,4 @@ LABEL \
   org.opencontainers.image.ref.name="${VARIANT_ID}" \
   hash="${HASH}"
 
-RUN /usr/lib/system/set_variant \
-  && /usr/lib/system/commit_layer
+RUN /usr/lib/system/set_variant

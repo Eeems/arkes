@@ -91,6 +91,7 @@ RUN apt-get update \
     requests \
     wheel \
     dbus-python \
+    podman \
     # Cleanup
     && pip cache purge \
     && apt-get autoremove -y \
