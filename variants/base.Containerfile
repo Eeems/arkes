@@ -59,12 +59,14 @@ RUN /usr/lib/system/package_layer \
   && ln -s /usr/bin/su{-rs,} \
   && ln -s /usr/bin/sudo{-rs,} \
   && ln -s /usr/bin/visudo{-rs,} \
-  && chmod u+s /usr/bin/new{u,g}idmap
+  && chmod u+s /usr/bin/new{u,g}idmap \
+  && rm /etc/containers/storage.conf
 
 COPY overlay/base /
 
 # install_aur_packages is part of the overlay
-RUN mkdir /var/home \
+RUN cp /{usr/share,etc}/containers/storage.conf \
+  &&mkdir /var/home \
   && /usr/lib/system/package_layer \
   --aur \
   localepurge \
