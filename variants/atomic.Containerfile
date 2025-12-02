@@ -45,6 +45,8 @@ RUN /usr/lib/system/package_layer \
   bluez-utils \
   system-config-printer \
   dex \
+  cups \
+  cups-pdf \
   --aur \
   python-imageio-ffmpeg \
   python-screeninfo \
@@ -59,8 +61,9 @@ RUN /usr/lib/system/package_layer \
   prelockd
 
 RUN systemctl enable \
-  greetd \
-  udisks2
+  greetd.service \
+  udisks2.service \
+  cups.socket
 
 COPY overlay/atomic /
 
