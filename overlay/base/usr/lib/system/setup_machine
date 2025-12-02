@@ -30,6 +30,7 @@ EOF
 if [[ "${language}.${encoding}" != "en_US.UTF-8" ]]; then
   echo "en_US.UTF-8" >>/etc/locale.nopurge
 fi
+chronic localepurge-config
 chronic localepurge
 rm /etc/locale.nopurge
 echo "[system] Ranking mirrorlist"
