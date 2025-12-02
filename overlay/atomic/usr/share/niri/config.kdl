@@ -39,7 +39,6 @@ spawn-at-startup "syshud"
 spawn-at-startup "wl-paste" "--type" "text" "--watch" "cliphist" "store"
 spawn-at-startup "wl-paste" "--type" "image" "--watch" "cliphist" "store"
 spawn-at-startup "hypridle"
-spawn-at-startup "xwayland-satellite"
 spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
 spawn-at-startup "dex" "--autostart" "--environment" "niri"
 
@@ -78,7 +77,6 @@ window-rule {
 
 environment {
     ELECTRON_OZONE_PLATFORM_HINT "auto"
-    DISPLAY ":0"
     TERMINAL "ghostty"
     GTK_THEME "adw-gtk3:dark"
 }
