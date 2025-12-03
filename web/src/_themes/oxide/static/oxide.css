@@ -247,7 +247,7 @@ dd {
   width: 1rem;
   height: 1rem;
   margin-right: 0.444rem;
-  filter: invert(100);
+  filter: invert(1);
 }
 
 @media (prefers-color-scheme: light) {

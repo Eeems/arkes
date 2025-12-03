@@ -1,11 +1,12 @@
 name: Build documentation
 
 on:
-  push:
-    paths: &paths
+  push: &targets
+    branches:
+      - main
+    paths:
       - "web/**"
-  pull_request:
-    paths: *paths
+  pull_request: *targets
 
 jobs:
   web:
