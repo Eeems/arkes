@@ -11,18 +11,6 @@ if(typeof ackeeTracker !== "undefined"){
 }else{
     console.error("ackeeTracker is missing");
 }
-if(!dnt){
-    if(typeof Sentry !== "undefined"){
-        Sentry.init({
-            dsn: "https://f90339133a5c499184570d8c4c64a503@glitchtip.eeems.codes/2",
-            integrations: [new Sentry.Integrations.BrowserTracing()],
-            tracePropagationTargets: ["localhost", "127.0.0.1", "remarkable.guide", /^\//],
-            tracesSampleRate: 1.0,
-        });
-    }else{
-        console.error("Sentry is missing");
-    }
-}
 function setup(){
     document
         .querySelectorAll('img.screenshot')
