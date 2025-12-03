@@ -23,6 +23,9 @@ The primary tool for system management is the ``os`` command.
    # Update system (atomic update)
    os upgrade
    
+   # Build the latest systemfile, but do not deploy it.
+   os build
+   
    # Remove most recent deployment (for cleanup after switching deployments)
    os revert
 
