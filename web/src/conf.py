@@ -12,13 +12,6 @@ html_static_path = ["_static"]
 templates_path = ["_templates"]
 html_js_files = [
     "https://peek.eeems.website/peek.js",
-    (
-        "https://browser.sentry-cdn.com/6.16.1/bundle.tracing.min.js",
-        {
-            "integrity": "sha384-hySah00SvKME+98UjlzyfP852AXjPPTh2vgJu26gFcwTlZ02/zm82SINaKTKwIX2",
-            "crossorigin": "anonymous",
-        },
-    ),
     "oxide.js",
 ]
 
