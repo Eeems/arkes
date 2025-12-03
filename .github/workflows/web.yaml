@@ -3,7 +3,7 @@ name: Build documentation
 on:
   push: &targets
     branches:
-      - main
+      - master
     paths:
       - "web/**"
       - .github/workflows/web.yaml
@@ -37,7 +37,7 @@ jobs:
           path: "web/dist/"
   deploy:
     needs: web
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/master' }}
     permissions:
       pages: write
       id-token: write
