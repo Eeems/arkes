@@ -1,6 +1,6 @@
-===
-FAQ
-===
+==========================
+Frequently Asked Questions
+==========================
 
 Frequently asked questions about Arkēs atomic Linux distribution.
 
