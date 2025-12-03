@@ -10,6 +10,7 @@ What is Systemfile?
 Systemfile is a **Dockerfile-like configuration** that defines how your system is built. It's stored at ``/etc/system/Systemfile`` and processed during system builds.
 
 **Key Concepts**:
+
 - **Declarative**: Define what you want, not how to install it
 - **Immutable**: Changes require rebuilding system
 - **Atomic**: All changes applied together or not at all
@@ -158,6 +159,7 @@ Add custom repositories with ``/usr/lib/system/add_pacman_repository``:
    RUN /usr/lib/system/install_packages custom-package
 
 **Repository Options**:
+
 - ``--key=KEY_ID``: GPG key fingerprint
 - ``--keyfile=URL``: GPG key file URL
 - ``--server=URL``: Repository server URL
@@ -186,6 +188,7 @@ Use ``/usr/lib/system/install_aur_packages`` to install AUR packages:
        discord
 
 **AUR Options**:
+
 - **package-name**: Install latest version
 - **package-name=git-ref**: Install specific git reference
 - **package-name=tag**: Install specific tag
@@ -234,6 +237,7 @@ You can run any custom commands in Systemfile:
    RUN curl -L https://example.com/app.tar.gz | tar -xz -C /opt/
 
 **Best Practices**:
+
 - Use ``&&`` to chain commands
 - Quote paths with spaces
 - Test commands in unlocked system first

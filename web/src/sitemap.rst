@@ -10,9 +10,9 @@ Site Map
    installation
    user-guide
    variants
-   creating-variants
    systemfile-reference
    migration
    architecture
+   creating-variants
    faq
    troubleshooting
