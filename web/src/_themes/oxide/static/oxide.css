@@ -110,12 +110,11 @@ blockquote {
   border-width: 0;
   border-left-width: initial;
   font-size: 0.888rem;
-  color: var(--font-color-inv);
+  color: var(--font-color);
   text-align: left;
   font-weight: normal;
   margin: 0;
   font-style: italic;
-  color: var(--font-color);
 }
 
 div.warning {
