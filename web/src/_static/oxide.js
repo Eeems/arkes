@@ -32,7 +32,7 @@ function setup(){
                     el.title = "Click to close image";
                     el.classList.add("fullscreen");
                     el.addEventListener('click', () => document.body.removeChild(el));
-                    el.addEventListener('keypress', function(e){
+                    el.addEventListener('keydown', function(e){
                         if(e.key == "Escape" || e.key == "F11"){
                             document.body.removeChild(el);
                         }
