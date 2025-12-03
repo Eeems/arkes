@@ -1,0 +1,43 @@
+name: Build documentation
+
+on:
+  push:
+    branches:
+      - '*'
+      - '*/*'
+      - '**'
+      - '!main'
+    paths:
+      - 'web/**'
+  pull_request:
+    paths:
+      - 'web/**'
+
+jobs:
+  web:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the Git repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cache Python environment
+        uses: actions/cache@v4
+        id: cache-python
+        with:
+          path: web/.venv
+          key: web/.venv-${{ hashFiles('web/requirements.txt') }}
+      - name: Build documentation
+        shell: bash
+        run: |
+          cd web && make prod
+      - name: Save documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: web/dist
