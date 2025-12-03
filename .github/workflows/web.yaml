@@ -1,4 +1,4 @@
-name: Build documentation
+name: Build website
 
 on:
   push: &targets
@@ -11,7 +11,7 @@ on:
 
 jobs:
   web:
-    name: Build documentation
+    name: Build website
     runs-on: ubuntu-latest
     permissions:
       contents: read
