@@ -2,42 +2,48 @@ name: Build documentation
 
 on:
   push:
-    branches:
-      - '*'
-      - '*/*'
-      - '**'
-      - '!main'
-    paths:
-      - 'web/**'
+    paths: &paths
+      - "web/**"
   pull_request:
-    paths:
-      - 'web/**'
+    paths: *paths
 
 jobs:
   web:
     name: Build documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout the Git repository
         uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.13"
       - name: Cache Python environment
         uses: actions/cache@v4
         id: cache-python
         with:
           path: web/.venv
           key: web/.venv-${{ hashFiles('web/requirements.txt') }}
-      - name: Build documentation
+      - name: Build website
         shell: bash
-        run: |
-          cd web && make prod
-      - name: Save documentation
-        uses: actions/upload-artifact@v4
+        run: cd web && make prod
+      - name: Save website
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: documentation
-          path: web/dist
+          path: "web/dist/"
+  deploy:
+    needs: web
+    if: ${{ github.ref == 'refs/heads/main' }}
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
