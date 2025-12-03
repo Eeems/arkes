@@ -12,7 +12,6 @@ Site Map
    variants
    quick-start
    creating-variants
-   development
    cli-reference
    systemfile-reference
    migration

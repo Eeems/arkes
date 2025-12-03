@@ -564,5 +564,3 @@ Community Guidelines
 - Respond to user feedback
 - Fix reported issues promptly
 - Update documentation as needed
-
-For more information about the build system, see :doc:`development`.

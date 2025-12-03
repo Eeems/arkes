@@ -488,5 +488,3 @@ Arkēs architecture supports future growth:
 - **Performance optimization**: Further performance improvements
 
 This architecture provides a solid foundation for an immutable, atomic Linux distribution that prioritizes security, reliability, and maintainability while supporting modern container-based workflows.
-
-For more information about contributing to Arkēs, see :doc:`development`.
