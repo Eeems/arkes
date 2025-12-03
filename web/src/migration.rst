@@ -188,7 +188,7 @@ If coming from Arch Linux, map your packages:
 
 .. code-block:: dockerfile
 
-   # Add your常用 packages to Systemfile
+   # Add your common packages to Systemfile
    RUN /usr/lib/system/install_packages \
        htop \
        vim \

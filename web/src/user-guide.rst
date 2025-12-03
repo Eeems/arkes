@@ -12,16 +12,6 @@ Essential System Commands
 
 The primary tool for system management is the ``os`` command.
 
-Understanding ``os revert``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``os revert`` removes the most recent deployment (index 0) from your system. It's important to understand:
-
-- **Cannot remove currently booted deployment**: OSTree prevents removing the deployment you're currently using
-- **Primarily for cleanup**: Used to remove problematic deployments after switching to an older one
-- **Two-step rollback process**: To rollback, reboot and select previous deployment from boot menu, then run ``os revert`` to clean up
-- **Pre-reboot cleanup**: If you run ``os upgrade`` but realize you made a mistake before rebooting, ``os revert`` will remove the new deployment and leave your current system intact
-
 .. code-block:: bash
 
    # Check system status and available deployments
@@ -33,11 +23,8 @@ Understanding ``os revert``
    # Update system (atomic update)
    os upgrade
    
-# Remove most recent deployment if needed (for cleanup after switching deployments)
-    os revert
-   
-   # Clean old deployments to free space
-   os prune
+   # Remove most recent deployment (for cleanup after switching deployments)
+   os revert
 
 Package Management
 ~~~~~~~~~~~~~~~~~~
