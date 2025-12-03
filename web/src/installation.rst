@@ -46,24 +46,26 @@ Installation Process
 
    Replace ``/dev/sda2`` with your system partition and ``/dev/sda1`` with your boot partition.
 
-   **Common partition layouts**:
-   - **Single disk**: ``/dev/sda1`` (boot), ``/dev/sda2`` (system)
-   - **NVMe**: ``/dev/nvme0n1p1`` (boot), ``/dev/nvme0n1p2`` (system)
+**Common partition layouts**:
 
-   **Additional options**:
-   - ``--format-partitions``: Format partitions before installing
-   - ``--nvidia``: Install NVIDIA drivers
-   - ``--package``: Add extra packages (can be used multiple times)
+- **Single disk**: ``/dev/sda1`` (boot), ``/dev/sda2`` (system)
+- **NVMe**: ``/dev/nvme0n1p1`` (boot), ``/dev/nvme0n1p2`` (system)
+
+**Additional options**:
+
+- ``--format-partitions``: Format partitions before installing
+- ``--nvidia``: Install NVIDIA drivers
+- ``--package``: Add extra packages (can be used multiple times)
 
 3. **Installation Process**
 
-   The installer will:
-   
-   - **Mount partitions** to ``/mnt``
-   - **Install base system** from current Systemfile
-   - **Configure bootloader** (GRUB)
-   - **Set root password** (prompted if not provided)
-   - **Generate fstab** and system configuration
+The installer will:
+
+- **Mount partitions** to ``/mnt``
+- **Install base system** from current Systemfile
+- **Configure bootloader** (GRUB)
+- **Set root password** (prompted if not provided)
+- **Generate fstab** and system configuration
 
 4. **Wait for Completion**
 

@@ -15,8 +15,8 @@ Migrating to Arkēs involves adapting to an **immutable, atomic** Linux distribu
 **Immutable System**:
 - Base system files are read-only
 - Changes through Systemfile, not direct modification
-- Atomic updates with rollback capability
-- Container-first application approach
+- Atomic updates with manual rollback capability
+- Container-based system building
 
 **New Workflows**:
 - **System customization** through Systemfile editing
@@ -70,7 +70,7 @@ Before migrating, backup all important data:
 - **Store backup in multiple locations**
 
 Application Migration
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 For application alternatives and installation methods, see Arch Wiki and Flatpak documentation.
 
@@ -235,7 +235,7 @@ Fedora Silverblue/OpenSUSE MicroOS
 **Similarities**:
 - **Immutable base system**
 - **Atomic updates**
-- **Container-based workflows**
+- **Container-based system building**
 - **RPM-OSTree** vs **OSTree**
 
 **Key Differences**:
@@ -278,14 +278,20 @@ Fedora Silverblue/OpenSUSE MicroOS
 
 **Command Mapping**:
 
-+--------------------+--------------+
-| Fedora Silverblue  | Arkes        |
-+====================+==============+
-| rpm-ostree status  | os status    |
-| rpm-ostree upgrade | os upgrade   |
-| rpm-ostree rollback | os revert   |
-| toolbox            | distrobox    |
-+--------------------+--------------+
+.. list-table:: Command Mapping
+   :header-rows: 1
+   :widths: 30 30
+
+   * - Fedora Silverblue
+     - Arkes
+   * - rpm-ostree status
+     - os status
+   * - rpm-ostree upgrade
+     - os upgrade
+   * - rpm-ostree rollback
+     - boot menu + os revert
+   * - toolbox
+     - distrobox
 
 From macOS
 ----------
@@ -489,7 +495,7 @@ Common Problems
 - **Compatibility**: Use containers for problematic apps
 
 **System Issues**:
-- **Boot problems**: Use rollback or live USB recovery
+- **Boot problems**: Use boot menu to select previous deployment, then ``os revert`` to clean up, or live USB recovery
 - **Update failures**: Check network and disk space
 - **Hardware issues**: Verify driver compatibility
 - **Performance**: Optimize system settings
@@ -527,6 +533,6 @@ Getting Help
 - **Document changes** for future reference
 - **Gradual migration** - migrate applications over time
 
-Remember that Arkēs' immutable nature means most migration issues can be resolved by rolling back with ``os revert`` and then adjusting your approach.
+Remember that Arkēs' immutable nature means most migration issues can be resolved by rebooting and selecting previous deployment from boot menu, then running ``os revert`` to clean up and adjusting your approach.
 
 For more information about daily usage, see :doc:`user-guide`.

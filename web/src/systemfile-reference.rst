@@ -22,7 +22,7 @@ Systemfile is a **Dockerfile-like configuration** that defines how your system i
 Basic Structure
 ---------------
 
-Systemfile uses Dockerfile syntax with Arkēs-specific commands:
+Systemfile uses standard Dockerfile syntax with system-specific helper scripts:
 
 .. code-block:: dockerfile
 

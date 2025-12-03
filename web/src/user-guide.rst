@@ -8,9 +8,19 @@ Daily Operations
 ----------------
 
 Essential System Commands
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The primary tool for system management is the ``os`` command.
+
+Understanding ``os revert``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``os revert`` removes the most recent deployment (index 0) from your system. It's important to understand:
+
+- **Cannot remove currently booted deployment**: OSTree prevents removing the deployment you're currently using
+- **Primarily for cleanup**: Used to remove problematic deployments after switching to an older one
+- **Two-step rollback process**: To rollback, reboot and select previous deployment from boot menu, then run ``os revert`` to clean up
+- **Pre-reboot cleanup**: If you run ``os upgrade`` but realize you made a mistake before rebooting, ``os revert`` will remove the new deployment and leave your current system intact
 
 .. code-block:: bash
 
@@ -23,21 +33,21 @@ The primary tool for system management is the ``os`` command.
    # Update system (atomic update)
    os upgrade
    
-   # Rollback to previous deployment if needed
-   os revert
+# Remove most recent deployment if needed (for cleanup after switching deployments)
+    os revert
    
    # Clean old deployments to free space
    os prune
 
 Package Management
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 Arkēs uses Systemfile for system-level packages. See :doc:`systemfile-reference` for details.
 
 For desktop applications, use Flatpak. For containers, use Podman.
 
 Filesystem Layout
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Arkēs uses an immutable filesystem. See :doc:`architecture` for detailed filesystem information.
 
@@ -75,7 +85,7 @@ For additional help with daily usage:
 - **GitHub Issues**: https://github.com/Eeems/arkes/issues
 - **Community**: GitHub Discussions
 
-Remember that Arkēs' immutable nature means most issues can be resolved by:
-1. Rolling back with ``os revert``
+Remember that Arkēs' immutable nature means many issues can be resolved by:
+1. Rebooting and selecting previous deployment from boot menu, then cleaning up with ``os revert``
 2. Fixing the issue in Systemfile
 3. Rebuilding and upgrading with ``os build && os upgrade``

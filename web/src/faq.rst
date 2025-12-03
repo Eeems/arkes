@@ -14,8 +14,8 @@ Arkēs is an **immutable, atomic Linux distribution** built on Arch Linux. It pr
 
 - **Immutable filesystem** - Core system files cannot be modified directly
 - **Atomic updates** - Updates either complete fully or not at all
-- **Rollback capability** - Always able to revert to previous system state
-- **Container-native** - Built around Podman for application isolation
+- **Manual rollback** - Ability to revert to previous system state when needed
+- **Container-based builds** - Built around Podman for system building
 - **Declarative configuration** - System customization through Systemfile
 
 **Key difference from traditional distributions**: The base system is read-only and managed through atomic updates rather than direct package installation.

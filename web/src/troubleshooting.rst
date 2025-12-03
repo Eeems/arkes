@@ -137,8 +137,9 @@ First Boot Problems
 
 4. **Rollback Installation**:
    - Boot from USB installer
-   - Use ``os revert`` from live environment
-   - Reinstall with different options
+   - Reboot and select previous deployment from boot menu
+   - After successful boot, run ``os revert`` to clean up problematic deployment
+   - Reinstall with different options if needed
 
 Network Configuration
 ~~~~~~~~~~~~~~~~~~~~~
@@ -214,10 +215,11 @@ Update Failures
 3. **Partial Updates**:
    - If update partially completed, check system state
    - Try completing update: ``os upgrade``
-   - If still failing, rollback: ``os revert``
+   - If still failing, reboot and select previous deployment from boot menu, then run ``os revert`` to clean up
 
 4. **Boot Issues After Update**:
-   - Boot into previous deployment: ``os revert``
+   - Reboot and select previous deployment from boot menu
+   - After successful boot, run ``os revert`` to remove problematic deployment
    - Check what changed in the update
    - Report issue with specific error messages
 
@@ -619,6 +621,8 @@ When to Seek Help
    df -h >> system-info.txt
    os du >> system-info.txt
 
-Remember that Arkēs' atomic nature means most issues can be resolved by rolling back with ``os revert`` and then investigating the problem in a stable system state.
+Remember that Arkēs' atomic nature means many issues can be resolved by the two-step rollback process: reboot and select previous deployment from boot menu, then run ``os revert`` to clean up the problematic deployment. This should be used when system updates cause boot or functionality issues. 
+
+Note: ``os revert`` removes the most recent deployment (index 0) and cannot remove the currently booted deployment. It's primarily used for cleanup after switching to an older deployment.
 
 For additional help, see :doc:`faq` or visit the GitHub issues page.
