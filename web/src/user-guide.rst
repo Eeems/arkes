@@ -4,46 +4,6 @@ User Guide
 
 This guide covers daily usage of Arkēs as an immutable, atomic Linux distribution.
 
-Core Concepts
--------------
-
-Immutable OS Philosophy
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Arkēs is built on the principle of **immutability**:
-
-- **Base system (/usr)** is read-only and cannot be modified directly
-- **User data (/var/home)** is fully writable and persistent
-- **Configuration** is done through **Systemfile** and overlays
-- **Updates** are atomic - they either complete fully or not at all
-
-This approach provides:
-
-- **Reliability** - System files cannot be accidentally corrupted
-- **Security** - Malware cannot modify base system files
-- **Consistency** - All systems start from identical base
-- **Recovery** - Easy rollback from failed updates
-
-Atomic Updates
-~~~~~~~~~~~~~~~
-
-Updates in Arkēs work differently from traditional distributions:
-
-- **All-or-nothing** - Updates either complete successfully or not at all
-- **Automatic rollback** - Failed updates automatically revert
-- **Multiple deployments** - Keep previous versions for easy rollback
-- **Zero-downtime** - Updates happen in background, activate on reboot
-
-Container-Native Architecture
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Arkēs embraces containers as a primary application delivery method:
-
-- **Podman** pre-installed and configured
-- **Rootless containers** by default
-- **System integration** with desktop and CLI tools
-- **Isolation** for applications that need it
-
 Daily Operations
 ----------------
 
@@ -116,62 +76,11 @@ Remove old system deployments to free space:
    os prune
 
 Package Management
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
-Arkēs supports multiple package management approaches.
+Arkēs uses Systemfile for system-level packages. See :doc:`systemfile-reference` for details.
 
-Flatpak (Recommended for Desktop Apps)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Install desktop applications:
-
-.. code-block:: bash
-
-   # Search for applications
-   flatpak search firefox
-   
-   # Install application
-   flatpak install org.mozilla.firefox
-   
-   # Run application
-   flatpak run org.mozilla.firefox
-   
-   # Update applications
-   flatpak update
-
-Podman Containers
-^^^^^^^^^^^^^^^^^
-
-Run isolated applications:
-
-.. code-block:: bash
-
-   # Run Ubuntu container
-   podman run -it ubuntu:latest
-   
-   # Run with persistent storage
-   podman run -it -v /home/user/data:/data ubuntu:latest
-   
-   # Run GUI application
-   podman run -it --net=host --env=DISPLAY=$DISPLAY firefox
-
-Systemfile (System Packages)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Install system-level packages through Systemfile (see :doc:`systemfile-reference`):
-
-.. code-block:: dockerfile
-
-   RUN /usr/lib/system/install_packages vim git
-
-AUR Packages
-^^^^^^^^^^^^
-
-Install AUR packages through Systemfile:
-
-.. code-block:: dockerfile
-
-   RUN /usr/lib/system/install_aur_packages package-name=git-ref
+For desktop applications, use Flatpak. For containers, use Podman.
 
 Filesystem Layout
 ~~~~~~~~~~~~~~~~~
@@ -230,32 +139,7 @@ System-level configuration is done through:
 2. **Overlays** - Directory-based configuration for variants
 3. **User configuration** - Traditional dotfiles in home directory
 
-User Configuration
-^^^^^^^^^^^^^^^^^^
 
-Personal configuration files work as expected:
-
-.. code-block:: bash
-
-   # Shell configuration
-   nano ~/.bashrc
-   
-   # Editor configuration  
-   mkdir -p ~/.config/nano
-   nano ~/.config/nanorc
-   
-   # Desktop configuration
-   mkdir -p ~/.config/waybar
-   nano ~/.config/waybar/config
-
-Application Configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Applications store configuration in standard locations:
-
-- ``~/.config/appname`` - Application settings
-- ``~/.local/share/appname`` - Application data
-- ``~/.cache/appname`` - Cache files
 
 Customization Workflow
 ----------------------
@@ -342,26 +226,7 @@ The ``os unlock`` command makes your system temporarily mutable:
 
 **Warning:** Changes made while unlocked are temporary unless using ``--hotfix``
 
-Container Integration
-~~~~~~~~~~~~~~~~~~~~~
 
-Arkēs provides seamless container integration:
-
-.. code-block:: bash
-
-   # Run container with home directory access
-   podman run -it -v ~/Documents:/documents ubuntu:latest
-   
-   # Run GUI application from container
-   podman run -it --net=host --env=DISPLAY=$DISPLAY \
-       -v /tmp/.X11-unix:/tmp/.X11-unix \
-       firefox
-   
-   # Build and run custom container
-   echo 'FROM alpine:latest
-   RUN apk add --no-cache htop' > Containerfile
-   podman build -t my-htop .
-   podman run -it my-htop
 
 System Maintenance
 ~~~~~~~~~~~~~~~~~~
@@ -396,15 +261,9 @@ Common Problems
 - Try running from terminal for error messages
 - Check dependencies: ``flatpak info appname``
 
-**Network Issues**
-- Check NetworkManager: ``nmcli connection show``
-- Restart network: ``sudo systemctl restart NetworkManager``
-- Check hardware: ``ip link``
-
 **Storage Issues**
 - Check disk usage: ``os du``
 - Clean old deployments: ``os prune``
-- Clear package cache: ``sudo pacman -Scc``
 
 **Update Failures**
 - Check internet connection
