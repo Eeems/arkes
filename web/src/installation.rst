@@ -21,27 +21,13 @@ You can download Arkēs from:
 - **GitHub Releases**: https://github.com/Eeems/arkes/releases
 - **Container Registry**: ``podman pull ghcr.io/eeems/arkes:atomic``
 
-Choose the variant that best fits your needs:
-
-- **rootfs**: Base system for developers
-- **base**: Minimal server/container variant  
-- **atomic**: Modern Wayland desktop
-- **gnome**: Traditional GNOME desktop
-- **eeems**: Personalized variant with extra tools
+Choose the variant that best fits your needs. See :doc:`variants` for complete variant information.
 
 Creating Installation Media
 ---------------------------
 
 1. **Download ISO** for your preferred variant
-2. **Write to USB drive**:
-
-   .. code-block:: bash
-
-      # On Linux
-      sudo dd if=arkes-atomic.iso of=/dev/sdX bs=4M status=progress sync
-      
-      # On macOS
-      sudo dd if=arkes-atomic.iso of=/dev/rdiskX bs=4m
+2. **Create bootable USB** using Arch Wiki: https://wiki.archlinux.org/title/USB_flash_installation
 
 3. **Boot from USB** - Enter your firmware/BIOS and select the USB drive
 

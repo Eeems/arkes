@@ -4,23 +4,6 @@ Troubleshooting
 
 Comprehensive guide to resolving common issues with Arkēs. This guide covers installation problems, update failures, and system recovery.
 
-Getting Help
-------------
-
-Before diving into troubleshooting, remember these resources:
-
-**Quick Commands**:
-- ``os status`` - Check current system state
-- ``os revert`` - Rollback to previous deployment
-- ``journalctl -xe`` - View system error logs
-- ``os unlock`` - Temporarily make system mutable for testing
-
-**Documentation**:
-- :doc:`user-guide` - Daily usage guidance
-- :doc:`cli-reference` - Command reference
-- :doc:`faq` - Common questions
-- GitHub Issues - https://github.com/Eeems/arkes/issues
-
 Installation Issues
 -------------------
 

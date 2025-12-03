@@ -36,20 +36,7 @@ Pre-Migration Checklist
 System Requirements
 ~~~~~~~~~~~~~~~~~~~
 
-Ensure your hardware meets Arkēs requirements:
-
-**Minimum Requirements**:
-- **UEFI firmware** (no legacy BIOS support)
-- **64-bit x86_64** processor
-- **4GB RAM** (8GB+ recommended)
-- **20GB storage** (30GB+ recommended)
-- **Internet connection** for installation and updates
-
-**Recommended for Best Experience**:
-- **8GB+ RAM** for desktop usage
-- **SSD storage** for better performance
-- **Modern graphics** (NVIDIA/AMD with good Linux support)
-- **Wired internet** for initial setup
+See :doc:`installation` for system requirements and hardware compatibility.
 
 Data Backup Strategy
 ~~~~~~~~~~~~~~~~~~~~
@@ -82,30 +69,15 @@ Before migrating, backup all important data:
 - **Verify all important files included**
 - **Store backup in multiple locations**
 
-Application Inventory
-~~~~~~~~~~~~~~~~~~~~~
+Application Migration
+~~~~~~~~~~~~~~~~~~~~
 
-List your current applications for migration planning:
+For application alternatives and installation methods, see Arch Wiki and Flatpak documentation.
 
-**Common Applications and Arkes Equivalents**:
-
-+----------------------+-----------------------+
-| Current Application  | Arkes Alternative     |
-+======================+=======================+
-| Microsoft Office     | LibreOffice (Flatpak) |
-| Adobe Photoshop      | GIMP (Flatpak)        |
-| Chrome               | Firefox (Flatpak)     |
-| Steam                | Steam (native)        |
-| VS Code              | VS Code (AUR)         |
-| Discord              | Discord (AUR/Flatpak) |
-| Spotify              | Spotify (AUR/Flatpak) |
-+----------------------+-----------------------+
-
-**Migration Planning**:
-1. **Identify essential applications**
-2. **Find Arkēs alternatives**
-3. **Note application-specific data locations**
-4. **Plan configuration migration**
+**Key differences**:
+- Use Flatpak for desktop applications
+- Use Systemfile for system packages
+- Use Podman for containerized applications
 
 From Traditional Linux Distributions
 ------------------------------------

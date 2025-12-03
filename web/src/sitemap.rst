@@ -11,7 +11,6 @@ Site Map
    user-guide
    variants
    creating-variants
-   cli-reference
    systemfile-reference
    migration
    architecture
