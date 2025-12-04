@@ -212,16 +212,18 @@ Enable and configure systemd services:
    # Create custom service
    RUN <<EOT
        set -ex
-       echo "[Unit]
-       Description=Custom Service
-       After=network.target
+       cat > /etc/systemd/system/custom.service << 'EOF'
+   [Unit]
+   Description=Custom Service
+   After=network.target
 
-       [Service]
-       ExecStart=/usr/bin/custom-app
-       Restart=always
+   [Service]
+   ExecStart=/usr/bin/custom-app
+   Restart=always
 
-       [Install]
-       WantedBy=multi-user.target" > /etc/systemd/system/custom.service
+   [Install]
+   WantedBy=multi-user.target
+   EOF
        systemctl enable custom
    EOT
 
