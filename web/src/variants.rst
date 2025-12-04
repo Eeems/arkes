@@ -2,12 +2,12 @@
 Variants Overview
 =================
 
-Arkēs provides multiple variants to suit different use cases. Each variant is built on top of base components and includes specific packages and configurations.
+Arkēs provides multiple variants to use as a base for your system. These can include a different desktop environment, specific hardware support, or even just a small reduction in image size.
 
 Variant Hierarchy
 -----------------
 
-All variants follow a dependency chain:
+All variants are extensions of the base variant:
 
 .. code-block:: text
 
@@ -24,7 +24,7 @@ Available Variants
 base
 ~~~~~
 
-Essential server and container variant with core system tools. Foundation for all other variants.
+This variant contains the essential system tools. It is the foundation for all other variants.
 
 ---
 
@@ -38,44 +38,44 @@ A slightly smaller version of the base image.
 atomic
 ~~~~~~~
 
-Modern Wayland-based desktop environment featuring Niri tiling window manager. Provides a clean, efficient desktop experience optimized for productivity and development.
+This variant provides an opinionated modern Wayland-based desktop environment featuring the Niri tiling window manager. It provides a clean, efficient desktop experience.
 
 ---
 
 atomic-nvidia
 ~~~~~~~~~~~~~
 
-Based on atomic, adds NVIDIA driver support. Includes all atomic features plus NVIDIA proprietary drivers, CUDA support, Optimus support, and gaming optimizations.
+Based on the atomic variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
 
 ---
 
 gnome
 ~~~~~
 
-Full GNOME desktop environment providing a familiar, user-friendly experience with extensive customization options and enterprise-ready features.
+A simple `GNOME <https://www.gnome.org/>`_ variant.
 
 ---
 
 kde
 ~~~~
 
-Modern KDE Plasma desktop environment with Wayland support, featuring the official SDDM login screen and Discover software center. Provides a feature-rich, customizable experience.
+A simple `KDE Plasma <https://kde.org/>`_ variant.
 
 ---
 
 eeems
 ~~~~~
 
-Based on atomic, this includes Eeems' personal pacman repositories and various development tools and tweaks that are used for his systems.
+Based on atomic, this includes `Eeems' personal pacman repositories <https://repo.eeems.codes/>`_ and various development tools and tweaks that are used for his systems.
 
 eeems-nvidia
 ~~~~~~~~~~~~
 
-Based on eeems, adds NVIDIA driver support. Includes all eeems features plus NVIDIA proprietary drivers, CUDA support, Optimus support, and gaming optimizations.
+Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
 
 ---
 
 eeems-system76
 ~~~~~~~~~~~~~~~
 
-Based on eeems, adds System76 hardware integration. Includes all eeems features plus System76 driver support, hardware-specific optimizations, firmware management, and System76 tools integration.
+Based on the eeems variant. It adds `System76 <https://system76.com/>`_ drivers and tools.
