@@ -300,7 +300,7 @@ Integrate your variant with the Arkēs build system:
 
 **Example GitHub Actions Update**:
 
-.. yaml
+.. code-block:: yaml
 
    # In .github/workflows/build.yaml
    - name: Build myvariant
@@ -518,7 +518,7 @@ Sharing Your Variant
 
 **Variant Documentation Template**:
 
-.. rst
+.. code-block:: rst
 
    myvariant
    ==========
