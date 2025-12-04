@@ -1,17 +1,19 @@
 # Arkēs Development Guide for AI Agents
 
 ## Build Commands
-- `./make.py check` - Run linting, formatting, and type checking (use --fix to auto-fix)
+- `./make.py check` - Run linting, formatting, and type checking (use `--fix` to auto-fix)
 - `./make.py build <variant>` - Build container image(s) for specific variant
 - `./make.py workflow` - Regenerate GitHub workflow files after changes
 - `./make.py scan <variant>` - Security scan with Trivy
 - `./make.py add-command <name>` - Create new commands from template
 - No separate test framework - use `./make.py check` for validation
+- Website in the `web` folder has it's own makefile that will generate the site if you run `make` or `make prod`.
 
 ## Development Workflow
 - After modifying workflow-related files, always run `./make.py workflow` and commit changes
 - Variants follow strict dependency chain: `rootfs` → `base` → other variants
 - Never use protected variant names "check" or "rootfs" for custom variants
+- Never use a `-` in a varaint name, as this indicates that a template was applied to a variant to create a new variant.
 - Update `.containerignore` when adding build artifacts that shouldn't be in containers
 
 ## Code Style Guidelines

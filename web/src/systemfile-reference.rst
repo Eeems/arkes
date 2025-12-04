@@ -310,7 +310,7 @@ Example 2: Minimal Server
        ufw allow 80/tcp
        ufw allow 443/tcp
        ufw --force enable
-   EOF
+   EOT
 
 Example 3: Gaming Desktop
 ~~~~~~~~~~~~~~~~~~~~~~~~~
