@@ -20,6 +20,7 @@ rootfs (base)
 ├── base (server/container)
 ├── atomic (Wayland desktop)
 ├── gnome (GNOME desktop)
+├── kde (KDE Plasma desktop)
 └── eeems (personalized desktop)
 ```
 

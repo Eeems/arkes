@@ -14,8 +14,9 @@ All variants follow a dependency chain:
     base -> base-slim
           \-> atomic -> atomic-nvidia
                       \-> eeems -> eeems-nvidia
-                                 \-> eeems-system76
+                                  \-> eeems-system76
           \-> gnome
+          \-> kde
 
 Available Variants
 ------------------
@@ -52,6 +53,13 @@ gnome
 ~~~~~
 
 Full GNOME desktop environment providing a familiar, user-friendly experience with extensive customization options and enterprise-ready features.
+
+---
+
+kde
+~~~~
+
+Modern KDE Plasma desktop environment with Wayland support, featuring the official SDDM login screen and Discover software center. Provides a feature-rich, customizable experience.
 
 ---
 

@@ -13,7 +13,7 @@ Website in the `web` folder has its own makefile that will generate the site if 
 - After modifying workflow-related files, always run `./make.py workflow` and commit changes
 - Variants follow strict dependency chain: `rootfs` → `base` → other variants
 - Never use protected variant names "check" or "rootfs" for custom variants
-- Never use a `-` in a varaint name, as this indicates that a template was applied to a variant to create a new variant.
+- Never use a `-` in a variant name, as this indicates that a template was applied to a variant to create a new variant.
 - Update `.containerignore` when adding build artifacts that shouldn't be in containers
 
 ## Code Style Guidelines
