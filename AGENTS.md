@@ -7,7 +7,7 @@
 - `./make.py scan <variant>` - Security scan with Trivy
 - `./make.py add-command <name>` - Create new commands from template
 - No separate test framework - use `./make.py check` for validation
-- Website in the `web` folder has it's own makefile that will generate the site if you run `make` or `make prod`.
+Website in the `web` folder has its own makefile that will generate the site if you run `make` or `make prod`.
 
 ## Development Workflow
 - After modifying workflow-related files, always run `./make.py workflow` and commit changes
