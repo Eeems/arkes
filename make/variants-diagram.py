@@ -68,7 +68,9 @@ def generate_graphviz_diagram():
     dot_lines = [
         "digraph variant_hierarchy {",
         "    rankdir=LR;",
-        "    node [shape=box];",
+        "    bgcolor=transparent;",
+        "    node [shape=box,style=filled,fillcolor=white];",
+        '    edge [color="#999999",fontcolor="#999999"];',
         "",
     ]
 

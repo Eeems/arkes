@@ -583,3 +583,13 @@ div.page-timestamp {
   margin-right: 0.5rem;
   border-radius: var(--border-radius);
 }
+
+/* Graphviz diagram transparency */
+.graphviz polygon[fill="white"] {
+  fill: transparent;
+}
+
+/* More specific targeting for graphviz SVG backgrounds */
+.graphviz svg polygon[fill="white"] {
+  fill: transparent;
+}

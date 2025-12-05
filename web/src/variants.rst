@@ -19,7 +19,9 @@ All variants are extensions of the base variant:
 
    digraph variant_hierarchy {
        rankdir=LR;
-       node [shape=box];
+       bgcolor=transparent;
+       node [shape=box,style=filled,fillcolor=white];
+       edge [color="#999999",fontcolor="#999999"];
 
        gnome [label="gnome"];
        atomic [label="atomic"];

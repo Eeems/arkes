@@ -11,7 +11,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 - `./make.py config -p` - Show dependency chain and template mappings
 - `./make.py iso <variant>` - Build ISO locally for testing
 - No separate test framework - use `./make.py check` for validation
-Website in the `web` folder has its own makefile that will generate the site if you run `make` or `make prod`.
+Website in the `web` folder has its own makefile that will generate the site if you run `make` or `make prod` from inside the `web` folder.
 
 ## Development Workflow
 - After modifying workflow-related files, always run `./make.py workflow` and commit changes
