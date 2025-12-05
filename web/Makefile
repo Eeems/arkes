@@ -18,7 +18,7 @@ $(VENV)/bin/activate:
 update-variants-diagram:
 	cd $(CURDIR)/.. && python make.py variants-diagram --update
 
-$(DIST): $(VENV)/bin/activate update-variants-diagram
+$(DIST): $(VENV)/bin/activate
 	. $(VENV)/bin/activate; \
 	sphinx-build -a -n -E -b html $(SRC) $(DIST)
 	# Clean unused files inherited from default theme
