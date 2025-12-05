@@ -27,6 +27,7 @@ All variants are extensions of the base variant:
        atomic_nvidia [label="atomic-nvidia"];
        base [label="base"];
        base_slim [label="base-slim"];
+       cosmic [label="cosmic"];
        eeems [label="eeems"];
        eeems_nvidia [label="eeems-nvidia"];
        eeems_system76 [label="eeems-system76"];
@@ -38,6 +39,7 @@ All variants are extensions of the base variant:
        atomic -> atomic_nvidia;
        rootfs -> base;
        base -> base_slim;
+       base -> cosmic;
        atomic -> eeems;
        eeems -> eeems_nvidia;
        eeems -> eeems_system76;
@@ -81,13 +83,18 @@ kde
 
 A simple `KDE Plasma <https://kde.org/>`_ variant.
 
+cosmic
+~~~~~~
+
+A simple `COSMIC <https://system76.com/cosmic>`_ variant.
+
 eeems
 ~~~~~
 
 Based on atomic, this includes `Eeems' personal pacman repositories <https://repo.eeems.codes/>`_ and various development tools and tweaks that are used for his systems.
 
 eeems-nvidia
-~~~~~~~~~~~~
+~~~~~~~~~~~
 
 Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
 
