@@ -1,4 +1,5 @@
 import sys
+
 from argparse import ArgumentParser
 from argparse import Namespace
 from pathlib import Path
@@ -12,26 +13,26 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
-    parser.add_argument(
+def register(parser: ArgumentParser) -> None:
+    _ = parser.add_argument(
         "--update",
         action="store_true",
         help="Update web/src/variants.rst file with generated diagram",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--check",
         action="store_true",
         help="Check if diagram differs from existing in web/src/variants.rst (exit 2 if different)",
     )
 
 
-def generate_graphviz_diagram():
+def generate_graphviz_diagram() -> str:
     """Generate graphviz diagram from variant configuration."""
     config = parse_all_config()
     variants_data = config["variants"]
 
     # Build complete variant list including template variants
-    all_variants = {}
+    all_variants: dict[str, dict[str, str | list[str] | bool | None]] = {}
 
     # Add base variants
     for variant_key, variant_info in variants_data.items():
@@ -43,7 +44,7 @@ def generate_graphviz_diagram():
             templates_list = templates_field
 
         all_variants[variant_key] = {
-            "depends": variant_info.get("depends"),
+            "depends": cast(str | None, variant_info.get("depends")),
             "templates": templates_list,
             "is_template_variant": False,
         }
@@ -85,8 +86,9 @@ def generate_graphviz_diagram():
     # Add edges (dependencies) in sorted order for deterministic output
     for variant_name in sorted(all_variants.keys()):
         variant_data = all_variants[variant_name]
-        if variant_data["depends"]:
-            from_node = variant_data["depends"].replace("-", "_")
+        depends = cast(str | None, variant_data["depends"])
+        if depends:
+            from_node = depends.replace("-", "_")
             to_node = variant_name.replace("-", "_")
             dot_lines.append(f"    {from_node} -> {to_node};")
 
@@ -105,7 +107,7 @@ def generate_graphviz_diagram():
     return "\n".join(complete_lines) + "\n"
 
 
-def update_variants_rst():
+def update_variants_rst() -> None:
     """Update web/src/variants.rst file with generated diagram."""
     rst_path = Path("web/src/variants.rst")
 
@@ -205,12 +207,12 @@ def update_variants_rst():
         new_lines = before + [replacement] + after
         new_content = "\n".join(new_lines)
 
-    # Write back to file
-    with open(rst_path, "w") as f:
-        f.write(new_content)
+        # Write back to file
+        with open(rst_path, "w") as f:
+            _ = f.write(new_content)
 
 
-def check_diagram_diff():
+def check_diagram_diff() -> bool | str:
     """Check if generated diagram differs from existing one. Returns False if same, True if different, or diff string."""
     rst_path = Path("web/src/variants.rst")
 
@@ -297,8 +299,11 @@ def check_diagram_diff():
     return diff_output
 
 
-def command(args: Namespace):
-    if args.check:
+def command(args: Namespace) -> None:
+    check = getattr(args, "check", False)
+    update = getattr(args, "update", False)
+
+    if check:
         diff_result = check_diagram_diff()
         if diff_result:
             if not isinstance(diff_result, bool):  # We have actual diff content
@@ -309,7 +314,7 @@ def command(args: Namespace):
             sys.exit(2)
         else:
             sys.exit(0)
-    elif args.update:
+    elif update:
         update_variants_rst()
     else:
         # Default: output to stdout

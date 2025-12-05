@@ -1,11 +1,9 @@
 DIST=$(CURDIR)/dist
 SRC=$(CURDIR)/src
-IMAGES=$(CURDIR)/images
 VENV=$(CURDIR)/.venv
 BUILD=$(CURDIR)/.build
-VARIANTS_DOT=$(SRC)/variants.dot
 
-.PHONY: all prod images dev dev-images clean update-variants-diagram
+.PHONY: all prod dev clean update-variants-diagram
 
 all: prod
 
@@ -49,4 +47,4 @@ dev: $(VENV)/bin/activate
 	sphinx-autobuild -a $(SRC) $(DIST) --port=0 --open-browser
 
 clean:
-	rm -rf $(DIST) $(VENV) $(BUILD) $(VARIANTS_DOT)
+	rm -rf $(DIST) $(VENV) $(BUILD)
