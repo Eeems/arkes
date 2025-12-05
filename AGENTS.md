@@ -54,12 +54,13 @@ Templates create variant combinations using `-` separator:
 ## Code Style Guidelines
 
 ### Python (3.13)
-- Use Ruff for formatting/linting, basedpyright for type checking
-- Type hints required on all function signatures and variables
-- Import order: standard library → third-party → local imports
-- Use `cast()` for type assertions when needed
-- Every `make/*.py` command must have exactly `register()` and `command()` functions
-- Use `[command] message` format for all command output to stderr
+- Use Ruff for formatting/linting, basedpyright for type checking.
+- Type hints required on all function signatures and variables.
+- Import order: standard library → third-party → local imports.
+- Use `cast()` for type assertions when needed.
+- Every `make/*.py` command must have exactly `register()` and `command()` functions.
+- Use `[command] message` format for all command output to stderr.
+- basedpyright warnings should also be addressed.
 
 ### Go (1.25.4)
 - Use gofmt for formatting, go vet for static analysis

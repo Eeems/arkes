@@ -3,8 +3,9 @@ SRC=$(CURDIR)/src
 IMAGES=$(CURDIR)/images
 VENV=$(CURDIR)/.venv
 BUILD=$(CURDIR)/.build
+VARIANTS_DOT=$(SRC)/variants.dot
 
-.PHONY: all prod images dev dev-images clean
+.PHONY: all prod images dev dev-images clean update-variants-diagram
 
 all: prod
 
@@ -14,7 +15,10 @@ $(VENV)/bin/activate:
 	. .venv/bin/activate; \
 	python -m pip install -r requirements.txt
 
-$(DIST): $(VENV)/bin/activate
+update-variants-diagram:
+	cd $(CURDIR)/.. && python make.py variants-diagram --update
+
+$(DIST): $(VENV)/bin/activate update-variants-diagram
 	. $(VENV)/bin/activate; \
 	sphinx-build -a -n -E -b html $(SRC) $(DIST)
 	# Clean unused files inherited from default theme
@@ -36,8 +40,7 @@ $(DIST): $(VENV)/bin/activate
 	    $(DIST)/_static/plus.png \
 	    $(DIST)/_static/pygments.css \
 	    $(DIST)/_static/searchtools.js \
-	    $(DIST)/_static/underscore-1.13.1.js \
-	    $(DIST)/_static/underscore.js
+	    $(DIST)/_static/underscore-1.13.1.js
 
 prod: $(DIST)
 
@@ -46,4 +49,4 @@ dev: $(VENV)/bin/activate
 	sphinx-autobuild -a $(SRC) $(DIST) --port=0 --open-browser
 
 clean:
-	rm -rf $(DIST) $(VENV) $(BUILD)
+	rm -rf $(DIST) $(VENV) $(BUILD) $(VARIANTS_DOT)

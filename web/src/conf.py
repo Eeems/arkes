@@ -35,4 +35,7 @@ ogp_custom_meta_tags = [
 ]
 extensions = [
     "sphinxext.opengraph",
+    "sphinx.ext.graphviz",
 ]
+
+graphviz_output_format = "svg"
