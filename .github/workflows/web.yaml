@@ -1,0 +1,51 @@
+name: Build website
+
+on:
+  push: &targets
+    branches:
+      - master
+    paths:
+      - "web/**"
+      - .github/workflows/web.yaml
+  pull_request: *targets
+
+jobs:
+  web:
+    name: Build website
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the Git repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache Python environment
+        uses: actions/cache@v4
+        id: cache-python
+        with:
+          path: web/.venv
+          key: web/.venv-${{ hashFiles('web/requirements.txt') }}
+      - name: Build website
+        shell: bash
+        run: cd web && make prod
+      - name: Save website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "web/dist/"
+  deploy:
+    needs: web
+    if: ${{ github.ref == 'refs/heads/master' }}
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

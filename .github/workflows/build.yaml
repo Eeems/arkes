@@ -131,6 +131,7 @@ jobs:
       - eeems-nvidia
       - eeems-system76
       - gnome
+      - kde
       - rootfs
     uses: ./.github/workflows/manifest.yaml
     secrets: inherit
@@ -239,6 +240,7 @@ jobs:
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
+      cleanup: true
 
   eeems-nvidia:
     name: Build eeems/arkes:eeems-nvidia image
@@ -255,6 +257,7 @@ jobs:
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
+      cleanup: true
 
   eeems-system76:
     name: Build eeems/arkes:eeems-system76 image
@@ -271,6 +274,7 @@ jobs:
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
+      cleanup: true
 
   gnome:
     name: Build eeems/arkes:gnome image
@@ -282,6 +286,22 @@ jobs:
     permissions: *permissions
     with:
       variant: gnome
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+      updates: ${{ fromJson(needs['base'].outputs.updates) }}
+      artifact: base
+      digest: ${{ needs['base'].outputs.digest }}
+
+  kde:
+    name: Build eeems/arkes:kde image
+    needs:
+      - builder
+      - base
+    uses: ./.github/workflows/build-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: kde
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
@@ -436,6 +456,22 @@ jobs:
       digest: ${{ needs['gnome'].outputs.digest }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
+  scan_kde:
+    name: Scan image for kde
+    if: github.event_name != 'pull_request' || fromJson(needs['kde'].outputs.updates)
+    needs:
+      - builder
+      - kde
+    uses: ./.github/workflows/scan.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: kde
+      push: ${{ github.event_name != 'pull_request' }}
+      artifact: ${{ fromJson(needs['kde'].outputs.updates) && 'kde' || '' }}
+      digest: ${{ needs['kde'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
   ######################################
   #             ISO                #
   ######################################
@@ -565,5 +601,21 @@ jobs:
       artifact: gnome
       digest: ${{ needs['gnome'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates) }}
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  iso_kde:
+    name: Generate iso for kde
+    needs:
+      - builder
+      - kde
+    uses: ./.github/workflows/iso.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: kde
+      artifact: kde
+      digest: ${{ needs['kde'].outputs.digest }}
+      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['kde'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}

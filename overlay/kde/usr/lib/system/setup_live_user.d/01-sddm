@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+mkdir -p /etc/sddm.conf.d
+echo "[Autologin]" >/etc/sddm.conf.d/autologin.conf
+echo "Session=plasma" >>/etc/sddm.conf.d/autologin.conf
+echo "User=live" >>/etc/sddm.conf.d/autologin.conf

@@ -1,0 +1,4 @@
+Sphinx==8.2.3
+sphinx-autobuild==2024.10.3
+sphinxcontrib-fulltoc==1.2.0
+sphinxext-opengraph==0.9.1
