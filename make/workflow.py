@@ -1,4 +1,6 @@
+import sys
 import heapq
+import difflib
 
 from argparse import ArgumentParser
 from argparse import Namespace
@@ -19,11 +21,15 @@ kwds: dict[str, str] = {
 }
 
 
-def register(_: ArgumentParser):
-    pass
+def register(parser: ArgumentParser):
+    _ = parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check if workflow differs from the workflow file (exit 2 if different)",
+    )
 
 
-def command(_: Namespace):
+def command(args: Namespace):
     config: Config = parse_all_config()
 
     def build_job_graph(config: Config) -> tuple[Graph, Indegree]:
@@ -287,16 +293,7 @@ def command(_: Namespace):
                 "        key: go-${{ hashFiles('**/go.mod') }}-${{ hashFiles('**/go.sum') }}",
                 "    - name: Ensure config is valid",
                 "      shell: bash",
-                "      run: |",
-                "        set -e",
-                "        ./make.py check",
-                "        ./make.py workflow",
-                '        git config --global --add safe.directory "$(realpath .)"',
-                '        if [[ -n "$(git status -s)" ]]; then',
-                '          echo "Please run ./make.py workflow, commit the changes, and try again."',
-                "          git status -s",
-                "          exit 1",
-                "        fi",
+                "      run: ./make.py check",
                 "      env:",
                 "        TMPDIR: ${{ runner.temp }}",
                 "",
@@ -326,14 +323,35 @@ def command(_: Namespace):
         *[render_iso(j) for j in build_order if j != "rootfs"],
     ]
 
-    output: list[str] = []
+    workflow: list[str] = []
     for i, sec in enumerate(sections):
-        output.extend(sec)
+        workflow.extend(sec)
         if i < len(sections) - 1:
-            output.append("")
+            workflow.append("")
 
-    with open(".github/workflows/build.yaml", "w") as f:
-        _r = f.write("\n".join(output).rstrip() + "\n")
+    generated_workflow = "\n".join(workflow).rstrip() + "\n"
+
+    if not cast(bool, args.check):
+        with open(".github/workflows/build.yaml", "w") as f:
+            _r = f.write(generated_workflow)
+
+        return
+
+    with open(".github/workflows/build.yaml", "r") as f:
+        current_workflow = f.read()
+
+    if generated_workflow == current_workflow:
+        return
+
+    _ = sys.stderr.writelines(
+        difflib.unified_diff(
+            current_workflow.splitlines(keepends=True),
+            generated_workflow.splitlines(keepends=True),
+            fromfile="existing",
+            tofile="generated",
+        )
+    )
+    sys.exit(2)
 
 
 if __name__ == "__main__":

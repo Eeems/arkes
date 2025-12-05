@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+# Configure cosmic-greeter for live user autologin
+mkdir -p /etc/greetd
+echo "[terminal]" >/etc/greetd/config.toml
+echo "vt = 1" >>/etc/greetd/config.toml
+echo "[general]" >>/etc/greetd/config.toml
+echo "service = \"login\"" >>/etc/greetd/config.toml
+echo "[default_session]" >>/etc/greetd/config.toml
+echo 'command = "cosmic-comp systemd-cat -t cosmic-greeter cosmic-greeter"' >>/etc/greetd/config.toml
+echo "user = \"cosmic-greeter\"" >>/etc/greetd/config.toml
+echo "[initial_session]" >>/etc/greetd/config.toml
+echo "command = \"cosmic-session\"" >>/etc/greetd/config.toml
+echo "user = \"live\"" >>/etc/greetd/config.toml

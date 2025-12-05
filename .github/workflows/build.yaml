@@ -105,16 +105,7 @@ jobs:
           key: go-${{ hashFiles('**/go.mod') }}-${{ hashFiles('**/go.sum') }}
       - name: Ensure config is valid
         shell: bash
-        run: |
-          set -e
-          ./make.py check
-          ./make.py workflow
-          git config --global --add safe.directory "$(realpath .)"
-          if [[ -n "$(git status -s)" ]]; then
-            echo "Please run ./make.py workflow, commit the changes, and try again."
-            git status -s
-            exit 1
-          fi
+        run: ./make.py check
         env:
           TMPDIR: ${{ runner.temp }}
 
@@ -127,6 +118,7 @@ jobs:
       - atomic-nvidia
       - base
       - base-slim
+      - cosmic
       - eeems
       - eeems-nvidia
       - eeems-system76
@@ -219,6 +211,22 @@ jobs:
     permissions: *permissions
     with:
       variant: base-slim
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+      updates: ${{ fromJson(needs['base'].outputs.updates) }}
+      artifact: base
+      digest: ${{ needs['base'].outputs.digest }}
+
+  cosmic:
+    name: Build eeems/arkes:cosmic image
+    needs:
+      - builder
+      - base
+    uses: ./.github/workflows/build-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: cosmic
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
@@ -392,6 +400,22 @@ jobs:
       digest: ${{ needs['base-slim'].outputs.digest }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
+  scan_cosmic:
+    name: Scan image for cosmic
+    if: github.event_name != 'pull_request' || fromJson(needs['cosmic'].outputs.updates)
+    needs:
+      - builder
+      - cosmic
+    uses: ./.github/workflows/scan.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: cosmic
+      push: ${{ github.event_name != 'pull_request' }}
+      artifact: ${{ fromJson(needs['cosmic'].outputs.updates) && 'cosmic' || '' }}
+      digest: ${{ needs['cosmic'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
   scan_eeems:
     name: Scan image for eeems
     if: github.event_name != 'pull_request' || fromJson(needs['eeems'].outputs.updates)
@@ -537,6 +561,22 @@ jobs:
       artifact: base-slim
       digest: ${{ needs['base-slim'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates) }}
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  iso_cosmic:
+    name: Generate iso for cosmic
+    needs:
+      - builder
+      - cosmic
+    uses: ./.github/workflows/iso.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: cosmic
+      artifact: cosmic
+      digest: ${{ needs['cosmic'].outputs.digest }}
+      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['cosmic'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
