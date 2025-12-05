@@ -56,42 +56,30 @@ base
 
 This variant contains the essential system tools. It is the foundation for all other variants.
 
----
-
 base-slim
 ~~~~~~~~~
 
 A slightly smaller version of the base image.
-
----
 
 atomic
 ~~~~~~~
 
 This variant provides an opinionated modern Wayland-based desktop environment featuring the Niri tiling window manager. It provides a clean, efficient desktop experience.
 
----
-
 atomic-nvidia
 ~~~~~~~~~~~~~
 
 Based on the atomic variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
-
----
 
 gnome
 ~~~~~
 
 A simple `GNOME <https://www.gnome.org/>`_ variant.
 
----
-
 kde
 ~~~~
 
 A simple `KDE Plasma <https://kde.org/>`_ variant.
-
----
 
 eeems
 ~~~~~
@@ -102,8 +90,6 @@ eeems-nvidia
 ~~~~~~~~~~~~
 
 Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
-
----
 
 eeems-system76
 ~~~~~~~~~~~~~~~
