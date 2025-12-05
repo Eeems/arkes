@@ -24,7 +24,3 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Generated images
-src/_static/images/*.png
-src/_static/images/*.svg
