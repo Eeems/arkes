@@ -74,16 +74,17 @@ def generate_graphviz_diagram():
         "",
     ]
 
-    # Add nodes
-    for variant_name, variant_data in all_variants.items():
+    # Add nodes in sorted order for deterministic output
+    for variant_name in sorted(all_variants.keys()):
         # Replace hyphens with underscores for valid graphviz node names
         node_name = variant_name.replace("-", "_")
         dot_lines.append(f'    {node_name} [label="{variant_name}"];')
 
     dot_lines.append("")
 
-    # Add edges (dependencies)
-    for variant_name, variant_data in all_variants.items():
+    # Add edges (dependencies) in sorted order for deterministic output
+    for variant_name in sorted(all_variants.keys()):
+        variant_data = all_variants[variant_name]
         if variant_data["depends"]:
             from_node = variant_data["depends"].replace("-", "_")
             to_node = variant_name.replace("-", "_")

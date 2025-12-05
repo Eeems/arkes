@@ -23,25 +23,25 @@ All variants are extensions of the base variant:
        node [shape=box,style=filled,fillcolor=white];
        edge [color="#999999",fontcolor="#999999"];
 
-       gnome [label="gnome"];
        atomic [label="atomic"];
        atomic_nvidia [label="atomic-nvidia"];
+       base [label="base"];
+       base_slim [label="base-slim"];
        eeems [label="eeems"];
        eeems_nvidia [label="eeems-nvidia"];
        eeems_system76 [label="eeems-system76"];
-       base [label="base"];
-       base_slim [label="base-slim"];
+       gnome [label="gnome"];
        kde [label="kde"];
        rootfs [label="rootfs"];
 
-       base -> gnome;
        base -> atomic;
        atomic -> atomic_nvidia;
+       rootfs -> base;
+       base -> base_slim;
        atomic -> eeems;
        eeems -> eeems_nvidia;
        eeems -> eeems_system76;
-       rootfs -> base;
-       base -> base_slim;
+       base -> gnome;
        base -> kde;
    }
 
