@@ -270,8 +270,8 @@ def check_diagram_diff() -> bool | str:
         # Extract existing diagram (skip ".. graphviz::" and blank line)
         if start_idx + 2 < end_idx:
             existing_lines = lines[start_idx + 2 : end_idx]
-            # Remove the 3-space indentation from each line
-            existing_diagram = "".join(
+            # Remove the 3-space indentation from each line and preserve newlines
+            existing_diagram = "\n".join(
                 line[3:] if line.startswith("   ") else line for line in existing_lines
             ).strip()
         else:
