@@ -240,6 +240,7 @@ jobs:
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
+      cleanup: true
 
   eeems-nvidia:
     name: Build eeems/arkes:eeems-nvidia image
