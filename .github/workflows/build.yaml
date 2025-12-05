@@ -257,6 +257,7 @@ jobs:
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
+      cleanup: true
 
   eeems-system76:
     name: Build eeems/arkes:eeems-system76 image
@@ -273,6 +274,7 @@ jobs:
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
+      cleanup: true
 
   gnome:
     name: Build eeems/arkes:gnome image

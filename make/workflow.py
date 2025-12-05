@@ -54,7 +54,7 @@ def command(_: Namespace):
                         if "-" in template
                         else variant
                     ),
-                    "cleanup": False,
+                    "cleanup": cast(bool, data.get("clean", False)),
                 }
                 indegree[full_id] = 0
 
