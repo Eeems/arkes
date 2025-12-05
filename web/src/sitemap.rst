@@ -7,9 +7,9 @@ Site Map
    :glob:
 
    index
+   variants
    installation
    user-guide
-   variants
    systemfile-reference
    migration
    architecture

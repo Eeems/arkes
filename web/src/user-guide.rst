@@ -20,21 +20,14 @@ The primary tool for system management is the ``os`` command.
    # Check for available updates
    os checkupdates
    
-   # Update system (atomic update)
+   # Build teh latest Systemfile and deploy it
    os upgrade
    
-   # Build the latest systemfile, but do not deploy it.
+   # Build the latest Systemfile, but do not deploy it.
    os build
    
-   # Remove most recent deployment (for cleanup after switching deployments)
+   # Remove most recent deployment
    os revert
-
-Package Management
-~~~~~~~~~~~~~~~~~~
-
-Arkēs uses Systemfile for system-level packages. See :doc:`systemfile-reference` for details.
-
-For desktop applications, use Flatpak. For containers, use Podman.
 
 Filesystem Layout
 ~~~~~~~~~~~~~~~~~
@@ -43,12 +36,17 @@ Arkēs uses an immutable filesystem. See :doc:`architecture` for detailed filesy
 
 Key difference: User data is stored in ``/var/home`` instead of ``/home``.
 
+Package Management
+~~~~~~~~~~~~~~~~~~
+
+Arkēs uses the :doc:`Systemfile <systemfile-reference>` for installing system-level packages.
+
+You will have `flatpak <https://wiki.archlinux.org/title/Flatpak>`_, `podman <https://wiki.archlinux.org/title/Podman>`_, and `distrobox <https://wiki.archlinux.org/title/Distrobox>`_ available for managing applications without having to rebuild and deploy a new system.
+
 Configuration
 ~~~~~~~~~~~~~
 
-System-level configuration is done through Systemfile. User configuration works normally in ``~/.config``.
-
-
+Generally you will use the :doc:`Systemfile <systemfile-reference>` to make configuration changes to your system, but you can also modify files in ``/etc`` and changes will be merged when there is a new deployment.
 
 Customization Workflow
 ----------------------
@@ -58,24 +56,9 @@ Making Changes to Your System
 
 The proper workflow for customizing your Arkēs system:
 
-1. **Edit Systemfile** to add packages or configuration
-2. **Build new system** with ``os build``
-3. **Deploy system** with ``os upgrade``
-
-For testing changes, use ``sudo os unlock`` to make system temporarily mutable.
+1. Optionally make the system temporarily mutable with ``os unlock`` to test out changes on the running system.
+2. Edit Systemfile to add packages or configuration.
+3. Optionally build new system image with ``os build`` to test out the changes.
+4. Build the new system image and deploy it with ``os upgrade``.
 
 See :doc:`systemfile-reference` for Systemfile details and :doc:`architecture` for filesystem information.
-
-Getting Help
-------------
-
-For additional help with daily usage:
-
-- **Documentation**: Check other guides in this manual
-- **GitHub Issues**: https://github.com/Eeems/arkes/issues
-- **Community**: GitHub Discussions
-
-Remember that Arkēs' immutable nature means many issues can be resolved by:
-1. Rebooting and selecting previous deployment from boot menu, then cleaning up with ``os revert``
-2. Fixing the issue in Systemfile
-3. Rebuilding and upgrading with ``os build && os upgrade``
