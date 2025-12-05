@@ -2,6 +2,13 @@
 
 For project overview and variant details, see `web/src/*.rst` files.
 
+## Specific Rules for Agents
+- Always double check your work.
+- If you start getting into a loop, stop and ask for instructions.
+- Don't try to directly debug `make/*.py` files by importing them, just edit the files and clean them up when done.
+- Keep any documentation concise.
+- When adding documentation, link to the archwiki where possible.
+
 ## Build Commands
 - `./make.py check` - Run linting, formatting, and type checking (use `--fix` to auto-fix)
 - `./make.py build <variant>` - Build container image(s) for specific variant
