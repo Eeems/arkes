@@ -5,12 +5,12 @@ Systemfile Reference
 What is Systemfile?
 -------------------
 
-Systemfile is a Containerfile/Dockerfile that defines how your system is built. It's stored at ``/etc/system/Systemfile`` and processed during system builds and upgrades. This means that your system is always declaritive, and that updates are applied atomically.
+Systemfile is a Containerfile/Dockerfile that defines how your system is built. It's stored at ``/etc/system/Systemfile`` and processed during system builds and upgrades. This means that your system is always declarative, and that updates are applied atomically.
 
 Basic Structure
 ---------------
 
-Systemfile uses standard Containerfile/Dockerfile syntax, and the system has helper script for common tasks:
+Systemfile uses standard Containerfile/Dockerfile syntax, and the system has helper scripts for common tasks:
 
 .. code-block:: dockerfile
 
