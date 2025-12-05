@@ -105,16 +105,7 @@ jobs:
           key: go-${{ hashFiles('**/go.mod') }}-${{ hashFiles('**/go.sum') }}
       - name: Ensure config is valid
         shell: bash
-        run: |
-          set -e
-          ./make.py check
-          ./make.py workflow
-          git config --global --add safe.directory "$(realpath .)"
-          if [[ -n "$(git status -s)" ]]; then
-            echo "Please run ./make.py workflow, commit the changes, and try again."
-            git status -s
-            exit 1
-          fi
+        run: ./make.py check
         env:
           TMPDIR: ${{ runner.temp }}
 

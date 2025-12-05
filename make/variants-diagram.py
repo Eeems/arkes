@@ -1,8 +1,8 @@
-from collections.abc import Iterable
 import sys
 import difflib
 
 from argparse import ArgumentParser
+from collections.abc import Iterable
 from argparse import Namespace
 from pathlib import Path
 from typing import Any
@@ -187,7 +187,6 @@ def check_diagram_diff() -> bool | Iterable[str]:
         new_lines,
         fromfile="existing",
         tofile="generated",
-        lineterm="",
     )
 
 

@@ -197,31 +197,31 @@ def command(args: Namespace):
         failed = True
 
     print("[check] Checking variants diagram", file=sys.stderr)
-    cmd = shlex.join(
-        [
-            "bash",
-            "-ec",
-            ";".join(
-                [
-                    "source .venv/bin/activate",
-                    "python make.py variants-diagram --check",
-                ]
-            ),
-        ]
-    )
+    cmd = shlex.join(["python", "make.py", "variants-diagram", "--check"])
     res = _execute(cmd)
     if res == 2:
         print("Variants diagram is out of date", file=sys.stderr)
         if fix:
             print("Updating variants diagram...", file=sys.stderr)
-            cmd = shlex.join(
-                [
-                    "python",
-                    "make.py",
-                    "variants-diagram",
-                    "--update",
-                ]
-            )
+            cmd = shlex.join(["python", "make.py", "variants-diagram", "--update"])
+            res = _execute(cmd)
+            if res:
+                print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
+                failed = True
+        else:
+            failed = True
+    elif res:
+        print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
+        failed = True
+
+    print("[check] Checking workflow", file=sys.stderr)
+    cmd = shlex.join(["python", "make.py", "workflow", "--check"])
+    res = _execute(cmd)
+    if res == 2:
+        print("Workflow is out of date", file=sys.stderr)
+        if fix:
+            print("Updating workflow...", file=sys.stderr)
+            cmd = shlex.join(["python", "make.py", "workflow"])
             res = _execute(cmd)
             if res:
                 print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
