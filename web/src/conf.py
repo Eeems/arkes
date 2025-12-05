@@ -4,7 +4,7 @@ from datetime import timezone
 year = datetime.datetime.today().year
 
 project = "Arkēs"
-copyright = f"2024-{year}, Eeems"
+copyright = f"2025{f'-{year}' if year > 2025 else ''}, Eeems"
 author = "Nathaniel 'Eeems' van Diepen"
 
 html_theme_path = ["_themes"]
