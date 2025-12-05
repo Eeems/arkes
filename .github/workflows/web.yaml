@@ -28,6 +28,13 @@ jobs:
         with:
           path: web/.venv
           key: web/.venv-${{ hashFiles('web/requirements.txt') }}
+      - name: Install base Apt packages
+        id: cache-apt
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          execute_install_scripts: true
+          packages: graphviz
+          version: 1.0
       - name: Build website
         shell: bash
         run: cd web && make prod
