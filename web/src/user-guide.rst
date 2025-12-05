@@ -29,13 +29,6 @@ The primary tool for system management is the ``os`` command.
    # Remove most recent deployment
    os revert
 
-Filesystem Layout
-~~~~~~~~~~~~~~~~~
-
-Arkēs uses an immutable filesystem. See :doc:`architecture` for detailed filesystem information.
-
-Key difference: User data is stored in ``/var/home`` instead of ``/home``.
-
 Package Management
 ~~~~~~~~~~~~~~~~~~
 
@@ -60,5 +53,3 @@ The proper workflow for customizing your Arkēs system:
 2. Edit Systemfile to add packages or configuration.
 3. Optionally build new system image with ``os build`` to test out the changes.
 4. Build the new system image and deploy it with ``os upgrade``.
-
-See :doc:`systemfile-reference` for Systemfile details and :doc:`architecture` for filesystem information.

@@ -11,8 +11,4 @@ Site Map
    installation
    user-guide
    systemfile-reference
-   migration
-   architecture
-   creating-variants
    faq
-   troubleshooting

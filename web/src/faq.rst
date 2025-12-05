@@ -2,52 +2,9 @@
 Frequently Asked Questions
 ==========================
 
-Frequently asked questions about Arkēs atomic Linux distribution.
+How do I modify system files directly?
+--------------------------------------
 
-General Questions
------------------
+Direct modification of immutable directories is not possible. You can make changes to your system by editing the :doc:`Systemfile <systemfile-reference>`, deploying the changes with ``os upgrade`` and then rebooting to the newly deployed system.
 
-What is Arkēs?
-~~~~~~~~~~~~~~
-
-Arkēs is an **immutable, atomic Linux distribution** built on Arch Linux. It provides:
-
-- **Immutable filesystem** - Core system files cannot be modified directly
-- **Atomic updates** - Updates either complete fully or not at all
-- **Manual rollback** - Ability to revert to previous system state when needed
-- **Container-based builds** - Built around Podman for system building
-- **Declarative configuration** - System customization through Systemfile
-
-**Key difference from traditional distributions**: The base system is read-only and managed through atomic updates rather than direct package installation.
-
-
-
-Installation and Setup
-----------------------
-
-See :doc:`installation` for complete installation guide and :doc:`variants` for variant selection.
-
-System Customization
---------------------
-
-See :doc:`systemfile-reference` for package installation and system customization.
-
-Can I modify system files directly?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**No** - Direct modification of immutable directories is not possible. Use Systemfile for system changes and ``os unlock`` for testing only.
-
-Applications and Software
--------------------------
-
-For application installation and container usage, see general Linux documentation or Arch Wiki.
-
-System Management
------------------
-
-For system management commands (status, updates, rollback), see :doc:`user-guide`.
-
-Troubleshooting
----------------
-
-For detailed troubleshooting, see :doc:`troubleshooting`.
+If you really must modify the current deployment, you can use ``os unlock``, but this should be used sparingly, and any changes reimplemented in the :doc:`Systemfile <systemfile-reference>` for the next deployment.

@@ -22,14 +22,6 @@ from ..podman import build
 from ..podman import export
 from ..podman import podman_cmd
 
-
-NVIDIA_PACKAGES = [
-    "nvidia-open-dkms",
-    "nvidia-container-toolkit",
-    "nvidia-utils",
-    "nvidia-settings",
-]
-
 kwds = {"help": f"Installs {OS_NAME}"}
 
 
@@ -66,9 +58,6 @@ def register(parser: ArgumentParser):
     _ = parser.add_argument(
         "--package", action="append", help="Extra package to install", default=[]
     )
-    _ = parser.add_argument(
-        "--nvidia", action="store_true", help="Install nvidia packages"
-    )
 
 
 def command(args: Namespace):
@@ -79,9 +68,6 @@ def command(args: Namespace):
     packages = cast(list[str], args.package)
     if not packages:
         packages += ["man-pages", "man-db", "git"]
-
-    if cast(bool, args.nvidia):
-        packages += NVIDIA_PACKAGES
 
     install(
         cast(str, args.branch),

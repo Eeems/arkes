@@ -2,23 +2,15 @@
 Systemfile Reference
 ====================
 
-Complete reference for Systemfile configuration. Systemfile is the primary method for customizing your Arkēs system - defining packages, repositories, and system configuration.
-
 What is Systemfile?
 -------------------
 
-Systemfile is a **Dockerfile-like configuration** that defines how your system is built. It's stored at ``/etc/system/Systemfile`` and processed during system builds.
-
-**Key Concepts**:
-
-- **Declarative**: Define what you want, not how to install it
-- **Immutable**: Changes require rebuilding system
-- **Atomic**: All changes applied together or not at all
+Systemfile is a Containerfile/Dockerfile that defines how your system is built. It's stored at ``/etc/system/Systemfile`` and processed during system builds and upgrades. This means that your system is always declaritive, and that updates are applied atomically.
 
 Basic Structure
 ---------------
 
-Systemfile uses standard Dockerfile syntax with system-specific helper scripts:
+Systemfile uses standard Containerfile/Dockerfile syntax, and the system has helper script for common tasks:
 
 .. code-block:: dockerfile
 
@@ -34,11 +26,6 @@ Systemfile uses standard Dockerfile syntax with system-specific helper scripts:
      LANGUAGE=en_US \
      ENCODING=UTF-8 \
      /usr/lib/system/setup_machine
-
-**Components**:
-
-- **FROM**: Base :doc:`variant <variants>` (rootfs, base, atomic, gnome, eeems)
-- **RUN**: Execute system commands
 
 System Configuration
 --------------------
@@ -61,15 +48,6 @@ Configure essential system settings:
      ENCODING=UTF-8 \
      /usr/lib/system/setup_machine
 
-**Available Settings**:
-
-- **HOSTNAME**: System hostname
-- **TIMEZONE**: Timezone (e.g., America/New_York)
-- **KEYMAP**: Keyboard layout (e.g., us, dvorak)
-- **FONT**: Console font (e.g., ter-124n, lat2-16)
-- **LANGUAGE**: Locale language (e.g., en_US, en_CA)
-- **ENCODING**: Character encoding (e.g., UTF-8)
-
 Package Management
 ------------------
 
@@ -80,10 +58,9 @@ Use ``/usr/lib/system/install_packages`` to install Arch Linux packages:
 
 .. code-block:: dockerfile
 
-   FROM arkes:base
-
    # Install single package
-   RUN /usr/lib/system/install_packages vim
+   RUN /usr/lib/system/install_packages \
+       vim
 
    # Install multiple packages
    RUN /usr/lib/system/install_packages \
@@ -92,14 +69,26 @@ Use ``/usr/lib/system/install_packages`` to install Arch Linux packages:
        tmux \
        fastfetch
 
+Use ``/usr/lib/system/install_aur_packages`` to install AUR packages:
+
+.. code-block:: dockerfile
+
+   # Install AUR package (latest)
+   RUN /usr/lib/system/install_aur_packages \
+       zen-browser
+
+   # Install multiple AUR packages
+   RUN /usr/lib/system/install_aur_packages \
+       zen-browser \
+       spotify \
+       discord
+
 Adding Package Repositories
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Add custom repositories with ``/usr/lib/system/add_pacman_repository``:
 
 .. code-block:: dockerfile
-
-   FROM arkes:atomic
 
    # Add repository with GPG key
    RUN /usr/lib/system/add_pacman_repository \
@@ -109,36 +98,14 @@ Add custom repositories with ``/usr/lib/system/add_pacman_repository``:
        eeems-linux
 
    # Install repository keyring
-   RUN /usr/lib/system/install_packages eeems-keyring
+   RUN /usr/lib/system/install_packages \
+       eeems-keyring
 
    # Install packages from repository
-   RUN /usr/lib/system/install_packages custom-package
+   RUN /usr/lib/system/install_packages \
+       spotify
 
-**Repository Options**:
-
-- ``--key=KEY_ID``: GPG key fingerprint
-- ``--keyfile=URL``: GPG key file URL
-- ``--server=URL``: Repository server URL
-- ``--name=NAME``: Repository name
-
-Installing AUR Packages
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Use ``/usr/lib/system/install_aur_packages`` to install AUR packages:
-
-.. code-block:: dockerfile
-
-   FROM arkes:atomic
-
-   # Install AUR package (latest)
-   RUN /usr/lib/system/install_aur_packages \
-       visual-studio-code-bin
-
-   # Install multiple AUR packages
-   RUN /usr/lib/system/install_aur_packages \
-       visual-studio-code-bin \
-       spotify \
-       discord
+For more information you can run ``/usr/lib/system/add_pacman_repository --help``.
 
 Custom Commands
 ---------------
@@ -146,8 +113,6 @@ Custom Commands
 You can run any custom commands in Systemfile:
 
 .. code-block:: dockerfile
-
-   FROM arkes:base
 
    # Custom system setup
    RUN <<EOT
@@ -184,8 +149,6 @@ Set system-wide environment variables:
 
 .. code-block:: dockerfile
 
-   FROM arkes:base
-
    # Set environment variables
    RUN <<EOT
        set -ex
@@ -200,8 +163,6 @@ Service Configuration
 Enable and configure systemd services:
 
 .. code-block:: dockerfile
-
-   FROM arkes:base
 
    # Enable services
    RUN systemctl enable \
@@ -257,22 +218,6 @@ Example 1: Development Workstation
        python \
        nodejs \
        docker
-
-   # AUR development tools
-   RUN /usr/lib/system/install_aur_packages \
-       visual-studio-code-bin \
-       jetbrains-toolbox \
-       postman-bin
-
-   # Custom repositories
-   RUN <<EOT
-       set -ex
-       /usr/lib/system/add_pacman_repository \
-         --key=A64228CCD26972801C2CE6E3EC931EA46980BA1B \
-         --server=https://repo.eeems.codes/\$repo \
-         eeems-linux
-       /usr/lib/system/install_packages eeems-keyring
-   EOT
 
 Example 2: Minimal Server
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -339,7 +284,7 @@ Example 3: Gaming Desktop
 
    # AUR gaming tools
    RUN /usr/lib/system/install_aur_packages \
-       heroic-games-launcher-bin \
+       heroic-games-launcher \
        bottles \
        protonup-qt
 
@@ -349,20 +294,3 @@ Example 3: Gaming Desktop
        echo "vm.swappiness=10" >> /etc/sysctl.conf
        echo "kernel.sched_migration_cost_ns=5000000" >> /etc/sysctl.conf
    EOT
-
-Best Practices
---------------
-
-1. **Start Simple**: Begin with minimal changes and build up
-2. **Test First**: Use ``os unlock`` to test changes before building
-3. **Version Control**: Keep your Systemfile in git
-4. **Document**: Comment complex configurations
-5. **Modular**: Break complex setups into logical sections
-6. **Security**: Only add necessary repositories and packages
-
-Common Pitfalls
-----------------
-
-1. **Missing Dependencies**: AUR packages may need manual dependencies
-2. **Repository Keys**: Ensure GPG keys are properly added
-3. **Service Conflicts**: Don't enable conflicting services
