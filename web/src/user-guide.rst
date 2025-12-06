@@ -20,7 +20,7 @@ The primary tool for system management is the ``os`` command.
    # Check for available updates
    os checkupdates
    
-   # Build teh latest Systemfile and deploy it
+   # Build the latest Systemfile and deploy it
    os upgrade
    
    # Build the latest Systemfile, but do not deploy it.
