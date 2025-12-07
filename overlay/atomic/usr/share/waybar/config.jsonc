@@ -166,6 +166,6 @@
         "exec": "os weather --waybar",
         "exec-if": "os weather --ready",
         "interval": 300,
-        "on-click": "${TERMINAL:-ghostty} -e 'os weather'"
+        "on-click": "${TERMINAL:-ghostty} -e os weather"
     }
 }
