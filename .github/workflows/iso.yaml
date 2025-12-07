@@ -112,10 +112,9 @@ jobs:
           run: ./make.py iso ${{ inputs.variant }}
 
       - name: Pacman cache
-        uses: actions/cache/save@v4
+        uses: ./.github/actions/pacman-cache-update
         with:
           key: pacman-iso-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
-          path: /var/cache/pacman
 
       - name: Upload iso
         uses: actions/upload-artifact@v4

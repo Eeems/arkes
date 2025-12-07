@@ -1,5 +1,15 @@
 #!/bin/bash
-set -e
 echo "[system] Installing" "$@"
-chronic pacman -Syu --needed --noconfirm "$@"
+install(){ chronic pacman -Syu --needed --noconfirm "$@"; }
+output=$(install "$@" 2>&1)
+retcode=$?
+set -e
+if [ $retcode != 0 ]; then
+  if echo "$output" | grep -q 'invalid or corrupted package'; then
+    install "$@"
+  else
+    echo "$output"
+    exit $retcode
+  fi
+fi
 /usr/lib/system/remove_unused_packages

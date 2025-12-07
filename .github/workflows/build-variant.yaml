@@ -196,10 +196,9 @@ jobs:
           VARIANT: ${{ inputs.variant }}
 
       - name: Pacman cache
-        uses: actions/cache/save@v4
+        uses: ./.github/actions/pacman-cache-update
         with:
           key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
-          path: /var/cache/pacman
 
       - name: Save manifest cache
         uses: ./.github/actions/manifest-cache-update

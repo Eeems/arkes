@@ -127,10 +127,9 @@ jobs:
             mv .trivy/report.sarif .
 
       - name: Pacman cache
-        uses: actions/cache/save@v4
+        uses: ./.github/actions/pacman-cache-update
         with:
           key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
-          path: /var/cache/pacman
 
       - name: Upload Scan results to GitHub Security tab
         if: inputs.push
