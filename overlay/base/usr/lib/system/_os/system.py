@@ -202,31 +202,39 @@ def checkupdates(image: str | None = None) -> list[str]:
         if e.returncode != 2:
             raise
 
-    checkupdates_packages: set[str] = set()
-    for line in system_updates:
-        parts = line.split()
-        if len(parts) >= 2:
-            checkupdates_packages.add(parts[0])
-
     version_changes: dict[str, tuple[str, str]] = {}
+    for pkg, change in [x.split(" ", 1) for x in system_updates if " " in x]:
+        if " " not in change:
+            continue
+
+        fromv, tov = change.split(" ", 1)
+        version_changes[pkg] = fromv, tov
+
     removals: dict[str, tuple[str, str]] = {}
     additions: dict[str, tuple[str, str]] = {}
     remote_packages = remote_labels.get("packages", None)
     if remote_packages is not None:
         remote_pkgs: dict[str, str] = {}
         for line in remote_packages.splitlines():
-            parts = line.split()
-            if len(parts) >= 2:
-                remote_pkgs[parts[0]] = parts[1]
+            if " " not in line:
+                continue
+
+            pkg, ver = line.split(" ", 1)
+            remote_pkgs[pkg] = ver
 
         local_packages = in_nspawn_system_output("pacman", "-Q").strip().decode("utf-8")
         local_pkgs: dict[str, str] = {}
         for line in local_packages.splitlines():
-            parts = line.split()
-            if len(parts) >= 2:
-                local_pkgs[parts[0]] = parts[1]
+            if " " not in line:
+                continue
+
+            pkg, ver = line.split(" ", 1)
+            local_pkgs[pkg] = ver
 
         for pkg in local_pkgs.keys():
+            if pkg in version_changes:
+                continue
+
             if pkg not in remote_pkgs:
                 removals[pkg] = local_pkgs[pkg], "-"
 
@@ -234,32 +242,17 @@ def checkupdates(image: str | None = None) -> list[str]:
                 version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
 
         for pkg in remote_pkgs.keys():
-            if pkg not in local_pkgs:
-                additions[pkg] = "-", remote_pkgs[pkg]
+            if pkg in version_changes or pkg in local_pkgs:
+                continue
 
-    for pkg, change in [x.split(" ", 1) for x in system_updates]:
-        if " " in change:
-            fromv, tov = change.split(" ", 1)
-            version_changes[pkg] = fromv, tov
+            additions[pkg] = "-", remote_pkgs[pkg]
 
     return list(
         dict.fromkeys(
             updates
-            + [
-                f"{k} {' '.join(version_changes[k])}"
-                for k in sorted(version_changes)
-                if k not in checkupdates_packages
-            ]
-            + [
-                f"{k} {' '.join(additions[k])}"
-                for k in sorted(additions)
-                if k not in checkupdates_packages
-            ]
-            + [
-                f"{k} {' '.join(removals[k])}"
-                for k in sorted(removals)
-                if k not in checkupdates_packages
-            ]
+            + [f"{k} {' '.join(version_changes[k])}" for k in sorted(version_changes)]
+            + [f"{k} {' '.join(additions[k])}" for k in sorted(additions)]
+            + [f"{k} {' '.join(removals[k])}" for k in sorted(removals)]
         )
     )
 
