@@ -250,9 +250,12 @@ def checkupdates(image: str | None = None) -> list[str]:
     return list(
         dict.fromkeys(
             updates
-            + [f"{k} {' '.join(version_changes[k])}" for k in sorted(version_changes)]
-            + [f"{k} {' '.join(additions[k])}" for k in sorted(additions)]
-            + [f"{k} {' '.join(removals[k])}" for k in sorted(removals)]
+            + [
+                f"{k} {' -> '.join(version_changes[k])}"
+                for k in sorted(version_changes)
+            ]
+            + [f"{k} {' -> '.join(additions[k])}" for k in sorted(additions)]
+            + [f"{k} {' -> '.join(removals[k])}" for k in sorted(removals)]
         )
     )
 
