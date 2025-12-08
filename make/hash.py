@@ -34,7 +34,11 @@ def command(args: Namespace):
 
 def hash(target: str) -> str:
     m = sha256()
-    containerfile = f"variants/{target}.Containerfile"
+    containerfile = (
+        f"variants/{target}.Containerfile"
+        if target != "rootfs"
+        else "rootfs.Containerfile"
+    )
     if "-" in target and not os.path.exists(containerfile):
         base_variant, template = target.rsplit("-", 1)
         containerfile = f"templates/{template}.Containerfile"

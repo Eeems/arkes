@@ -78,7 +78,6 @@ def parse_all_config() -> Config:
             k: v
             for x in iglob("variants/*.Containerfile")
             for k, v in [parse_config(x)]
-            if k != "rootfs"
         }
     }
 
