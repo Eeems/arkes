@@ -159,7 +159,6 @@ def system_kernelCommandLine() -> str:
 
 
 def checkupdates(image: str | None = None) -> list[str]:
-    from .podman import in_system_output
     from .podman import system_hash
     from .podman import context_hash
     from .podman import image_labels
@@ -196,12 +195,7 @@ def checkupdates(image: str | None = None) -> list[str]:
     system_updates: list[str] = []
     try:
         system_updates = (
-            in_system_output(
-                entrypoint="/usr/bin/checkupdates",
-            )
-            .strip()
-            .decode("utf-8")
-            .splitlines()
+            in_nspawn_system_output("checkupdates").strip().decode("utf-8").splitlines()
         )
 
     except subprocess.CalledProcessError as e:
@@ -225,9 +219,7 @@ def checkupdates(image: str | None = None) -> list[str]:
             if len(parts) >= 2:
                 remote_pkgs[parts[0]] = parts[1]
 
-        local_packages = (
-            in_system_output("-Q", entrypoint="/usr/bin/pacman").strip().decode("utf-8")
-        )
+        local_packages = in_nspawn_system_output("pacman", "-Q").strip().decode("utf-8")
         local_pkgs: dict[str, str] = {}
         for line in local_packages.splitlines():
             parts = line.split()
@@ -272,7 +264,10 @@ def checkupdates(image: str | None = None) -> list[str]:
     )
 
 
-def in_nspawn_system(*args: str, check: bool = False):
+def in_nspawn_system_cmd(
+    *args: str,
+    quiet: bool = False,
+) -> list[str]:
     from .ostree import current_deployment
 
     if not is_root():
@@ -305,11 +300,12 @@ def in_nspawn_system(*args: str, check: bool = False):
     deployment = current_deployment()
     os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
     # TODO overlay /usr/lib/pacman somehow
-    cmd = [
+    return [
         "systemd-nspawn",
         "--volatile=state",
-        "--link-journal=try-guest",
+        "--link-journal=no",
         "--directory=/sysroot",
+        *(["--quiet"] if quiet else []),
         f"--bind={SYSTEM_PATH}:{SYSTEM_PATH}",
         "--bind=/boot:/boot",
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
@@ -318,11 +314,29 @@ def in_nspawn_system(*args: str, check: bool = False):
         f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
     ]
+
+
+def in_nspawn_system(
+    *args: str,
+    check: bool = False,
+    quiet: bool = False,
+):
+    cmd = in_nspawn_system_cmd(*args, quiet=quiet)
     ret = _execute(shlex.join(cmd))
     if ret and check:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
 
     return ret
+
+
+def in_nspawn_system_output(
+    *args: str,
+    quiet: bool = False,
+) -> bytes:
+    return subprocess.check_output(
+        in_nspawn_system_cmd(*args, quiet=quiet),
+        stderr=subprocess.DEVNULL if quiet else None,
+    )
 
 
 def upgrade(
