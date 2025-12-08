@@ -37,7 +37,7 @@ def command(args: Namespace):
         print("Must be run as root")
         sys.exit(1)
 
-    containerfile = "variants/rootfs.Containerfile"
+    containerfile = "rootfs.Containerfile"
     with open(containerfile, "r") as f:
         lines = f.readlines()
 

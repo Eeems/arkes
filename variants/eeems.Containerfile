@@ -1,14 +1,11 @@
 # syntax=docker/dockerfile:1.4
+# x-name=Eeems
 # x-depends=atomic
 # x-templates=nvidia,system76
 # x-clean
 ARG HASH
 
 FROM arkes:atomic
-
-ARG \
-  VARIANT="Eeems" \
-  VARIANT_ID="eeems"
 
 RUN /usr/lib/system/add_pacman_repository \
   --keyfile=https://download.sublimetext.com/sublimehq-pub.gpg \
@@ -43,14 +40,3 @@ RUN /usr/lib/system/package_layer \
 RUN systemctl enable zerotier-one
 
 COPY overlay/eeems /
-
-ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
-
-LABEL \
-  os-release.VARIANT="${VARIANT}" \
-  os-release.VARIANT_ID="${VARIANT_ID}" \
-  os-release.VERSION_ID="${VERSION_ID}" \
-  org.opencontainers.image.ref.name="${VARIANT_ID}" \
-  hash="${HASH}"
-
-RUN /usr/lib/system/set_variant

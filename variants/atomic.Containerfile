@@ -1,13 +1,10 @@
 # syntax=docker/dockerfile:1.4
+# x-name=Atomic
 # x-depends=base
 # x-templates=nvidia
 ARG HASH
 
 FROM arkes:base
-
-ARG \
-  VARIANT="Atomic" \
-  VARIANT_ID="atomic"
 
 RUN /usr/lib/system/package_layer \
   ghostty \
@@ -70,14 +67,3 @@ COPY overlay/atomic /
 RUN systemctl enable \
   dconf.service \
   prelockd.service
-
-ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
-
-LABEL \
-  os-release.VARIANT="${VARIANT}" \
-  os-release.VARIANT_ID="${VARIANT_ID}" \
-  os-release.VERSION_ID="${VERSION_ID}" \
-  org.opencontainers.image.ref.name="${VARIANT_ID}" \
-  hash="${HASH}"
-
-RUN /usr/lib/system/set_variant
