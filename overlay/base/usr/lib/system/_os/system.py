@@ -266,9 +266,6 @@ def in_nspawn_system_cmd(
 ) -> list[str]:
     from .ostree import current_deployment
 
-    if not is_root():
-        raise RuntimeError("in_nspawn_system can only be called as root")
-
     _ostree_root = ""
     if os.path.exists("/ostree") and os.path.isdir("/ostree"):
         _ostree = "/ostree"
@@ -317,6 +314,9 @@ def in_nspawn_system(
     check: bool = False,
     quiet: bool = False,
 ) -> int:
+    if not is_root():
+        raise RuntimeError("in_nspawn_system can only be called as root")
+
     cmd = in_nspawn_system_cmd(*args, quiet=quiet)
     ret = _execute(shlex.join(cmd))
     if ret and check:
@@ -329,6 +329,9 @@ def in_nspawn_system_output(
     *args: str,
     quiet: bool = False,
 ) -> bytes:
+    if not is_root():
+        raise RuntimeError("in_nspawn_system_output can only be called as root")
+
     return subprocess.check_output(
         in_nspawn_system_cmd(*args, quiet=quiet),
         stderr=subprocess.DEVNULL if quiet else None,
