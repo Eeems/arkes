@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 import subprocess
@@ -9,10 +8,8 @@ from datetime import datetime
 from typing import TextIO
 from typing import BinaryIO
 from typing import Callable
-from typing import cast
 from glob import iglob
 from select import select
-from tempfile import NamedTemporaryFile
 
 from . import SYSTEM_PATH
 from . import OS_NAME
@@ -176,7 +173,6 @@ def checkupdates(image: str | None = None) -> list[str]:
     if new_hash != current_hash:
         updates.append(f"Systemfile {current_hash[:9]} -> {new_hash[:9]}")
 
-    mirrorlist: list[str] | None = None
     remote_labels = image_labels(image, remote=True)
     with open("/usr/lib/os-release", "r") as f:
         local_info = {
@@ -197,34 +193,11 @@ def checkupdates(image: str | None = None) -> list[str]:
             f"{image} {local_version}.{local_id} -> {remote_version}.{remote_id}"
         )
 
+    system_updates: list[str] = []
     try:
-        data = json.loads(remote_labels.get("mirrorlist", "[]"))  # pyright: ignore[reportAny]
-        assert isinstance(data, list)
-        for x in data:  # pyright: ignore[reportUnknownVariableType]
-            assert isinstance(x, str)
-
-        mirrorlist = cast(list[str], data)
-
-    except json.JSONDecodeError:
-        pass
-
-    if mirrorlist is None or not mirrorlist:
-        with open("/etc/pacman.d/mirrorlist") as f:
-            mirrorlist = [
-                x.split("=")[1].strip()
-                for x in f.read().splitlines(False)
-                if x.startswith("Server") and "=" in x
-            ]
-
-    mirrorlist_file = NamedTemporaryFile("w", delete_on_close=False)
-    mirrorlist_file.writelines([f"Server = {x}\n" for x in mirrorlist])
-    mirrorlist_file.close()
-
-    try:
-        updates += (
+        system_updates = (
             in_system_output(
                 entrypoint="/usr/bin/checkupdates",
-                volumes=[f"{mirrorlist_file.name}:/etc/pacman.d/mirrorlist"],
             )
             .strip()
             .decode("utf-8")
@@ -235,12 +208,68 @@ def checkupdates(image: str | None = None) -> list[str]:
         if e.returncode != 2:
             raise
 
-        updates += cast(bytes, e.stdout).strip().decode("utf-8").splitlines()
+    checkupdates_packages: set[str] = set()
+    for line in system_updates:
+        parts = line.split()
+        if len(parts) >= 2:
+            checkupdates_packages.add(parts[0])
 
-    finally:
-        os.unlink(mirrorlist_file.name)
+    version_changes: dict[str, tuple[str, str]] = {}
+    removals: dict[str, tuple[str, str]] = {}
+    additions: dict[str, tuple[str, str]] = {}
+    remote_packages = remote_labels.get("packages", None)
+    if remote_packages is not None:
+        remote_pkgs: dict[str, str] = {}
+        for line in remote_packages.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                remote_pkgs[parts[0]] = parts[1]
 
-    return updates
+        local_packages = (
+            in_system_output("-Q", entrypoint="/usr/bin/pacman").strip().decode("utf-8")
+        )
+        local_pkgs: dict[str, str] = {}
+        for line in local_packages.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                local_pkgs[parts[0]] = parts[1]
+
+        for pkg in local_pkgs.keys():
+            if pkg not in remote_pkgs:
+                removals[pkg] = local_pkgs[pkg], "-"
+
+            elif remote_pkgs[pkg] != local_pkgs[pkg]:
+                version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
+
+        for pkg in remote_pkgs.keys():
+            if pkg not in local_pkgs:
+                additions[pkg] = "-", remote_pkgs[pkg]
+
+    for pkg, change in [x.split(" ", 1) for x in system_updates]:
+        if " " in change:
+            fromv, tov = change.split(" ", 1)
+            version_changes[pkg] = fromv, tov
+
+    return list(
+        dict.fromkeys(
+            updates
+            + [
+                f"{k} {' '.join(version_changes[k])}"
+                for k in sorted(version_changes)
+                if k not in checkupdates_packages
+            ]
+            + [
+                f"{k} {' '.join(additions[k])}"
+                for k in sorted(additions)
+                if k not in checkupdates_packages
+            ]
+            + [
+                f"{k} {' '.join(removals[k])}"
+                for k in sorted(removals)
+                if k not in checkupdates_packages
+            ]
+        )
+    )
 
 
 def in_nspawn_system(*args: str, check: bool = False):
