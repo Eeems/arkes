@@ -320,7 +320,7 @@ def in_nspawn_system(
     *args: str,
     check: bool = False,
     quiet: bool = False,
-):
+) -> int:
     cmd = in_nspawn_system_cmd(*args, quiet=quiet)
     ret = _execute(shlex.join(cmd))
     if ret and check:
