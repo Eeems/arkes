@@ -62,10 +62,7 @@ def command(args: Namespace):
 
 def build(target: str, cache: bool = True):
     now = datetime.now(UTC)
-    build_args: dict[str, str] = {
-        "TAR_SORT": "1",
-        "TAR_DETERMINISTIC": "1",
-    }
+    build_args: dict[str, str] = {}
     containerfile = f"variants/{target}.Containerfile"
     if target == "rootfs":
         containerfile = "rootfs.Containerfile"

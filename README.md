@@ -45,7 +45,7 @@ RUN /usr/lib/system/package_layer \
 
 COPY overlay/myvariant /
 
-ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT
+ARG VERSION_ID HASH
 
 LABEL \
   os-release.VARIANT="${VARIANT}" \
@@ -60,7 +60,7 @@ RUN /usr/lib/system/set_variant
 - Required elements:
 
    - `# x-depends=parent` metadata header
-   - `ARG HASH` at top, `ARG VERSION_ID HASH TAR_DETERMINISTIC TAR_SORT` before labels
+   - `ARG HASH` at top, `ARG VERSION_ID HASH` before labels
    - `VARIANT` (display name) and `VARIANT_ID` (identifier) arguments
    - All five LABEL entries for os-release and Open Containers spec compliance
    - Final `RUN /usr/lib/system/set_variant` call

@@ -86,7 +86,7 @@ Templates create variant combinations using `-` separator:
   # x-depends=rootfs
   # x-templates=slim
   ```
-- Standard build args: `HASH`,`TAR_DETERMINISTIC`, `TAR_SORT`
+- Standard build args: `HASH`
 
 ## Security & Best Practices
 - Never commit secrets - use GitHub secrets or environment variables
