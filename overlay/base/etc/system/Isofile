@@ -22,7 +22,7 @@ RUN <<EOT
   systemctl enable pacman-initialize.service
 EOT
 
-# Base tools needed for instllation
+# Base tools needed for installation
 RUN /usr/lib/system/package_layer \
   arch-install-scripts \
   edk2-shell \
