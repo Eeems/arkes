@@ -53,7 +53,8 @@ RUN <<EOT
     python-requests \
     python-dbus \
     distrobox \
-    xdelta3
+    xdelta3 \
+    dkms
   rm /usr/bin/su
   ln -s /usr/bin/su{-rs,}
   ln -s /usr/bin/sudo{-rs,}
