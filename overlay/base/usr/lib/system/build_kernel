@@ -2,7 +2,6 @@
 set -e
 
 echo "[system] Building DKMS modules"
-kernel=$(echo /usr/lib/modules/*)
 arch=$(uname --machine)
 while read -r conf; do
   dirname="$(basename "$(dirname $conf)")"
@@ -10,7 +9,9 @@ while read -r conf; do
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
   mod="$name/$ver"
   echo "[dkms] building $mod"
-  chronic dkms build "$mod" -k "$kernel/$arch"
+  while read -r modulesdir; do
+    chronic dkms build "$mod" -k "$(basename "$modulesdir")/$arch"
+  done < <(ls /usr/lib/modules)
 done < <(find /usr/src -name dkms.conf)
 
 echo "[system] Populating /etc/system/commandline"
