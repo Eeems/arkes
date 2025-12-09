@@ -29,6 +29,23 @@ RUN /usr/lib/system/initialize_pacman \
   nvidia-open-dkms \
   nvidia-container-toolkit \
   nvidia-utils \
+  # All the filesystems
+  btrfs-progs \
+  dosfstools \
+  exfatprogs \
+  exfat-utils \
+  f2fs-tools \
+  e2fsprogs \
+  jfsutils \
+  mtd-utils \
+  nilfs-utils \
+  ntfs-3g \
+  udftools \
+  xfsprogs \
+  bcachefs-tools \
+  apfsprogs \
+  bcachefs-dkms \
+  linux-apfs-rw-dkms \
   && /usr/lib/system/remove_pacman_files
 
 RUN sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso \
