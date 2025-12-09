@@ -75,4 +75,4 @@ def shell(*args: str) -> int:
         except OSError:
             pass
 
-        return exit_code
+    return exit_code
