@@ -28,7 +28,7 @@ def bytes_to_iec(size_bytes: int) -> str:
     return res
 
 
-def shell(*args: str):
+def shell(*args: str) -> int:
     master_fd, slave_fd = pty.openpty()
     proc = subprocess.Popen(
         args,
@@ -68,5 +68,11 @@ def shell(*args: str):
 
     finally:
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_tty)
-        _ = proc.wait()
-        os.close(master_fd)
+        exit_code = proc.wait()
+        try:
+            os.close(master_fd)
+
+        except OSError:
+            pass
+
+        return exit_code
