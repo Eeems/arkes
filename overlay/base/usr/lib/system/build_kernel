@@ -4,7 +4,7 @@ set -e
 echo "[system] Building DKMS modules"
 arch=$(uname --machine)
 while read -r conf; do
-  dirname="$(basename "$(dirname $conf)")"
+  dirname="$(basename "$(dirname "$conf")")"
   ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
   mod="$name/$ver"
