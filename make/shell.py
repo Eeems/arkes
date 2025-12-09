@@ -1,18 +1,22 @@
-import os
 import sys
-import pty
-import select
-import termios
-import subprocess
+import _os.console  # pyright: ignore[reportMissingImports]
 
 from argparse import ArgumentParser
 from argparse import Namespace
 from typing import Any
 from typing import cast
+from typing import Protocol
 
 from . import image_exists
 from . import podman_cmd
 from .pull import pull
+
+
+class ShellCallable(Protocol):
+    def __call__(self, *args: str) -> None: ...
+
+
+shell = cast(ShellCallable, _os.console.shell)  # pyright:ignore [reportUnknownMemberType]
 
 kwds: dict[str, str] = {
     "help": "Open the shell for a variant",
@@ -37,51 +41,6 @@ def command(args: Namespace):
         pull(image)
 
     shell(*podman_cmd("run", "--rm", "-it", image))
-
-
-def shell(*args: str):
-    master_fd, slave_fd = pty.openpty()
-    proc = subprocess.Popen(
-        args,
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-        close_fds=True,
-        preexec_fn=os.setsid,
-    )
-    os.close(slave_fd)
-    old_tty = termios.tcgetattr(sys.stdin.fileno())
-    try:
-        import tty
-
-        _ = tty.setraw(sys.stdin.fileno())
-        while proc.poll() is None:
-            r, _, _ = select.select([sys.stdin.fileno(), master_fd], [], [], 0.1)
-            if sys.stdin.fileno() in r:
-                data = os.read(sys.stdin.fileno(), 1024)
-                if not data:
-                    break
-
-                _ = os.write(master_fd, data)
-
-            if master_fd in r:
-                try:
-                    data = os.read(master_fd, 1024)
-                    if not data:
-                        break
-
-                    _ = os.write(sys.stdout.fileno(), data)
-
-                except OSError as e:
-                    if e.errno == 5:
-                        break
-
-    except KeyboardInterrupt:
-        pass
-
-    finally:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_tty)
-        _ = proc.wait()
 
 
 if __name__ == "__main__":

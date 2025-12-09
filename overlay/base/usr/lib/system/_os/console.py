@@ -1,4 +1,10 @@
+import os
+import pty
+import select
+import subprocess
 import sys
+import termios
+import tty
 
 
 def bytes_to_stdout(line: bytes):
@@ -20,3 +26,53 @@ def bytes_to_iec(size_bytes: int) -> str:
         unit = units.pop(0)
         res = f"{size:.2f} {unit}"
     return res
+
+
+def shell(*args: str) -> int:
+    master_fd, slave_fd = pty.openpty()
+    proc = subprocess.Popen(
+        args,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        close_fds=True,
+        preexec_fn=os.setsid,
+    )
+    os.close(slave_fd)
+    old_tty = termios.tcgetattr(sys.stdin.fileno())
+    try:
+        _ = tty.setraw(sys.stdin.fileno())
+        while proc.poll() is None:
+            r, _, _ = select.select([sys.stdin.fileno(), master_fd], [], [], 0.1)
+            if sys.stdin.fileno() in r:
+                data = os.read(sys.stdin.fileno(), 1024)
+                if not data:
+                    break
+
+                _ = os.write(master_fd, data)
+
+            if master_fd in r:
+                try:
+                    data = os.read(master_fd, 1024)
+                    if not data:
+                        break
+
+                    _ = os.write(sys.stdout.fileno(), data)
+
+                except OSError as e:
+                    if e.errno == 5:
+                        break
+
+    except KeyboardInterrupt:
+        pass
+
+    finally:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_tty)
+        exit_code = proc.wait()
+        try:
+            os.close(master_fd)
+
+        except OSError:
+            pass
+
+    return exit_code
