@@ -9,9 +9,9 @@ while read -r conf; do
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
   mod="$name/$ver"
   echo "[dkms] building $mod"
-  while read -r modulesdir; do
+  for modulesdir in /usr/lib/modules/*/; do
     chronic dkms build "$mod" -k "$(basename "$modulesdir")/$arch"
-  done < <(ls /usr/lib/modules)
+  done
 done < <(find /usr/src -name dkms.conf)
 
 echo "[system] Populating /etc/system/commandline"
