@@ -70,3 +70,4 @@ def shell(*args: str):
     finally:
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_tty)
         _ = proc.wait()
+        os.close(master_fd)
