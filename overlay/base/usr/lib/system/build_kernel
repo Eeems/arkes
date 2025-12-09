@@ -4,8 +4,8 @@ set -e
 echo "[system] Building DKMS modules"
 while read -r conf;do
   dirname="$(basename "$(dirname $conf)")"
-  ver="$(echo $dirname | rev | cut -d'-' -f1 | rev)"
-  name="$(echo $dirname | rev | cut -d'-' -f2- | rev)"
+  ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
+  name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
   mod="$name/$ver"
   echo "[dkms] building $mod"
   chronic dkms build "$mod"
