@@ -41,7 +41,6 @@ RUN /usr/lib/system/package_layer \
   btrfs-progs \
   dosfstools \
   exfatprogs \
-  exfat-utils \
   f2fs-tools \
   e2fsprogs \
   jfsutils \
