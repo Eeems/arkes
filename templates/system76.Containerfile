@@ -13,7 +13,7 @@ RUN /usr/lib/system/add_pacman_repository \
 
 RUN /usr/lib/system/package_layer \
   system76-driver \
-  system76-dkms \
+  system76-dkms-git \
   system76-acpi-dkms \
   system76-io-dkms \
   system76-power \
