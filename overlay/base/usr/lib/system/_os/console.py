@@ -4,6 +4,7 @@ import select
 import subprocess
 import sys
 import termios
+import tty
 
 
 def bytes_to_stdout(line: bytes):
@@ -40,8 +41,6 @@ def shell(*args: str):
     os.close(slave_fd)
     old_tty = termios.tcgetattr(sys.stdin.fileno())
     try:
-        import tty
-
         _ = tty.setraw(sys.stdin.fileno())
         while proc.poll() is None:
             r, _, _ = select.select([sys.stdin.fileno(), master_fd], [], [], 0.1)
