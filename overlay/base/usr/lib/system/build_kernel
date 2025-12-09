@@ -1,15 +1,28 @@
 #!/bin/bash
 set -e
 
+echo "[system] Building DKMS modules"
+arch=$(uname --machine)
+while read -r conf; do
+  dirname="$(basename "$(dirname "$conf")")"
+  ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
+  name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
+  mod="$name/$ver"
+  echo "[dkms] building $mod"
+  for modulesdir in /usr/lib/modules/*/; do
+    chronic dkms build "$mod" -k "$(basename "$modulesdir")/$arch"
+  done
+done < <(find /usr/src -name dkms.conf)
+
 echo "[system] Populating /etc/system/commandline"
-echo "${KARGS}" > /etc/system/commandline
-echo "[system] Building kernel"
+echo "${KARGS}" >/etc/system/commandline
+
+echo "[system] Building initramfs"
 find /usr/lib/modules -name vmlinuz | while read -r vmlinuz; do
   ln -s "$vmlinuz" /boot/vmlinuz-linux-zen
   chronic mkinitcpio -P
   rm /boot/vmlinuz-linux-zen
 done
-
 find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d | while read -r dir; do
   mv /boot/initramfs-linux-zen.img "$dir/initramfs.img"
   break
