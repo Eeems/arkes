@@ -98,8 +98,11 @@ def install(
     if password is None:
         password = os.environ.get("ROOT_PASSWORD", None)
         if password is None and sys.stdout.isatty():
-            # TODO - confirm password
             password = getpass("New root password: ")
+            confirm_password = getpass("Confirm password: ")
+            if password != confirm_password:
+                print("Passwords do not match")
+                sys.exit(1)
 
         if password is None:
             print("A new root password must be provided")
