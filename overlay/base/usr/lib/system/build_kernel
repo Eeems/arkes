@@ -2,17 +2,19 @@
 set -e
 
 echo "[system] Building DKMS modules"
-while read -r conf;do
+kernel=$(echo /usr/lib/modules/*)
+arch=$(uname --machine)
+while read -r conf; do
   dirname="$(basename "$(dirname $conf)")"
   ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
   mod="$name/$ver"
   echo "[dkms] building $mod"
-  chronic dkms build "$mod"
+  chronic dkms build "$mod" -k "$kernel/$arch"
 done < <(find /usr/src -name dkms.conf)
 
 echo "[system] Populating /etc/system/commandline"
-echo "${KARGS}" > /etc/system/commandline
+echo "${KARGS}" >/etc/system/commandline
 
 echo "[system] Building initramfs"
 find /usr/lib/modules -name vmlinuz | while read -r vmlinuz; do
