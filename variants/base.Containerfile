@@ -61,7 +61,7 @@ RUN <<EOT
   ln -s /usr/bin/visudo{-rs,}
   chmod u+s /usr/bin/new{u,g}idmap
   rm /etc/containers/storage.conf
-  rm /usr/share/libalpm/hooks/71-dkms-{install,upgrade,remove}.hook
+  rm /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook
 EOT
 
 COPY overlay/base /
