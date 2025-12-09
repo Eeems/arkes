@@ -295,6 +295,8 @@ def in_nspawn_system_cmd(
     # TODO overlay /usr/lib/pacman somehow
     return [
         "systemd-nspawn",
+        "--as-pid2",
+        "--pipe",
         "--volatile=state",
         "--link-journal=no",
         "--directory=/sysroot",
