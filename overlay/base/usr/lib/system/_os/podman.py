@@ -406,10 +406,7 @@ def image_size(image: str) -> int:
 
 
 CONTAINER_POST_STEPS = r"""
-ARG \
-  KARGS \
-  TAR_DETERMINISTIC \
-  TAR_SORT
+ARG KARGS
 
 RUN fc-cache -f \
   && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
@@ -447,11 +444,7 @@ def build(
         _ = shutil.copytree("/etc/system", context)
 
         extra: bytes = "\n".join((buildArgs or []) + (extraSteps or [])).encode("utf-8")
-        _buildArgs = [
-            f"VERSION_ID={context_hash(extra)}",
-            "TAR_SORT=1",
-            "TAR_DETERMINISTIC=1",
-        ]
+        _buildArgs = [f"VERSION_ID={context_hash(extra)}"]
         if buildArgs is not None:
             _buildArgs += buildArgs
 

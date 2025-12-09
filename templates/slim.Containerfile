@@ -29,49 +29,6 @@ RUN /usr/lib/system/initialize_pacman \
   /usr/lib/python*/test \
   && chronic find /usr/lib/python* -name '*.pyo' -exec rm -v {} \;
 
-ARG \
-  VARIANT \
-  VARIANT_ID \
-  VERSION_ID
-
-RUN VARIANT="${VARIANT}" \
-  VARIANT_ID="${VARIANT_ID}" \
-  /usr/lib/system/set_variant
-
 FROM scratch
 
 COPY --from=build / /
-
-ARG \
-  VARIANT \
-  VARIANT_ID \
-  VERSION \
-  VERSION_ID \
-  MIRRORLIST \
-  HASH \
-  NAME \
-  PRETTY_NAME \
-  ID \
-  HOME_URL \
-  BUG_REPORT_URL \
-  TAR_DETERMINISTIC \
-  TAR_SORT
-
-LABEL \
-  os-release.NAME="${NAME}" \
-  os-release.PRETTY_NAME="${PRETTY_NAME}" \
-  os-release.ID="${ID}" \
-  os-release.HOME_URL="${HOME_URL}" \
-  os-release.BUG_REPORT_URL="${BUG_REPORT_URL}" \
-  os-release.VERSION="${VERSION}" \
-  os-release.VERSION_ID="${VERSION_ID}" \
-  os-release.VARIANT="${VARIANT}" \
-  os-release.VARIANT_ID="${VARIANT_ID}" \
-  org.opencontainers.image.authors="eeems@eeems.email" \
-  org.opencontainers.image.source="https://github.com/Eeems/arkes" \
-  org.opencontainers.image.ref.name="${VARIANT_ID}" \
-  hash="${HASH}" \
-  mirrorlist="${MIRRORLIST}"
-
-WORKDIR /
-ENTRYPOINT [ "/bin/bash" ]

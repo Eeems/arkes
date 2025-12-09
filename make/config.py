@@ -57,6 +57,10 @@ def parse_config(containerfile: str) -> tuple[str, ConfigItem]:
     if depends is not None:
         config["depends"] = depends
 
+    name = cast(str | None, _get_config_data(lines, "# x-name="))
+    if name is not None:
+        config["name"] = name
+
     templates = cast(
         str | None, _get_config_data(lines, "# x-templates=", multiple=True)
     )
@@ -74,7 +78,6 @@ def parse_all_config() -> Config:
             k: v
             for x in iglob("variants/*.Containerfile")
             for k, v in [parse_config(x)]
-            if k != "rootfs"
         }
     }
 

@@ -67,9 +67,7 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
   PACSTRAP_TAG \
-  HASH \
-  TAR_DETERMINISTIC \
-  TAR_SORT
+  HASH
 
 LABEL \
   os-release.NAME="Arkēs" \

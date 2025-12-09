@@ -238,4 +238,4 @@ jobs:
           commit_message: |
             Automated rootfs update
             skip-checks:true
-            file_pattern: 'variants/rootfs.Container'
+            file_pattern: 'rootfs.Containerfile'

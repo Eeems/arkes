@@ -31,6 +31,8 @@ on:
       - "overlay/**"
       - "templates/**"
       - "variants/**"
+      - rootfs.Containerfile
+      - variant.Containerfile
       - make.py
       - seccomp.json
       - .containerignore

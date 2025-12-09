@@ -8,20 +8,3 @@ RUN /usr/lib/system/package_layer \
   nvidia-container-toolkit \
   nvidia-utils \
   nvidia-settings
-
-ARG \
-  VARIANT \
-  VARIANT_ID \
-  VERSION_ID \
-  HASH \
-  TAR_DETERMINISTIC \
-  TAR_SORT
-
-LABEL \
-  os-release.VARIANT="${VARIANT}" \
-  os-release.VARIANT_ID="${VARIANT_ID}" \
-  os-release.VERSION_ID="${VERSION_ID}" \
-  org.opencontainers.image.ref.name="${VARIANT_ID}" \
-  hash="${HASH}"
-
-RUN /usr/lib/system/set_variant

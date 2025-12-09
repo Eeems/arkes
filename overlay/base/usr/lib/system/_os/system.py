@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 import subprocess
@@ -9,10 +8,8 @@ from datetime import datetime
 from typing import TextIO
 from typing import BinaryIO
 from typing import Callable
-from typing import cast
 from glob import iglob
 from select import select
-from tempfile import NamedTemporaryFile
 
 from . import SYSTEM_PATH
 from . import OS_NAME
@@ -162,7 +159,6 @@ def system_kernelCommandLine() -> str:
 
 
 def checkupdates(image: str | None = None) -> list[str]:
-    from .podman import in_system_output
     from .podman import system_hash
     from .podman import context_hash
     from .podman import image_labels
@@ -176,7 +172,6 @@ def checkupdates(image: str | None = None) -> list[str]:
     if new_hash != current_hash:
         updates.append(f"Systemfile {current_hash[:9]} -> {new_hash[:9]}")
 
-    mirrorlist: list[str] | None = None
     remote_labels = image_labels(image, remote=True)
     with open("/usr/lib/os-release", "r") as f:
         local_info = {
@@ -197,57 +192,79 @@ def checkupdates(image: str | None = None) -> list[str]:
             f"{image} {local_version}.{local_id} -> {remote_version}.{remote_id}"
         )
 
+    system_updates: list[str] = []
     try:
-        data = json.loads(remote_labels.get("mirrorlist", "[]"))  # pyright: ignore[reportAny]
-        assert isinstance(data, list)
-        for x in data:  # pyright: ignore[reportUnknownVariableType]
-            assert isinstance(x, str)
-
-        mirrorlist = cast(list[str], data)
-
-    except json.JSONDecodeError:
-        pass
-
-    if mirrorlist is None or not mirrorlist:
-        with open("/etc/pacman.d/mirrorlist") as f:
-            mirrorlist = [
-                x.split("=")[1].strip()
-                for x in f.read().splitlines(False)
-                if x.startswith("Server") and "=" in x
-            ]
-
-    mirrorlist_file = NamedTemporaryFile("w", delete_on_close=False)
-    mirrorlist_file.writelines([f"Server = {x}\n" for x in mirrorlist])
-    mirrorlist_file.close()
-
-    try:
-        updates += (
-            in_system_output(
-                entrypoint="/usr/bin/checkupdates",
-                volumes=[f"{mirrorlist_file.name}:/etc/pacman.d/mirrorlist"],
-            )
-            .strip()
-            .decode("utf-8")
-            .splitlines()
+        system_updates = (
+            in_nspawn_system_output("checkupdates").strip().decode("utf-8").splitlines()
         )
 
     except subprocess.CalledProcessError as e:
         if e.returncode != 2:
             raise
 
-        updates += cast(bytes, e.stdout).strip().decode("utf-8").splitlines()
+    version_changes: dict[str, tuple[str, str]] = {}
+    for pkg, change in [x.split(" ", 1) for x in system_updates if " " in x]:
+        if " " not in change:
+            continue
 
-    finally:
-        os.unlink(mirrorlist_file.name)
+        fromv, tov = change.split(" ", 1)
+        version_changes[pkg] = fromv, tov
 
-    return updates
+    removals: dict[str, tuple[str, str]] = {}
+    additions: dict[str, tuple[str, str]] = {}
+    remote_packages = remote_labels.get("packages", None)
+    if remote_packages is not None:
+        remote_pkgs: dict[str, str] = {}
+        for line in remote_packages.splitlines():
+            if " " not in line:
+                continue
+
+            pkg, ver = line.split(" ", 1)
+            remote_pkgs[pkg] = ver
+
+        local_packages = in_nspawn_system_output("pacman", "-Q").strip().decode("utf-8")
+        local_pkgs: dict[str, str] = {}
+        for line in local_packages.splitlines():
+            if " " not in line:
+                continue
+
+            pkg, ver = line.split(" ", 1)
+            local_pkgs[pkg] = ver
+
+        for pkg in local_pkgs.keys():
+            if pkg in version_changes:
+                continue
+
+            if pkg not in remote_pkgs:
+                removals[pkg] = local_pkgs[pkg], "-"
+
+            elif remote_pkgs[pkg] != local_pkgs[pkg]:
+                version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
+
+        for pkg in remote_pkgs.keys():
+            if pkg in version_changes or pkg in local_pkgs:
+                continue
+
+            additions[pkg] = "-", remote_pkgs[pkg]
+
+    return list(
+        dict.fromkeys(
+            updates
+            + [
+                f"{k} {' -> '.join(version_changes[k])}"
+                for k in sorted(version_changes)
+            ]
+            + [f"{k} {' -> '.join(additions[k])}" for k in sorted(additions)]
+            + [f"{k} {' -> '.join(removals[k])}" for k in sorted(removals)]
+        )
+    )
 
 
-def in_nspawn_system(*args: str, check: bool = False):
+def in_nspawn_system_cmd(
+    *args: str,
+    quiet: bool = False,
+) -> list[str]:
     from .ostree import current_deployment
-
-    if not is_root():
-        raise RuntimeError("in_nspawn_system can only be called as root")
 
     _ostree_root = ""
     if os.path.exists("/ostree") and os.path.isdir("/ostree"):
@@ -276,11 +293,12 @@ def in_nspawn_system(*args: str, check: bool = False):
     deployment = current_deployment()
     os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
     # TODO overlay /usr/lib/pacman somehow
-    cmd = [
+    return [
         "systemd-nspawn",
         "--volatile=state",
-        "--link-journal=try-guest",
+        "--link-journal=no",
         "--directory=/sysroot",
+        *(["--quiet"] if quiet else []),
         f"--bind={SYSTEM_PATH}:{SYSTEM_PATH}",
         "--bind=/boot:/boot",
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
@@ -289,11 +307,35 @@ def in_nspawn_system(*args: str, check: bool = False):
         f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
     ]
+
+
+def in_nspawn_system(
+    *args: str,
+    check: bool = False,
+    quiet: bool = False,
+) -> int:
+    if not is_root():
+        raise RuntimeError("in_nspawn_system can only be called as root")
+
+    cmd = in_nspawn_system_cmd(*args, quiet=quiet)
     ret = _execute(shlex.join(cmd))
     if ret and check:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
 
     return ret
+
+
+def in_nspawn_system_output(
+    *args: str,
+    quiet: bool = False,
+) -> bytes:
+    if not is_root():
+        raise RuntimeError("in_nspawn_system_output can only be called as root")
+
+    return subprocess.check_output(
+        in_nspawn_system_cmd(*args, quiet=quiet),
+        stderr=subprocess.DEVNULL if quiet else None,
+    )
 
 
 def upgrade(

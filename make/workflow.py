@@ -220,6 +220,8 @@ def command(args: Namespace):
             '      - "overlay/**"',
             '      - "templates/**"',
             '      - "variants/**"',
+            "      - rootfs.Containerfile",
+            "      - variant.Containerfile",
             "      - make.py",
             "      - seccomp.json",
             "      - .containerignore",

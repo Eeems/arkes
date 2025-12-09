@@ -82,11 +82,11 @@ Templates create variant combinations using `-` separator:
 ## Containerfile Conventions
 - Always include dependency metadata:
   ```dockerfile
+  # x-name=My Variant
   # x-depends=rootfs
   # x-templates=slim
   ```
-- Standard build args: `HASH`, `VARIANT`, `VARIANT_ID`, `VERSION_ID`, `TAR_DETERMINISTIC`, `TAR_SORT`
-- Use `os-release.` prefix and Open Containers spec for labels
+- Standard build args: `HASH`
 
 ## Security & Best Practices
 - Never commit secrets - use GitHub secrets or environment variables
@@ -105,3 +105,5 @@ Templates create variant combinations using `-` separator:
 - Container variants in `variants/` with templates in `templates/`
 - Overlays in `overlay/` for filesystem modifications
 - Commands in `make/` directory with automatic discovery
+- Final variant image is generated with `variant.Containerfile`
+- Base variant uses `rootfs.Containerfile` for it's base rootfs
