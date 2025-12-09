@@ -4,17 +4,26 @@ FROM ${BASE_IMAGE}
 
 ARG UUID
 
-RUN rm /home \
-  && mkdir /home \
-  && /usr/lib/system/setup_live_user \
-  && mkdir -p /etc/mkinitcpio{,.conf}.d \
-  && cp -lf /etc/system/mkinitcpio-archiso.conf /etc/mkinitcpio.conf.d/archiso.conf \
-  && cp -lf /etc/system/linux-zen-archiso.preset /etc/mkinitcpio.d/linux-zen.preset \
-  && cp -lf /etc/system/pacman-initialize.service /etc/systemd/system/pacman-initialize.service \
-  && systemctl enable pacman-initialize.service
+RUN <<EOT
+  set -e
+  rm /home
+  mkdir /home
+  /usr/lib/system/setup_live_user
+  mkdir -p /etc/mkinitcpio{,.conf}.d
+  cp -lf \
+    /etc/system/mkinitcpio-archiso.conf \
+    /etc/mkinitcpio.conf.d/archiso.conf
+  cp -lf \
+    /etc/system/linux-zen-archiso.preset \
+    /etc/mkinitcpio.d/linux-zen.preset
+  cp -lf \
+    /etc/system/pacman-initialize.service \
+    /etc/systemd/system/pacman-initialize.service
+  systemctl enable pacman-initialize.service
+EOT
 
-RUN /usr/lib/system/initialize_pacman \
-  && /usr/lib/system/install_packages \
+# Base tools needed for installation
+RUN /usr/lib/system/package_layer \
   arch-install-scripts \
   edk2-shell \
   grub \
@@ -25,29 +34,46 @@ RUN /usr/lib/system/initialize_pacman \
   mkinitcpio-archiso \
   mtools \
   qemu-guest-agent \
-  syslinux \
-  nvidia-open-dkms \
-  nvidia-container-toolkit \
-  nvidia-utils \
-  && /usr/lib/system/remove_pacman_files
+  syslinux
 
-RUN sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso \
-  && /usr/lib/system/build_kernel \
-  && /usr/lib/system/create_live_bootloader \
-  && systemctl disable atomic-state-overlay.service \
-  && printf '%s\n' \
-  "#!/bin/bash" \
-  "mount -o remount,size=\$(awk '/^MemTotal:/{print int(\$2*0.7)}' /proc/meminfo)K /run/archiso/cowspace" \
-  > /bin/resize-cowspace \
-  && chmod +x /bin/resize-cowspace \
-  && printf '%s\n' \
-  "[Unit]" \
-  "After=local-fs.target" \
-  "[Service]" \
-  "ExecStart=/bin/resize-cowspace" \
-  "RemainAfterExit=true" \
-  "Type=oneshot" \
-  "[Install]" \
-  "WantedBy=multi-user.target" \
-  > /etc/systemd/system/resize-cowspace.service \
-  && systemctl enable resize-cowspace.service
+# All the possible filesystems
+RUN /usr/lib/system/package_layer \
+  btrfs-progs \
+  dosfstools \
+  exfatprogs \
+  f2fs-tools \
+  e2fsprogs \
+  jfsutils \
+  mtd-utils \
+  nilfs-utils \
+  ntfs-3g \
+  udftools \
+  xfsprogs \
+  bcachefs-tools \
+  apfsprogs \
+  bcachefs-dkms \
+  linux-apfs-rw-dkms
+
+RUN <<EOT
+  set -e
+  sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso
+  /usr/lib/system/build_kernel
+  /usr/lib/system/create_live_bootloader
+  systemctl disable atomic-state-overlay.service
+  printf '%s\n' \
+    "#!/bin/bash" \
+    "mount -o remount,size=\$(awk '/^MemTotal:/{print int(\$2*0.7)}' /proc/meminfo)K /run/archiso/cowspace" \
+  > /bin/resize-cowspace
+  chmod +x /bin/resize-cowspace
+  printf '%s\n' \
+    "[Unit]" \
+    "After=local-fs.target" \
+    "[Service]" \
+    "ExecStart=/bin/resize-cowspace" \
+    "RemainAfterExit=true" \
+    "Type=oneshot" \
+    "[Install]" \
+    "WantedBy=multi-user.target" \
+  > /etc/systemd/system/resize-cowspace.service
+  systemctl enable resize-cowspace.service
+EOT
