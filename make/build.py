@@ -96,7 +96,6 @@ def build(target: str, cache: bool = True):
         podman("rmi", build_tag)
         return
 
-    build_args["VERSION_ID"] = f"{now.strftime('%H%M%S')}{int(now.microsecond / 10000)}"
     build_args["HASH"] = hash(target)
     if "-" in target and not os.path.exists(f"variants/{target}.Containerfile"):
         base_variant, template = target.rsplit("-", 1)
@@ -105,6 +104,7 @@ def build(target: str, cache: bool = True):
         labels = image_labels(image, not image_exists(image, False, False))
         build_args["VARIANT"] = f"{labels['os-release.VARIANT']} ({template})"
         build_args["VARIANT_ID"] = f"{labels['os-release.VARIANT_ID']}-{template}"
+        build_args["VERSION_ID"] = f"{labels['os-release.VERSION_ID']}"
         if not image_exists(f"{REPO}:{base_variant}", False, False):
             pull(f"{REPO}:{base_variant}")
 
@@ -116,10 +116,12 @@ def build(target: str, cache: bool = True):
         assert isinstance(name, str)
         build_args["VARIANT"] = name
         build_args["VARIANT_ID"] = variant_id
+        build_args["VERSION_ID"] = (
+            f"{now.strftime('%H%M%S')}{int(now.microsecond / 10000)}"
+        )
 
     build_args["MIRRORLIST"] = f"{labels['mirrorlist']}"
     build_args["VERSION"] = f"{labels['os-release.VERSION']}"
-    build_args["VERSION_ID"] = f"{labels['os-release.VERSION_ID']}"
     build_args["NAME"] = f"{labels['os-release.NAME']}"
     build_args["PRETTY_NAME"] = f"{labels['os-release.PRETTY_NAME']}"
     build_args["ID"] = f"{labels['os-release.ID']}"
