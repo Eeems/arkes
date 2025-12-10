@@ -59,14 +59,14 @@ def hash(target: str) -> str:
 
     for file in sorted(
         [
-            "build.py",
-            "hash.py",
-            "pull.py",
-            "push.py",
-            "__init__.py",
+            "make/build.py",
+            "make/hash.py",
+            "make/pull.py",
+            "make/push.py",
+            "make/__init__.py",
         ]
     ):
-        with open(f"make/{file}", "rb") as f:
+        with open(file, "rb") as f:
             m.update(f.read())
 
     return m.hexdigest()

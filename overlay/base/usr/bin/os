@@ -2,4 +2,4 @@
 set -e
 
 cd "$(dirname "$0")/../lib/system"
-exec python -m _os "$@"
+exec python -c "from _os import __main__" "$@"

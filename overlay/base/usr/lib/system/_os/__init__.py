@@ -24,11 +24,19 @@ def cli(argv: list[str]):
     __dirname__ = os.path.dirname(__file__)
     modulename = os.path.basename(__dirname__)
     subparsers = parser.add_subparsers(help="Action to run")
-    for file in iglob(os.path.join(__dirname__, "cli", "*.py")):
-        if file.endswith("__.py"):
-            continue
+    if "__compiled__" in globals():
+        from .cli import __all__  # pyright: ignore[reportAttributeAccessIssue, reportUnknownVariableType]
 
-        name = os.path.splitext(os.path.basename(file))[0]
+        modules = cast(list[str], __all__)
+
+    else:
+        modules = [
+            os.path.splitext(os.path.basename(x))[0]
+            for x in iglob(os.path.join(__dirname__, "cli", "*.py"))
+            if not x.endswith("__.py")
+        ]
+
+    for name in modules:
         module = importlib.import_module(f"{modulename}.cli.{name}", modulename)
         subparser = subparsers.add_parser(
             name,
