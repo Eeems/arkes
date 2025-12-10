@@ -235,7 +235,7 @@ class Deployment:
 
     @property
     def os_info(self) -> dict[str, str]:
-        with open(os.path.join(self.path, "/usr/lib/os-release"), "r") as f:
+        with open(os.path.join(self.path, "usr/lib/os-release"), "r") as f:
             return {
                 x[0]: x[1]
                 for x in [
