@@ -3,16 +3,17 @@ set -e
 
 echo "[system] Building DKMS modules"
 arch=$(uname --machine)
-while read -r conf; do
+for conf in /usr/src/**/dkms.conf; do
   dirname="$(basename "$(dirname "$conf")")"
   ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
-  mod="$name/$ver"
-  echo "[dkms] building $mod"
+  echo "[dkms] building $name"
   for modulesdir in /usr/lib/modules/*/; do
-    chronic dkms build "$mod" -k "$(basename "$modulesdir")/$arch"
+    kernel="$(basename "$modulesdir")/$arch"
+    chronic dkms build -m "$name" -v "$ver" -k "$kernel"
+    chronic dkms install --force -m "$name" -v "$ver" -k "$kernel"
   done
-done < <(find /usr/src -name dkms.conf)
+done
 
 echo "[system] Populating /etc/system/commandline"
 echo "${KARGS}" >/etc/system/commandline
