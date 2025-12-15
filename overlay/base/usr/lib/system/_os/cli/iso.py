@@ -58,6 +58,7 @@ def iso():
         "build",
         f"--build-arg=UUID={uuid}",
         f"--build-arg=BASE_IMAGE={buildImage}",
+        "--cap-add=SYS_ADMIN",
         "--force-rm",
         "--pull=never",
         f"--volume={cache}:{cache}",

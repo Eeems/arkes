@@ -31,11 +31,17 @@ def command(args: Namespace):
 
     for target in cast(list[str], args.target):
         image = f"{REPO}:{target}"
-        _ = in_system("build", target=image, check=True)
+        _ = in_system(
+            "build",
+            target=image,
+            check=True,
+            flags=["cap-add=SYS_ADMIN"],
+        )
         _ = in_system(
             "iso",
             *([] if cast(bool, args.localImage) else ["--no-local-image"]),
             check=True,
+            flags=["cap-add=SYS_ADMIN"],
         )
 
 
