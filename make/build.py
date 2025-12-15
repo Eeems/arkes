@@ -84,6 +84,7 @@ def build(target: str, cache: bool = True):
         *[f"--build-arg={k}={v}" for k, v in build_args.items()],
         *[] if cache else ["--no-cache"],
         "--force-rm",
+        "--cap-add=SYS_ADMIN",
         "--pull=never",
         "--volume=/var/cache/pacman:/var/cache/pacman",
         f"--file={containerfile}",
