@@ -228,7 +228,7 @@ def checkupdates(image: str | None = None) -> list[str]:
         remote_pkgs[pkg] = ver
 
     deployment = current_deployment()
-    local_pkgs = deployment.packages
+    local_pkgs = deployment.imagePackages or deployment.packages
     for pkg in local_pkgs.keys():
         if pkg in version_changes:
             continue

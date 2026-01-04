@@ -412,7 +412,7 @@ ARG PACKAGES
 RUN fc-cache -f \
   && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
   && /usr/lib/system/prepare_fs \
-  && echo "\${PACKAGES}" > /usr/lib/system/packages.txt
+  && echo "${PACKAGES}" > /usr/lib/system/packages.txt
 
 ARG VERSION_ID
 
