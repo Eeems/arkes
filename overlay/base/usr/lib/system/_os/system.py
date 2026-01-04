@@ -167,6 +167,7 @@ def checkupdates(image: str | None = None) -> list[str]:
     from .podman import system_hash
     from .podman import context_hash
     from .podman import image_labels
+    from .ostree import current_deployment
 
     if image is None:
         image = baseImage()
@@ -217,40 +218,32 @@ def checkupdates(image: str | None = None) -> list[str]:
 
     removals: dict[str, tuple[str, str]] = {}
     additions: dict[str, tuple[str, str]] = {}
-    remote_packages = remote_labels.get("packages", None)
-    if remote_packages is not None:
-        remote_pkgs: dict[str, str] = {}
-        for line in remote_packages.splitlines():
-            if " " not in line:
-                continue
+    remote_packages = remote_labels.get("packages", "")
+    remote_pkgs: dict[str, str] = {}
+    for line in remote_packages.splitlines():
+        if " " not in line:
+            continue
 
-            pkg, ver = line.split(" ", 1)
-            remote_pkgs[pkg] = ver
+        pkg, ver = line.split(" ", 1)
+        remote_pkgs[pkg] = ver
 
-        local_packages = in_nspawn_system_output("pacman", "-Q").strip().decode("utf-8")
-        local_pkgs: dict[str, str] = {}
-        for line in local_packages.splitlines():
-            if " " not in line:
-                continue
+    deployment = current_deployment()
+    local_pkgs = deployment.packages
+    for pkg in local_pkgs.keys():
+        if pkg in version_changes:
+            continue
 
-            pkg, ver = line.split(" ", 1)
-            local_pkgs[pkg] = ver
+        if pkg not in remote_pkgs:
+            removals[pkg] = local_pkgs[pkg], "-"
 
-        for pkg in local_pkgs.keys():
-            if pkg in version_changes:
-                continue
+        elif remote_pkgs[pkg] != local_pkgs[pkg]:
+            version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
 
-            if pkg not in remote_pkgs:
-                removals[pkg] = local_pkgs[pkg], "-"
+    for pkg in remote_pkgs.keys():
+        if pkg in version_changes or pkg in local_pkgs:
+            continue
 
-            elif remote_pkgs[pkg] != local_pkgs[pkg]:
-                version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
-
-        for pkg in remote_pkgs.keys():
-            if pkg in version_changes or pkg in local_pkgs:
-                continue
-
-            additions[pkg] = "-", remote_pkgs[pkg]
+        additions[pkg] = "-", remote_pkgs[pkg]
 
     return list(
         dict.fromkeys(
