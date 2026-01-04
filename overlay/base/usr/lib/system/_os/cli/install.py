@@ -139,7 +139,7 @@ def install(
     _ = shutil.copy2("/etc/system/Systemfile", systemfile)
     build(
         systemfile,
-        buildArgs=[f"KARGS={kernelCommandline}"],
+        buildArgs={"KARGS": kernelCommandline},
         extraSteps=[
             r"RUN /usr/lib/system/install_packages \ ",
             " \\\n".join([f"  {x}" for x in extraPackages or []]),

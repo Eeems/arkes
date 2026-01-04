@@ -259,6 +259,45 @@ class Deployment:
 
         return ""
 
+    @property
+    def packages(self) -> dict[str, str]:
+        from .system import in_nspawn_system_output
+
+        packages: list[tuple[str, str]] = []
+        try:
+            packages = list(
+                cast(tuple[str, str], tuple(x.split(" ", 1)))
+                for x in in_nspawn_system_output("pacman", "-Q", deployment=self)
+                .strip()
+                .decode("utf-8")
+                .splitlines()
+            )
+
+        except subprocess.CalledProcessError as e:
+            if e.returncode != 2:
+                raise
+
+        return dict(packages)
+
+    @property
+    def imagePackages(self) -> dict[str, str]:
+        packages: list[tuple[str, str]] = []
+        try:
+            with open(
+                os.path.join(self.path, "usr/lib/system/packages.txt"),
+                "r",
+                encoding="utf-8",
+            ) as f:
+                packages = list(
+                    cast(tuple[str, str], tuple(x.split(" ", 1)))
+                    for x in f.read().strip().splitlines()
+                )
+
+        except FileNotFoundError:
+            pass
+
+        return dict(packages)
+
 
 def deployments() -> Generator[Deployment, None, None]:
     status = json.loads(  # pyright: ignore[reportAny]

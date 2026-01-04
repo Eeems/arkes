@@ -5,11 +5,16 @@ import shlex
 import shutil
 
 from datetime import datetime
+
 from typing import TextIO
 from typing import BinaryIO
 from typing import Callable
+from typing import cast
+
 from glob import iglob
+
 from select import select
+
 
 from . import SYSTEM_PATH
 from . import OS_NAME
@@ -263,7 +268,9 @@ def checkupdates(image: str | None = None) -> list[str]:
 def in_nspawn_system_cmd(
     *args: str,
     quiet: bool = False,
+    deployment: object | None = None,  # ostree.Deployment
 ) -> list[str]:
+    from .ostree import Deployment
     from .ostree import current_deployment
 
     _ostree_root = ""
@@ -290,7 +297,10 @@ def in_nspawn_system_cmd(
     if not os.path.exists(cache):
         os.makedirs(cache, exist_ok=True)
 
-    deployment = current_deployment()
+    deployment = cast(Deployment | None, deployment)
+    if deployment is None:
+        deployment = current_deployment()
+
     os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
     # TODO overlay /usr/lib/pacman somehow
     return [
@@ -315,11 +325,12 @@ def in_nspawn_system(
     *args: str,
     check: bool = False,
     quiet: bool = False,
+    deployment: object | None = None,  # ostree.Deployment
 ) -> int:
     if not is_root():
         raise RuntimeError("in_nspawn_system can only be called as root")
 
-    cmd = in_nspawn_system_cmd(*args, quiet=quiet)
+    cmd = in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment)
     ret = _execute(shlex.join(cmd))
     if ret and check:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
@@ -330,12 +341,13 @@ def in_nspawn_system(
 def in_nspawn_system_output(
     *args: str,
     quiet: bool = False,
+    deployment: object | None = None,  # ostree.Deployment
 ) -> bytes:
     if not is_root():
         raise RuntimeError("in_nspawn_system_output can only be called as root")
 
     return subprocess.check_output(
-        in_nspawn_system_cmd(*args, quiet=quiet),
+        in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment),
         stderr=subprocess.DEVNULL if quiet else None,
     )
 
@@ -360,7 +372,7 @@ def upgrade(
         os.makedirs(SYSTEM_PATH, exist_ok=True)
 
     build(
-        buildArgs=[f"KARGS={system_kernelCommandLine()}"],
+        buildArgs={"KARGS": system_kernelCommandLine()},
         onstdout=onstdout,
         onstderr=onstderr,
     )

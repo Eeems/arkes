@@ -21,7 +21,7 @@ def command(_: Namespace):
         print("Must be run as root")
         sys.exit(1)
 
-    build(buildArgs=[f"KARGS={system_kernelCommandLine()}"])
+    build(buildArgs={"KARGS": system_kernelCommandLine()})
 
 
 if __name__ == "__main__":

@@ -407,10 +407,12 @@ def image_size(image: str) -> int:
 
 CONTAINER_POST_STEPS = r"""
 ARG KARGS
+ARG PACKAGES
 
 RUN fc-cache -f \
   && SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel \
-  && /usr/lib/system/prepare_fs
+  && /usr/lib/system/prepare_fs \
+  && echo "\${PACKAGES}" > /usr/lib/system/packages.txt
 
 ARG VERSION_ID
 
@@ -420,7 +422,7 @@ RUN /usr/lib/system/set_build_id
 
 def build(
     systemfile: str = "/etc/system/Systemfile",
-    buildArgs: list[str] | None = None,
+    buildArgs: dict[str, str] | None = None,
     extraSteps: list[str] | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
@@ -443,14 +445,16 @@ def build(
     try:
         _ = shutil.copytree("/etc/system", context)
 
-        extra: bytes = "\n".join((buildArgs or []) + (extraSteps or [])).encode("utf-8")
-        _buildArgs = [f"VERSION_ID={context_hash(extra)}"]
-        if buildArgs is not None:
-            _buildArgs += buildArgs
-
+        _buildArgs = buildArgs or {}
+        _extraSteps = extraSteps or []
+        extra: bytes = "\n".join(
+            [f"{k}={v}" for k, v in _buildArgs.items()] + _extraSteps
+        ).encode("utf-8")
+        _buildArgs["VERSION_ID"] = context_hash(extra)
+        _buildArgs["PACKAGES"] = image_labels(base_image).get("packages", "")
         with open(containerfile, "w") as f, open(systemfile, "r") as i:
             _ = f.write(i.read())
-            _ = f.write("\n".join((extraSteps or []) + [CONTAINER_POST_STEPS.strip()]))
+            _ = f.write("\n".join(_extraSteps + [CONTAINER_POST_STEPS.strip()]))
 
         podman(
             "build",
@@ -461,7 +465,7 @@ def build(
             "--tag=system:latest",
             "--pull=never",
             "--cap-add=SYS_ADMIN",
-            *[f"--build-arg={x}" for x in _buildArgs],
+            *[f"--build-arg={k}={v}" for k, v in _buildArgs.items()],
             f"--volume={cache}:{cache}",
             f"--file={containerfile}",
             "--format=oci",
