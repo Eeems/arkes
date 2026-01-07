@@ -28,6 +28,7 @@ RUN /usr/lib/system/package_layer \
   vulkan-swrast \
   ttf-roboto-mono-nerd \
   noto-fonts-emoji \
+  noto-fonts-cjk \
   adw-gtk-theme \
   swaync \
   nwg-clipman \
