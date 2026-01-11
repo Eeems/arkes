@@ -2,10 +2,11 @@
 ARG ARCHIVE_YEAR=2026
 ARG ARCHIVE_MONTH=01
 ARG ARCHIVE_DAY=10
-ARG PACSTRAP_TAG=20250427.0.341977
+ARG PACSTRAP_TAG=20260104.0.477168
+ARG GOLANG_VERSION=1.25.5
 ARG HASH VERSION_ID
 
-FROM golang:1.25.4-alpine as dockerfile2llbjson
+FROM golang:${GOLANG_VERSION}-alpine as dockerfile2llbjson
 
 WORKDIR /app
 COPY tools/dockerfile2llbjson/go.mod tools/dockerfile2llbjson/go.sum ./
