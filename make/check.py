@@ -128,7 +128,7 @@ def command(args: Namespace):
 
     print("[check] Setting up venv", file=sys.stderr)
     if not os.path.exists(".venv/bin/activate"):
-        chronic("python", "-m", "venv", ".venv")
+        chronic("python", "-m", "venv", "--system-site-packages", ".venv")
 
     chronic(
         "bash",
@@ -136,6 +136,7 @@ def command(args: Namespace):
         ";".join(
             [
                 "source .venv/bin/activate",
+                "python -m ensurepip",
                 "pip install "
                 + " ".join(
                     [
