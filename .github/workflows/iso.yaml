@@ -36,7 +36,7 @@ on:
     inputs: *inputs
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 jobs:
@@ -121,3 +121,16 @@ jobs:
         with:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+
+      - name: Update latest release
+        if: inputs.push
+        run: |
+          if ! gh release view latest >/dev/null; then
+            gh release create latest --title "Latest" --prerelease
+          fi
+          gh release upload latest \
+            --clober \
+            arkes-${{ inputs.variant }}-*.iso \
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
