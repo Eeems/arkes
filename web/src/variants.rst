@@ -71,7 +71,7 @@ This variant provides an opinionated modern Wayland-based desktop environment fe
 atomic-nvidia
 ~~~~~~~~~~~~~
 
-Based on the atomic variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
+Based on the atomic variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers.
 
 gnome
 ~~~~~
@@ -96,7 +96,7 @@ Based on atomic, this includes `Eeems' personal pacman repositories <https://rep
 eeems-nvidia
 ~~~~~~~~~~~
 
-Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers, `CUDA <https://wiki.archlinux.org/title/General-purpose_computing_on_graphics_processing_units#CUDA>`_ support, `Optimus <https://wiki.archlinux.org/title/NVIDIA_Optimus>`_ support, and gaming optimizations.
+Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers.
 
 eeems-system76
 ~~~~~~~~~~~~~~~
