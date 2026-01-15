@@ -129,7 +129,7 @@ jobs:
             gh release create latest --title "Latest" --prerelease
           fi
           gh release upload latest \
-            --clober \
+            --clobber \
             arkes-${{ inputs.variant }}-*.iso \
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
         env:
