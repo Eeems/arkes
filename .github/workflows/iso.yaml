@@ -138,7 +138,7 @@ jobs:
           fi
           mv \
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso \
-            arkes-${{ inputs.variant }}.iso
+            /var/lib/system/arkes-${{ inputs.variant }}.iso
           gh release upload latest \
             --clobber \
             /var/lib/system/arkes-${{ inputs.variant }}.iso
