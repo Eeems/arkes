@@ -36,7 +36,6 @@ $(DIST): $(VENV)/bin/activate
 	    $(DIST)/_static/language_data.js \
 	    $(DIST)/_static/minus.png \
 	    $(DIST)/_static/plus.png \
-	    $(DIST)/_static/pygments.css \
 	    $(DIST)/_static/searchtools.js \
 	    $(DIST)/_static/underscore-1.13.1.js
 
