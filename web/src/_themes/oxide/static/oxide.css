@@ -553,30 +553,6 @@ div.page-timestamp {
   }
 }
 
-@media (min-width: 2464px) {
-  :root {
-    --scaling: 2;
-  }
-}
-
-@media (min-width: 2720px) {
-  :root {
-    --scaling: 2.25;
-  }
-}
-
-@media (min-width: 2976px) {
-  :root {
-    --scaling: 2.5;
-  }
-}
-
-@media (min-width: 3232px) {
-  :root {
-    --scaling: 2.75;
-  }
-}
-
 .sidebar-logo {
   height: 2.5rem;
   width: auto;
