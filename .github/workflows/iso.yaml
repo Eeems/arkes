@@ -136,9 +136,11 @@ jobs:
               --target ${{ github.sha }} \
               --notes "Latest ISO builds"
           fi
+          mv \
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso \
+            arkes-${{ inputs.variant }}.iso
           gh release upload latest \
             --clobber \
-            arkes-${{ inputs.variant }}-*.iso \
-            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+            /var/lib/system/arkes-${{ inputs.variant }}.iso
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
