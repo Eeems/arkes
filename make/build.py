@@ -78,6 +78,9 @@ def build(target: str, cache: bool = True):
             pull(base_image)
 
     build_tag = f"localhost/build:{target}"
+    if target == "rootfs":
+        build_args["HASH"] = hash(target)
+
     podman(
         "build",
         f"--tag={build_tag}",
