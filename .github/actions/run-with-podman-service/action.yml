@@ -21,5 +21,10 @@ runs:
         set -e
         mkdir -p /run/podman $TMPDIR
         podman system service --time 0 unix:///run/podman/podman.sock &
+        tries=0
+        while [ ! -S /run/podman/podman.sock ] && [ $tries -lt 60 ];do
+          tries=$(( tries + 1 ))
+          sleep 0.1
+        done
         ${{ inputs.run }}
         kill $(jobs -p) || true
