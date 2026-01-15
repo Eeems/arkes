@@ -126,7 +126,15 @@ jobs:
         if: inputs.push
         run: |
           if ! gh release view latest >/dev/null; then
-            gh release create latest --title "Latest" --prerelease
+            gh release create latest \
+              --title "Latest" \
+              --notes "Latest ISO builds" \
+              --prerelease
+          else
+            gh release edit latest \
+              --title "Latest" \
+              --target ${{ github.sha }} \
+              --notes "Latest ISO builds"
           fi
           gh release upload latest \
             --clobber \
