@@ -133,8 +133,37 @@ jobs:
           files: arkes-${{ inputs.variant }}-*.iso
           name: ${{ inputs.variant }}
           body: ${{ inputs.variant }} variant
-          tag_name: ${{ inputs.variant }}
+          tag_name: variant/${{ inputs.variant }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: false
           draft: false
           prerelease: true
+
+      - name: Update latest release
+        if: inputs.push
+        run: |
+          if ! gh release view latest >/dev/null;then
+            gh release create latest \
+              --title "Latest" \
+              --prerelease
+          fi
+          truncate --size 0 /tmp/body.txt
+          echo "| File Name | Size | SHA-256 Hash |" > /tmp/body.txt
+          echo "| --------- | ---- | ------------ |" >> /tmp/body.txt
+          while read -r variant;do
+            if ! gh release view "$variant" >/dev/null 2>&1;then
+              continue
+            fi
+            gh release view "$variant" --json body | jq -r '.body' \
+            | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
+            | grep -E '^\|.*\|$' \
+            | awk 'NR>2' \
+            >> /tmp/body.txt
+          done < <(./make.py variants)
+          echo "> [!IMPORTANT]" >> /tmp/body.txt
+          echo "> Download files from the links in the table above, instead of the assets list." >> /tmp/body.txt
+          gh release edit latest \
+            --title "Latest" \
+            --tag latest \
+            --target "${{ github.sha }}" \
+            --notes-file /tmp/body.txt
