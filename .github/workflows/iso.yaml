@@ -122,25 +122,16 @@ jobs:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
-      - name: Update latest release
+      - name: Update release
+        uses: ading2210/gh-large-releases@v1
         if: inputs.push
-        run: |
-          if ! gh release view latest >/dev/null; then
-            gh release create latest \
-              --title "Latest" \
-              --notes "Latest ISO builds" \
-              --prerelease
-          else
-            gh release edit latest \
-              --title "Latest" \
-              --target ${{ github.sha }} \
-              --notes "Latest ISO builds"
-          fi
-          mv \
-            /var/lib/system/arkes-${{ inputs.variant }}-*.iso \
-            /var/lib/system/arkes-${{ inputs.variant }}.iso
-          gh release upload latest \
-            --clobber \
-            /var/lib/system/arkes-${{ inputs.variant }}.iso
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+          name: ${{ inputs.variant }}
+          body: ${{ inputs.variant }} variant
+          tag_name: ${{ inputs.variant }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: false
+          draft: false
+          prerelease: true
