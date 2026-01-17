@@ -172,20 +172,22 @@ jobs:
         run: |
           set -e
           if ! gh release view latest >/dev/null;then
+            echo "Creating latest release..."
             gh release create latest \
               --title "Latest" \
               --prerelease
           fi
 
+          echo "Populating body.txt..."
           truncate --size 0 /tmp/body.txt
           echo "| File Name | Size | SHA-256 Hash |" > /tmp/body.txt
           echo "| --------- | ---- | ------------ |" >> /tmp/body.txt
           while read -r variant;do
-            if ! gh release view "variant/$variant" >/dev/null 2>&1;then
+            if ! gh release view "variant/$variant" </dev/null >/dev/null 2>&1;then
               echo "Unable to find $variant"
               continue
             fi
-            gh release view "variant/$variant" --json body \
+            gh release view "variant/$variant" --json body </dev/null \
             | jq -r '.body' \
             | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
             | grep -E '^\|.*\|$' \
@@ -194,9 +196,11 @@ jobs:
 
           cat /tmp/body.txt
 
+          echo "Moving tag..."
           git tag -f latest "${{ github.sha }}"
           git push -f origin refs/tags/latest
 
+          echo "Updating latest release..."
           gh release edit latest \
             --title "Latest" \
             --tag latest \
