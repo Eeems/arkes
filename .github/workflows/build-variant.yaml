@@ -125,6 +125,9 @@ jobs:
         uses: ./.github/actions/run-with-podman-service
         with:
           run: |
+            echo "::group::debug"
+            ./make.py hash --debug ${{ inputs.variant }}
+            echo "::endgroup::"
             echo "::group::checkupdates"
             args=""
             if [[ "${{ inputs.push }}" == "true" ]];then
