@@ -166,20 +166,18 @@ jobs:
           echo "> [!IMPORTANT]" >> /tmp/body.txt
           echo "> Download files from the links in the table above, instead of the assets list." >> /tmp/body.txt
 
+          git tag -f latest "${{ github.sha }}"
+          git push -f origin refs/tags/latest
           gh release edit latest \
             --title "Latest" \
             --tag latest \
             --target "${{ github.sha }}" \
-            --notes-file /tmp/body.txt
+            --notes-file /tmp/body.txt \
+            --latest \
+            --draft=false
 
-          git tag -d latest || true
-          git push origin :refs/tags/latest
-          git tag latest "${{ github.sha }}"
-          git push origin refs/tags/latest
-
-          git tag -d "variant/${{ inputs.variant }}" || true
-          git push origin ":refs/tags/variant/${{ inputs.variant }}"
-          git tag "variant/${{ inputs.variant }}" "${{ github.sha }}"
-          git push origin "refs/tags/variant/${{ inputs.variant }}"
+          git tag -f "variant/${{ inputs.variant }}" "${{ github.sha }}"
+          git push -f origin "refs/tags/variant/${{ inputs.variant }}"
+          gh release edit "variant/${{ inputs.variant }}" --draft=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
