@@ -157,8 +157,7 @@ jobs:
             gh release view "$variant" --json body | jq -r '.body' \
             | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
             | grep -E '^\|.*\|$' \
-            | awk 'NR>2' \
-            >> /tmp/body.txt
+            | awk 'NR>2' >> /tmp/body.txt
           done < <(./make.py variants)
           echo "> [!IMPORTANT]" >> /tmp/body.txt
           echo "> Download files from the links in the table above, instead of the assets list." >> /tmp/body.txt
@@ -167,3 +166,5 @@ jobs:
             --tag latest \
             --target "${{ github.sha }}" \
             --notes-file /tmp/body.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
