@@ -169,5 +169,14 @@ jobs:
             --tag latest \
             --target "${{ github.sha }}" \
             --notes-file /tmp/body.txt
+          git tag -d latest
+          git push origin :refs/tags/latest
+          git tag latest "${{ github.sha }}"
+          git push origin refs/tags/latest
+
+          git tag -d "variant/${{ inputs.variant }}"
+          git push origin ":refs/tags/variant/${{ inputs.variant }}"
+          git tag "variant/${{ inputs.variant }}" "${{ github.sha }}"
+          git push origin "refs/tags/variant/${{ inputs.variant }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
