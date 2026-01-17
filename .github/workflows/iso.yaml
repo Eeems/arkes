@@ -122,8 +122,33 @@ jobs:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
-      - name: Move iso
-        run: mv /var/lib/system/arkes-${{ inputs.variant }}-*.iso .
+      - name: Remove old release
+        shell: bash
+        run: |
+          set -e
+          git tag -f "variant/${{ inputs.variant }}" "${{ github.sha }}"
+          git push -f origin "refs/tags/variant/${{ inputs.variant }}"
+
+          truncate --size 0 /tmp/body.txt
+          echo "> [!WARNING]" > /tmp/body.txt
+          echo "> New ISO is being uploaded." >> /tmp/body.txt
+
+          gh release edit "variant/${{ inputs.variant }}" \
+            --draft=false \
+            --notes-file /tmp/body.txt
+
+          gh release view "variant/${{ inputs.variant }}" \
+            --json assets \
+            --jq '.assets.[].name' \
+          | xargs -rI{} \
+            gh release delete-asset \
+              "variant/${{ inputs.variant }}" \
+              "{}" \
+              --yes
+
+          mv /var/lib/system/arkes-${{ inputs.variant }}-*.iso .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update release
         uses: ading2210/gh-large-releases@v1
@@ -169,6 +194,7 @@ jobs:
 
           git tag -f latest "${{ github.sha }}"
           git push -f origin refs/tags/latest
+
           gh release edit latest \
             --title "Latest" \
             --tag latest \
@@ -176,9 +202,5 @@ jobs:
             --notes-file /tmp/body.txt \
             --latest \
             --draft=false
-
-          git tag -f "variant/${{ inputs.variant }}" "${{ github.sha }}"
-          git push -f origin "refs/tags/variant/${{ inputs.variant }}"
-          gh release edit "variant/${{ inputs.variant }}" --draft=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
