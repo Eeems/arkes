@@ -16,7 +16,7 @@ System Requirements
 Downloading Arkēs
 -----------------
 
-You can download a live boot ISO of Arkēs from: https://github.com/Eeems/arkes/releases
+You can download a live boot ISO of Arkēs from: https://github.com/Eeems/arkes/releases/tag/latest
 
 Choose the variant that best fits your needs. See :doc:`variants` for complete variant information.
 
