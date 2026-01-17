@@ -130,8 +130,10 @@ jobs:
           git push -f origin "refs/tags/variant/${{ inputs.variant }}"
 
           truncate --size 0 /tmp/body.txt
-          echo "> [!WARNING]" > /tmp/body.txt
+          echo "<!-- START_BIG_ASSET_LIST_DO_NOT_REMOVE -->" > /tmp/body.txt
+          echo "> [!WARNING]" >> /tmp/body.txt
           echo "> New ISO is being uploaded." >> /tmp/body.txt
+          echo "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->" >> /tmp/body.txt
 
           gh release edit "variant/${{ inputs.variant }}" \
             --draft=false \
