@@ -154,15 +154,18 @@ jobs:
           echo "| File Name | Size | SHA-256 Hash |" > /tmp/body.txt
           echo "| --------- | ---- | ------------ |" >> /tmp/body.txt
           while read -r variant;do
-            if ! gh release view "$variant" >/dev/null 2>&1;then
+            if ! gh release view "variant/$variant" >/dev/null 2>&1;then
+              echo "Unable to find $variant"
               continue
             fi
-            gh release view "$variant" --json body \
+            gh release view "variant/$variant" --json body \
             | jq -r '.body' \
             | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
             | grep -E '^\|.*\|$' \
             | awk 'NR>2' >> /tmp/body.txt
           done < <(./make.py variants)
+
+          cat /tmp/body.txt
 
           git tag -f latest "${{ github.sha }}"
           git push -f origin refs/tags/latest
