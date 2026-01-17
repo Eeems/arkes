@@ -163,8 +163,6 @@ jobs:
             | grep -E '^\|.*\|$' \
             | awk 'NR>2' >> /tmp/body.txt
           done < <(./make.py variants)
-          echo "> [!IMPORTANT]" >> /tmp/body.txt
-          echo "> Download files from the links in the table above, instead of the assets list." >> /tmp/body.txt
 
           git tag -f latest "${{ github.sha }}"
           git push -f origin refs/tags/latest
