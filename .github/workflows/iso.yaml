@@ -141,7 +141,9 @@ jobs:
 
       - name: Update latest release
         if: inputs.push
+        shell: bash
         run: |
+          set -e
           if ! gh release view latest >/dev/null;then
             gh release create latest \
               --title "Latest" \
@@ -154,7 +156,8 @@ jobs:
             if ! gh release view "$variant" >/dev/null 2>&1;then
               continue
             fi
-            gh release view "$variant" --json body | jq -r '.body' \
+            gh release view "$variant" --json body \
+            | jq -r '.body' \
             | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
             | grep -E '^\|.*\|$' \
             | awk 'NR>2' >> /tmp/body.txt
