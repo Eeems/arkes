@@ -187,11 +187,13 @@ jobs:
               echo "Unable to find $variant"
               continue
             fi
-            gh release view "variant/$variant" --json body </dev/null \
+            if ! gh release view "variant/$variant" --json body </dev/null \
             | jq -r '.body' \
             | awk '/START_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=1;next} /END_BIG_ASSET_LIST_DO_NOT_REMOVE/{flag=0} flag' \
             | grep -E '^\|.*\|$' \
-            | awk 'NR>2' >> /tmp/body.txt
+            | awk 'NR>2' >> /tmp/body.txt; then
+              echo "Failed to add $variant"
+            fi
           done < <(./make.py variants)
 
           cat /tmp/body.txt
