@@ -23,6 +23,9 @@ layout {
     }
 }
 input {
+    keyboard {
+        numlock
+    }
     touchpad {
         tap
         natural-scroll
