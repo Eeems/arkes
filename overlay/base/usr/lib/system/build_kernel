@@ -3,11 +3,15 @@ set -e
 
 echo "[system] Building DKMS modules"
 arch=$(uname --machine)
-for conf in /usr/src/**/dkms.conf; do
+configs=(/usr/src/**/dkms.conf)
+i=0
+while [ $i -lt ${#configs[@]} ]; do
+  i=$((i + 1))
+  conf=${configs[$i]}
   dirname="$(basename "$(dirname "$conf")")"
   ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
-  echo "[dkms] building $name"
+  echo "[dkms] ($i/${#configs[@]}) building $name"
   for modulesdir in /usr/lib/modules/*/; do
     kernel="$(basename "$modulesdir")/$arch"
     chronic dkms build -m "$name" -v "$ver" -k "$kernel"
