@@ -3,11 +3,13 @@ set -e
 
 echo "[system] Building DKMS modules"
 arch=$(uname --machine)
+shopt -s nullglob
 configs=(/usr/src/**/dkms.conf)
+shopt -u nullglob
 i=0
 while [ $i -lt ${#configs[@]} ]; do
-  i=$((i + 1))
   conf=${configs[$i]}
+  i=$((i + 1))
   dirname="$(basename "$(dirname "$conf")")"
   ver="$(echo "$dirname" | rev | cut -d'-' -f1 | rev)"
   name="$(echo "$dirname" | rev | cut -d'-' -f2- | rev)"
