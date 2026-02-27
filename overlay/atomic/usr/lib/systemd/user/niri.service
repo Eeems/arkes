@@ -9,4 +9,5 @@ After=graphical-session-pre.target
 Slice=session.slice
 Type=notify
 Environment=NIRI_CONFIG=/usr/share/niri/config.kdl
+ExecStartPre=/usr/bin/os session-setup --pre
 ExecStart=/usr/bin/niri --session

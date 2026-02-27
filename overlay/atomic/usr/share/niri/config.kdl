@@ -229,3 +229,4 @@ binds {
 
     Ctrl+Alt+Delete { quit; }
 }
+include "/usr/local/share/niri/config.kdl"
