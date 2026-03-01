@@ -30,6 +30,7 @@ def command(args: Namespace):
             "make/builder.py",
             "make/hash-builder.py",
             *glob("tools/builder/**", recursive=True),
+            *glob("tools/dockerfile2llbjson/**", recursive=True),
         ]
     ):
         if os.path.isdir(path):
