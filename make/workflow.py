@@ -240,6 +240,7 @@ def command(args: Namespace):
         indent(
             [
                 "notifications:",
+                "  if: github.repository == 'Eeems/arkes'",
                 "  name: Clear notifications",
                 "  runs-on: ubuntu-latest",
                 "  steps:",
