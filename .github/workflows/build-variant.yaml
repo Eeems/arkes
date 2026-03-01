@@ -57,7 +57,7 @@ jobs:
       updates: ${{ steps.build.outputs.updates }}
       digest: ${{ steps.image.outputs.digest }}
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || replace(replace(replace(replace(replace(replace(github.head_ref || github.ref_name, ' ', '-'),'/', '-'),'@', '-'),':', '-'),'^[.]+', ''),'^-]+', '')}}
       options: >-
         --privileged
         --security-opt seccomp=unconfined
@@ -235,7 +235,7 @@ jobs:
         run: git config --global --add safe.directory "$(realpath .)"
 
       - name: Auto commit any updates
-        if: inputs.push && inputs.variant == 'rootfs'
+        if: github.repository == 'Eeems/arkes' && inputs.push && inputs.variant == 'rootfs'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: |
