@@ -14,7 +14,7 @@ from ..system import is_root
 kwds = {"help": "Export your current system image to a folder"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--tag", default="latest", help="System image version to export"
     )
@@ -35,7 +35,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

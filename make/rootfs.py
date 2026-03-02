@@ -16,7 +16,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     now = datetime.now()
     _ = parser.add_argument("--year", default=now.year)
     _ = parser.add_argument("--month", default=now.strftime("%m"))
@@ -26,7 +26,7 @@ def register(parser: ArgumentParser):
     _ = parser.add_argument("--push", action="store_true")
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     noBuild = cast(bool, args.noBuild)
     doPush = cast(bool, args.push)
     if noBuild and doPush:

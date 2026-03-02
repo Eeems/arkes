@@ -11,7 +11,7 @@ from ..system import execute
 kwds = {"help": "Make the current deploy mutable"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--hotfix",
         action="store_true",
@@ -19,7 +19,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

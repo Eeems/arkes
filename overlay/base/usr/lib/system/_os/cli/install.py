@@ -25,7 +25,7 @@ from ..podman import podman_cmd
 kwds = {"help": f"Installs {OS_NAME}"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("--branch", default="system", help="System branch to prune")
     _ = parser.add_argument(
         "--sysroot", default="/mnt", help="Location to use for mounting target install"
@@ -60,7 +60,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

@@ -16,11 +16,11 @@ from ..podman import system_hash
 kwds = {"help": "Edit the systemfile"}
 
 
-def register(_: ArgumentParser):
+def register(_: ArgumentParser) -> None:
     pass
 
 
-def command(_: Namespace):
+def command(_: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

@@ -21,7 +21,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--check",
         action="store_true",
@@ -29,7 +29,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     config: Config = parse_all_config()
 
     def build_job_graph(config: Config) -> tuple[Graph, Indegree]:

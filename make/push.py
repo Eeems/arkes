@@ -23,7 +23,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "target",
         action="extend",
@@ -34,7 +34,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)
@@ -43,7 +43,7 @@ def command(args: Namespace):
         push(target)
 
 
-def push(target: str):
+def push(target: str) -> None:
     client = get_client()
     image = f"{REPO}:{target}"
     _image = client.images.get(image)

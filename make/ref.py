@@ -9,7 +9,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("ref", help="ref name to convert")
 
 
@@ -17,7 +17,7 @@ def ref(ref: str) -> str:
     return re_sub(r"^[.-]+", "", re_sub(r"[^a-zA-Z0-9_.-]", "-", ref))
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     print(ref(cast(str, args.ref)))
 
 

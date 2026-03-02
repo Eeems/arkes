@@ -14,7 +14,7 @@ from ..system import baseImage
 kwds = {"help": "Checks for updates to the system"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--force",
         action="store_true",
@@ -27,7 +27,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     ret = _execute("nm-online --quiet")
     if ret:
         print("Not currently online", file=sys.stderr)

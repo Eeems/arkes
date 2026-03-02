@@ -15,11 +15,11 @@ kwds: dict[str, str] = {
 }
 
 
-def register(_: ArgumentParser):
+def register(_: ArgumentParser) -> None:
     pass
 
 
-def command(_: Namespace):
+def command(_: Namespace) -> None:
     args = []
     if shutil.which("niri") is not None:
         gomodcache = subprocess.check_output(["go", "env", "GOMODCACHE"])

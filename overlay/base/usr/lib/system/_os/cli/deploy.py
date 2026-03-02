@@ -8,12 +8,12 @@ from ..system import is_root
 from ..ostree import deploy
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("--branch", default="system")
     _ = parser.add_argument("--sysroot", default="/")
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

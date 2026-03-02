@@ -13,13 +13,13 @@ from ..niri import setVolumeIn
 from ..niri import getVolumeIn
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--pre", action="store_true", help="Execute pre-session setup"
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if cast(bool, args.pre):
         os.makedirs("/usr/local/share/niri/", exist_ok=True)
         if not os.path.exists("/usr/local/share/niri/config.kdl"):

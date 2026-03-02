@@ -47,7 +47,7 @@ WIND_ICONS = [
 ]
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--waybar", action="store_true", help="Output short waybar information"
     )
@@ -58,7 +58,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     wegoRc = os.path.expanduser("~/.wegorc")
     useWego = os.path.exists(wegoRc)
     if useWego:

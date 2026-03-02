@@ -18,7 +18,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--debug", action="store_true", help="Show all pieces of the hash"
     )
@@ -32,7 +32,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     for target in cast(list[str], args.target):
         if not cast(bool, args.debug):
             print(f"{target}: {hash(target)[:9]}")

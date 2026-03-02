@@ -23,7 +23,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--variant",
         default="base",
@@ -31,7 +31,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     image = f"ghcr.io/eeems/arkes:{cast(str, args.variant)}"
     if not image_exists(image, False, True):
         if not image_exists(image, True, True):

@@ -11,11 +11,11 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("name", help="Name of the command to add")
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     name = cast(str, args.name)
     __dirname__ = os.path.dirname(__file__)
     toPath = os.path.join(__dirname__, f"{name}.py")

@@ -16,7 +16,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "-r",
         "--remote",
@@ -39,7 +39,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     remote = cast(bool, args.remote)
     print(
         json.dumps(

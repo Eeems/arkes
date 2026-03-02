@@ -8,11 +8,11 @@ kwds: dict[str, str] = {
 }
 
 
-def register(_: ArgumentParser):
+def register(_: ArgumentParser) -> None:
     pass
 
 
-def command(_: Namespace):
+def command(_: Namespace) -> None:
     pass
 
 

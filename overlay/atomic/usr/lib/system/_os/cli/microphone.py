@@ -16,7 +16,7 @@ from ..niri import toggleMuteIn
 kwds = {"help": "Control system volume"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     parser.set_defaults(parser=parser)
     subparsers = parser.add_subparsers()
     subparser = subparsers.add_parser("get", help="Get the current system volume")
@@ -46,7 +46,7 @@ def register(parser: ArgumentParser):
     subparser.set_defaults(func2=command_set)
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not hasattr(args, "func2"):
         args.parser.print_help()  # pyright:ignore [reportAny]
         sys.exit(1)

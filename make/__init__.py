@@ -12,7 +12,7 @@ import threading
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep, time
-from typing import IO, Any, TextIO, cast
+from typing import IO, Any, Generator, TextIO, cast
 from collections.abc import Iterable
 from collections.abc import Callable
 
@@ -85,7 +85,7 @@ REPO = cast(str, _os.REPO)
 BUILDER = f"{REPO}-builder"
 
 
-def ci_log(*args: str):
+def ci_log(*args: str) -> None:
     import os
 
     if "CI" not in os.environ:
@@ -115,7 +115,7 @@ def progress_bar[T](
     prefix: str = "Progress: ",
     out: TextIO = sys.stdout,
     interval: int = 1,
-):
+) -> Generator[T, None, None]:
     import os
 
     if count is None:

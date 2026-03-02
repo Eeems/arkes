@@ -16,7 +16,7 @@ from ..system import is_root
 from ..system import chronic
 
 
-def register(_: ArgumentParser):
+def register(_: ArgumentParser) -> None:
     pass
 
 
@@ -35,7 +35,7 @@ POLICY = """
 """
 
 
-def command(args: Namespace):  # pyright:ignore [reportUnusedParameter]
+def command(args: Namespace) -> None:  # pyright:ignore [reportUnusedParameter]
     if not is_root():
         print("Must be run as root")
         sys.exit(1)

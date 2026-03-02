@@ -13,7 +13,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "-p",
         "--pretty",
@@ -22,7 +22,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     pretty = cast(bool, args.pretty)
     print(json.dumps(parse_all_config(), indent=2 if pretty else None))
 

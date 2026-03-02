@@ -30,7 +30,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--push",
         action="store_true",
@@ -38,7 +38,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     config = parse_all_config()
     print("Getting all tags...")
     all_tags = image_tags(REPO, True)

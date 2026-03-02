@@ -16,7 +16,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--branch",
         default=None,
@@ -24,7 +24,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     branch = cast(str | None, args.branch)
     if branch is None:
         branch = (

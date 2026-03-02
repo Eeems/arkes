@@ -8,7 +8,7 @@ from typing import cast
 from typing import Callable
 
 
-def cli(argv: list[str]):
+def cli(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="make", description="Manage your operating system", add_help=True
     )

@@ -15,7 +15,7 @@ kwds: dict[str, str] = {
 }
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "arg",
         action="extend",
@@ -26,7 +26,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     ret = _execute(
         shlex.join([os.path.join(_osDir, "bin/os"), *cast(list[str], args.arg or [])])
     )

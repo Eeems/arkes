@@ -13,7 +13,7 @@ from ..dbus import upgrade
 kwds = {"help": "Perform a system upgrade"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--no-pull",
         help="Do not pull base image updates",
@@ -22,7 +22,7 @@ def register(parser: ArgumentParser):
     )
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not cast(bool, args.noPull) and upgrade_status() != "pending":
         updates = checkupdates()
         image = baseImage()

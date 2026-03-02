@@ -12,7 +12,7 @@ from ..ostree import deployments
 from ..ostree import Deployment
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "deployment",
         type=int,
@@ -63,7 +63,7 @@ def get_status(
     return status
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     idx = cast(int | None, args.deployment)
     showPackages = cast(bool, args.packages)
     showImagePackages = cast(bool, args.imagePackages)

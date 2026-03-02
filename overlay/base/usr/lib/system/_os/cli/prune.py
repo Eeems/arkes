@@ -11,11 +11,11 @@ from ..ostree import prune
 kwds = {"help": "Prune unused data from the ostree"}
 
 
-def register(parser: ArgumentParser):
+def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("--branch", default="system", help="System branch to prune")
 
 
-def command(args: Namespace):
+def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root")
         sys.exit(1)
