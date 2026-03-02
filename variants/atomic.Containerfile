@@ -45,13 +45,14 @@ RUN /usr/lib/system/package_layer \
   dex \
   cups \
   cups-pdf \
+  networkmanager-dmenu \
   --aur \
+  python-kdl-py \
   python-imageio-ffmpeg \
   python-screeninfo \
   waypaper \
   syshud \
   overskride \
-  networkmanager-dmenu-git \
   distroshelf \
   libwireplumber-4.0-compat \
   pwvucontrol \

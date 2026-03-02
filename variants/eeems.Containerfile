@@ -33,9 +33,7 @@ RUN /usr/lib/system/package_layer \
   pyenv \
   spotify \
   podman-docker \
-  podman-compose \
-  --aur \
-  wego
+  podman-compose
 
 RUN systemctl enable zerotier-one
 
