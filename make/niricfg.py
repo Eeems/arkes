@@ -3,6 +3,7 @@ from argparse import Namespace
 from typing import Any
 from typing import cast
 
+from . import execute
 from . import podman
 from . import BUILDER
 
@@ -17,6 +18,11 @@ def register(parser: ArgumentParser) -> None:
         action="store_true",
         dest="build_image",
         help="Build the builder image before running the build",
+    )
+    _ = parser.add_argument(
+        "--run",
+        action="store_true",
+        help="Run the application after building it",
     )
     _ = parser.add_argument(
         "cmd",
@@ -51,6 +57,8 @@ def command(args: Namespace) -> None:
         image,
         *cast(list[str], args.cmd),
     )
+    if cast(bool, args.run):
+        execute("tools/niricfg/build/linux/niricfg")
 
 
 if __name__ == "__main__":
