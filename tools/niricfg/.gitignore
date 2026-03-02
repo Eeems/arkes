@@ -1,0 +1,8 @@
+.fvm/
+fvm/
+.pub-cache/
+.config/
+.dart-tool/
+.flutter
+.bash_history
+build/

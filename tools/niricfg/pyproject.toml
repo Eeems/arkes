@@ -1,0 +1,9 @@
+[project]
+name = "niricfg"
+version = "0.0.1"
+description = "Niri Configuration Generator"
+authors = [{ name = "Eeems" }]
+requires-python = ">=3.10"
+dependencies = ["flet"]
+
+[tool.flet]
