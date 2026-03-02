@@ -8,6 +8,8 @@ from typing import Any
 from typing import cast
 
 from .shell import shell
+from .ref import ref
+
 
 kwds: dict[str, str] = {
     "help": "Open a builder shell similar to what runs in github actions",
@@ -31,6 +33,7 @@ def command(args: Namespace):
             .strip()
         )
 
+    branch = ref(branch)
     image = f"ghcr.io/eeems/arkes-builder:{branch}"
     with tempfile.TemporaryDirectory() as tmpdir:
         __e = os.path.join(tmpdir, "__e")
