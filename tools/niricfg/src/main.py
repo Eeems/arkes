@@ -1,25 +1,529 @@
 import flet as ft
+import subprocess
+import json
+import threading
 
 
 def main(page: ft.Page):
-    counter = ft.Text("0", size=50, data=0)
+    page.title = "Niri Monitor Configuration"
 
-    def increment_click(e):
-        counter.data += 1
-        counter.value = str(counter.data)
+    selected_monitor_name: str | None = None
+    pending_changes: dict = {}
+    monitors_data: dict = {}
 
-    page.floating_action_button = ft.FloatingActionButton(
-        icon=ft.Icons.ADD, on_click=increment_click
+    header = ft.Text("Niri Monitor Configuration", size=24, weight=ft.FontWeight.BOLD)
+    status_text = ft.Text("Loading...", size=14, color="gray")
+    debug_text = ft.Text("", size=12, color="gray")
+
+    canvas = ft.Stack(width=800, height=500)
+
+    canvas_container = ft.Container(
+        content=canvas,
+        width=800,
+        height=500,
+        border=ft.border.all(2, "gray"),
+        padding=5,
     )
+
+    resolution_dropdown = ft.Dropdown(
+        label="Resolution",
+        options=[],
+        width=200,
+        on_select=lambda e: on_control_change(),
+    )
+    scale_slider = ft.Slider(
+        min=0.5,
+        max=3.0,
+        value=1.0,
+        divisions=20,
+        width=200,
+        label="Scale",
+        on_change=lambda _: on_slider_change(),
+    )
+    scale_input = ft.TextField(
+        label="Scale",
+        width=80,
+        on_submit=lambda _: on_scale_input_submit(),
+    )
+    vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_control_change())
+    
+    # Position controls
+    pos_x_input = ft.TextField(label="X", width=80)
+    pos_y_input = ft.TextField(label="Y", width=80)
+    move_btn = ft.ElevatedButton("Move")
+    
+    apply_btn = ft.ElevatedButton("Apply Changes")
+    reset_btn = ft.ElevatedButton("Reset")
+
+    pending_indicator = ft.Text("", size=12, color="orange", weight=ft.FontWeight.BOLD)
+
+    settings_panel = ft.Container(
+        content=ft.Column(
+            [
+                ft.Text("Monitor Settings", size=18, weight=ft.FontWeight.BOLD),
+                pending_indicator,
+                ft.Divider(),
+                resolution_dropdown,
+                ft.Text("Scale", size=12, weight=ft.FontWeight.BOLD),
+                scale_slider,
+                ft.Row([scale_input], alignment=ft.MainAxisAlignment.START),
+                vrr_switch,
+                ft.Divider(),
+                ft.Text("Position", size=12, weight=ft.FontWeight.BOLD),
+                ft.Row([pos_x_input, pos_y_input, move_btn]),
+                ft.Divider(),
+                ft.Row([apply_btn, reset_btn], spacing=10),
+            ],
+            spacing=10,
+        ),
+        width=280,
+        padding=10,
+        visible=False,
+    )
+
+    refresh_btn = ft.ElevatedButton("Refresh")
+
     page.add(
-        ft.SafeArea(
+        ft.Column(
+            [
+                header,
+                status_text,
+                debug_text,
+                ft.Row([refresh_btn]),
+                ft.Divider(),
+                ft.Row([canvas_container, settings_panel], expand=True, spacing=10),
+            ],
             expand=True,
-            content=ft.Container(
-                content=counter,
-                alignment=ft.Alignment.CENTER,
-            ),
+            spacing=10,
         )
     )
 
+    def on_slider_change() -> None:
+        scale_input.value = str(round(scale_slider.value or 1.0, 2))
+        on_control_change()
 
-ft.run(main)
+    def on_scale_input_submit() -> None:
+        try:
+            val = float(scale_input.value)
+            val = max(0.5, min(3.0, val))
+            scale_slider.value = val
+            on_control_change()
+            page.update()
+        except ValueError:
+            pass
+
+    def on_control_change() -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+        try:
+            x = int(pos_x_input.value or 0)
+            y = int(pos_y_input.value or 0)
+        except ValueError:
+            x = 0
+            y = 0
+        
+        pending_changes[selected_monitor_name] = {
+            "resolution": resolution_dropdown.value,
+            "scale": scale_slider.value,
+            "vrr": vrr_switch.value,
+            "x": x,
+            "y": y,
+        }
+        update_pending_indicator()
+        update_canvas_display()
+        page.update()
+
+    def update_pending_indicator() -> None:
+        nonlocal selected_monitor_name
+        if selected_monitor_name and selected_monitor_name in pending_changes:
+            pending_indicator.value = "Pending changes - click Apply"
+            pending_indicator.color = "orange"
+        else:
+            pending_indicator.value = ""
+
+    def get_scale_factor(outputs: dict) -> float:
+        max_x = max(
+            (
+                o.get("logical", {}).get("x", 0)
+                + o.get("logical", {}).get("width", 1920)
+                for o in outputs.values()
+            ),
+            default=1920,
+        )
+        max_y = max(
+            (
+                o.get("logical", {}).get("y", 0)
+                + o.get("logical", {}).get("height", 1080)
+                for o in outputs.values()
+            ),
+            default=1080,
+        )
+        canvas_w = 790
+        canvas_h = 490
+        return min(canvas_w / max(max_x, 1), canvas_h / max(max_y, 1)) * 0.95
+
+    def update_canvas_display() -> None:
+        """Update canvas without re-fetching from niri - just refreshes the display based on current data"""
+        try:
+            result = subprocess.run(
+                ["niri", "msg", "--json", "outputs"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                return
+            outputs = json.loads(result.stdout)
+
+            scale_factor = get_scale_factor(outputs)
+            canvas.controls.clear()
+
+            for name, output in outputs.items():
+                monitors_data[name] = output
+
+                logical = output.get("logical", {})
+                width = logical.get("width", 1920)
+                height = logical.get("height", 1080)
+                x = logical.get("x", 0)
+                y = logical.get("y", 0)
+                scale = logical.get("scale", 1.0)
+
+                is_pending = name in pending_changes
+                is_selected = name == selected_monitor_name
+
+                if is_pending and name in pending_changes:
+                    pending = pending_changes[name]
+                    if "x" in pending:
+                        x = pending["x"]
+                    if "y" in pending:
+                        y = pending["y"]
+
+                canvas_x = x * scale_factor
+                canvas_y = y * scale_factor
+                canvas_w = width * scale_factor
+                canvas_h = height * scale_factor
+
+                canvas_w = max(canvas_w, 80)
+                canvas_h = max(canvas_h, 50)
+
+                canvas_x = min(canvas_x, 790 - canvas_w)
+                canvas_y = min(canvas_y, 490 - canvas_h)
+
+                if is_selected:
+                    bg_color = "blue"
+                    border_color = "darkblue"
+                    text_color = "white"
+                elif is_pending:
+                    bg_color = "orange"
+                    border_color = "darkorange"
+                    text_color = "black"
+                else:
+                    bg_color = "lightblue"
+                    border_color = "blue"
+                    text_color = "black"
+
+                monitor_content = ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(name, size=11, weight=ft.FontWeight.BOLD, color=text_color),
+                            ft.Text(f"{int(width * scale)}x{int(height * scale)}", size=9, color=text_color),
+                            ft.Text(f"({x}, {y})", size=9, color=text_color),
+                            ft.Text(f"s={scale}", size=9, color=text_color),
+                        ],
+                        spacing=1,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    width=canvas_w,
+                    height=canvas_h,
+                    bgcolor=bg_color,
+                    border=ft.border.all(2, border_color),
+                    border_radius=4,
+                    padding=4,
+                )
+
+                # Use Container with on_click for selection
+                clickable = ft.Container(
+                    content=monitor_content,
+                    width=canvas_w,
+                    height=canvas_h,
+                    left=canvas_x,
+                    top=canvas_y,
+                    on_click=lambda e, n=name: select_monitor_by_name(n),
+                )
+                canvas.controls.append(clickable)
+
+            page.update()
+
+        except Exception as e:
+            status_text.value = f"Error: {e}"
+            page.update()
+
+    def select_monitor_by_name(name: str) -> None:
+        output = monitors_data.get(name)
+        if output:
+            select_monitor(output)
+
+    def select_monitor(monitor: dict) -> None:
+        nonlocal selected_monitor_name
+
+        selected_monitor_name = monitor.get("name")
+
+        logical = monitor.get("logical", {})
+        width = logical.get("width", 1920)
+        height = logical.get("height", 1080)
+        scale = logical.get("scale", 1.0)
+        vrr = monitor.get("vrr_enabled", False)
+
+        # Get available modes and populate dropdown
+        modes = monitor.get("modes", [])
+        mode_options = []
+        seen = set()
+        for mode in modes:
+            mode_str = f"{mode['width']}x{mode['height']}"
+            if mode_str not in seen:
+                seen.add(mode_str)
+                mode_options.append(ft.dropdown.Option(mode_str))
+        
+        # Sort by resolution (largest first)
+        mode_options.sort(key=lambda opt: (int(opt.key.split('x')[0]), int(opt.key.split('x')[1])), reverse=True)
+        resolution_dropdown.options = mode_options
+
+        # Physical resolution = logical * scale
+        physical_width = int(width * scale)
+        physical_height = int(height * scale)
+
+        if selected_monitor_name in pending_changes:
+            changes = pending_changes[selected_monitor_name]
+            resolution_dropdown.value = changes.get("resolution", f"{physical_width}x{physical_height}")
+            scale_slider.value = changes.get("scale", scale)
+            vrr_switch.value = changes.get("vrr", vrr)
+            pos_x_input.value = str(changes.get("x", logical.get("x", 0)))
+            pos_y_input.value = str(changes.get("y", logical.get("y", 0)))
+        else:
+            resolution_dropdown.value = f"{physical_width}x{physical_height}"
+            scale_slider.value = scale
+            vrr_switch.value = vrr
+            pos_x_input.value = str(logical.get("x", 0))
+            pos_y_input.value = str(logical.get("y", 0))
+
+        scale_input.value = str(round(scale_slider.value or 1.0, 2))
+
+        settings_panel.visible = True
+        update_pending_indicator()
+        update_canvas_display()
+        page.update()
+
+    def refresh_monitors(e=None) -> None:
+        try:
+            result = subprocess.run(
+                ["niri", "msg", "--json", "outputs"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+            if result.returncode != 0:
+                status_text.value = f"Error: niri returned {result.returncode}"
+                status_text.color = "red"
+                page.update()
+                return
+
+            outputs = json.loads(result.stdout)
+
+            if not outputs:
+                status_text.value = "No monitors connected"
+            else:
+                status_text.value = f"Found {len(outputs)} monitor(s)"
+                status_text.color = "green"
+
+            update_canvas_display()
+
+            if selected_monitor_name and selected_monitor_name in outputs:
+                select_monitor(outputs[selected_monitor_name])
+
+            page.update()
+
+        except Exception as e:
+            status_text.value = f"Error: {e}"
+            status_text.color = "red"
+            page.update()
+
+    def apply_settings_click(e) -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+
+        changes = pending_changes.get(selected_monitor_name)
+        if not changes:
+            status_text.value = "No changes to apply"
+            status_text.color = "gray"
+            page.update()
+            return
+
+        errors = []
+
+        if "x" in changes or "y" in changes:
+            x = changes.get("x", 0)
+            y = changes.get("y", 0)
+            try:
+                result = subprocess.run(
+                    ["niri", "msg", "output", selected_monitor_name, "position", "set", str(x), str(y)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    errors.append(f"Position: {result.stderr}")
+            except Exception as ex:
+                errors.append(f"Position: {ex}")
+
+        if "scale" in changes:
+            try:
+                result = subprocess.run(
+                    ["niri", "msg", "output", selected_monitor_name, "scale", str(changes["scale"])],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    errors.append(f"Scale: {result.stderr}")
+            except Exception as ex:
+                errors.append(f"Scale: {ex}")
+
+        if "vrr" in changes:
+            vrr_val = "on" if changes["vrr"] else "off"
+            try:
+                result = subprocess.run(
+                    ["niri", "msg", "output", selected_monitor_name, "vrr", vrr_val],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    errors.append(f"VRR: {result.stderr}")
+            except Exception as ex:
+                errors.append(f"VRR: {ex}")
+
+        if "resolution" in changes:
+            mode = changes["resolution"]
+            try:
+                result = subprocess.run(
+                    ["niri", "msg", "output", selected_monitor_name, "mode", mode],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    errors.append(f"Mode: {result.stderr}")
+            except Exception as ex:
+                errors.append(f"Mode: {ex}")
+
+        if selected_monitor_name in pending_changes:
+            del pending_changes[selected_monitor_name]
+        update_pending_indicator()
+
+        if errors:
+            status_text.value = f"Errors: {'; '.join(errors)}"
+            status_text.color = "red"
+        else:
+            status_text.value = f"Applied settings to {selected_monitor_name}"
+            status_text.color = "green"
+
+        page.update()
+        refresh_monitors()
+
+    def reset_settings_click(e) -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+
+        if selected_monitor_name in pending_changes:
+            del pending_changes[selected_monitor_name]
+
+        output = monitors_data.get(selected_monitor_name)
+        if output:
+            logical = output.get("logical", {})
+            width = logical.get("width", 1920)
+            height = logical.get("height", 1080)
+            scale = logical.get("scale", 1.0)
+            vrr = output.get("vrr_enabled", False)
+
+            resolution_dropdown.value = f"{width}x{height}"
+            scale_slider.value = scale
+            vrr_switch.value = vrr
+            scale_input.value = str(round(scale, 2))
+
+        update_pending_indicator()
+        update_canvas_display()
+        status_text.value = "Settings reset to current"
+        status_text.color = "gray"
+        page.update()
+
+    def start_event_listener() -> None:
+        def listener() -> None:
+            try:
+                proc = subprocess.Popen(
+                    ["niri", "msg", "--json", "event-stream"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if proc.stdout is None:
+                    return
+                while True:
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    try:
+                        event = json.loads(line)
+                        event_type = event.get("type", "")
+                        if event_type in ("OutputCreated", "OutputDestroyed", "OutputChanged"):
+
+                            def do_refresh() -> None:
+                                refresh_monitors()
+
+                            page.run_thread(do_refresh)
+                    except json.JSONDecodeError:
+                        continue
+            except Exception:
+                pass
+
+        thread = threading.Thread(target=listener, daemon=True)
+        thread.start()
+
+    def move_btn_click(e) -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+        try:
+            x = int(pos_x_input.value or 0)
+            y = int(pos_y_input.value or 0)
+        except ValueError:
+            status_text.value = "Invalid position values"
+            status_text.color = "red"
+            page.update()
+            return
+        
+        if selected_monitor_name not in pending_changes:
+            pending_changes[selected_monitor_name] = {}
+        pending_changes[selected_monitor_name]["x"] = x
+        pending_changes[selected_monitor_name]["y"] = y
+        update_pending_indicator()
+        update_canvas_display()
+        status_text.value = f"Position set to ({x}, {y})"
+        status_text.color = "green"
+        page.update()
+
+    apply_btn.on_click = apply_settings_click
+    reset_btn.on_click = reset_settings_click
+    refresh_btn.on_click = refresh_monitors
+    move_btn.on_click = move_btn_click
+
+    refresh_monitors()
+
+    start_event_listener()
+
+
+if __name__ == "__main__":
+    ft.app(target=main)
