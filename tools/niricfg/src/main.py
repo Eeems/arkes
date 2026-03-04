@@ -1,6 +1,6 @@
+import traceback
 import subprocess
 import json
-import threading
 import os
 
 import flet as ft
@@ -12,7 +12,9 @@ from typing import Any
 
 def main(page: ft.Page):
     page.title = "Niri Monitor Configuration"
+    page.on_close = lambda _: on_close()
 
+    closed: bool = False
     selected_monitor_name: str | None = None
     primary_monitor_name: str | None = None
     pending_changes: dict[str, Any] = {}
@@ -125,16 +127,20 @@ def main(page: ft.Page):
             on_control_change()
             page.update()
         except ValueError:
+            print(traceback.print_exc())
             pass
 
     def on_control_change() -> None:
         nonlocal selected_monitor_name
         if not selected_monitor_name:
             return
+
         try:
             x = int(pos_x_input.value or 0)
             y = int(pos_y_input.value or 0)
+
         except ValueError:
+            print(traceback.print_exc())
             x = 0
             y = 0
 
@@ -278,6 +284,7 @@ def main(page: ft.Page):
             page.update()
 
         except Exception as e:
+            print(traceback.print_exc())
             status_text.value = f"Error: {e}"
             page.update()
 
@@ -379,6 +386,7 @@ def main(page: ft.Page):
             page.update()
 
         except Exception as e:
+            print(traceback.print_exc())
             status_text.value = f"Error: {e}"
             status_text.color = "red"
             page.update()
@@ -395,8 +403,8 @@ def main(page: ft.Page):
                             for child in node.nodes:
                                 if child.name == "focus-at-startup":
                                     return name
-        except Exception as e:
-            print(e)
+        except Exception:
+            print(traceback.print_exc())
 
         return None
 
@@ -440,6 +448,7 @@ def main(page: ft.Page):
                 f.write(kdl_config.print())
 
         except Exception as e:
+            print(traceback.print_exc())
             status_text.value = f"Error writing KDL config: {e}"
             status_text.color = "red"
             page.update()
@@ -470,7 +479,9 @@ def main(page: ft.Page):
                     )
                     if result.returncode != 0:
                         errors.append(f"{monitor_name} Position: {result.stderr}")
+
                 except Exception as ex:
+                    print(traceback.print_exc())
                     errors.append(f"{monitor_name} Position: {ex}")
 
             if "scale" in changes:
@@ -490,7 +501,9 @@ def main(page: ft.Page):
                     )
                     if result.returncode != 0:
                         errors.append(f"{monitor_name} Scale: {result.stderr}")
+
                 except Exception as ex:
+                    print(traceback.print_exc())
                     errors.append(f"{monitor_name} Scale: {ex}")
 
             if "vrr" in changes:
@@ -504,7 +517,9 @@ def main(page: ft.Page):
                     )
                     if result.returncode != 0:
                         errors.append(f"{monitor_name} VRR: {result.stderr}")
+
                 except Exception as ex:
+                    print(traceback.print_exc())
                     errors.append(f"{monitor_name} VRR: {ex}")
 
             if "resolution" in changes:
@@ -518,7 +533,9 @@ def main(page: ft.Page):
                     )
                     if result.returncode != 0:
                         errors.append(f"{monitor_name} Mode: {result.stderr}")
+
                 except Exception as ex:
+                    print(traceback.print_exc())
                     errors.append(f"{monitor_name} Mode: {ex}")
 
             applied.append(monitor_name)
@@ -560,14 +577,20 @@ def main(page: ft.Page):
                 scale_input.value = str(round(scale, 2))
                 pos_x_input.value = str(x)
                 pos_y_input.value = str(y)
+
         update_canvas_display()
         primary_button.disabled = primary_monitor_name == selected_monitor_name
         status_text.value = "All changes reset"
         status_text.color = "gray"
         page.update()
 
+    def on_close() -> None:
+        nonlocal closed
+        closed = True
+
     def start_event_listener() -> None:
         def listener() -> None:
+            nonlocal closed
             try:
                 proc = subprocess.Popen(
                     ["niri", "msg", "--json", "event-stream"],
@@ -577,10 +600,12 @@ def main(page: ft.Page):
                 )
                 if proc.stdout is None:
                     return
-                while True:
+
+                while not closed:
                     line = proc.stdout.readline()
                     if not line:
                         break
+
                     try:
                         event = json.loads(line)
                         event_type = event.get("type", "")
@@ -589,18 +614,16 @@ def main(page: ft.Page):
                             "OutputDestroyed",
                             "OutputChanged",
                         ):
+                            refresh_monitors()
 
-                            def do_refresh() -> None:
-                                refresh_monitors()
-
-                            page.run_thread(do_refresh)
                     except json.JSONDecodeError:
+                        print(traceback.print_exc())
                         continue
-            except Exception:
-                pass
 
-        thread = threading.Thread(target=listener, daemon=True)
-        thread.start()
+            except Exception:
+                print(traceback.print_exc())
+
+        page.run_thread(listener)
 
     def move_monitor_from_input(e) -> None:
         nonlocal selected_monitor_name
@@ -611,7 +634,9 @@ def main(page: ft.Page):
         try:
             x = int(pos_x_input.value or 0)
             y = int(pos_y_input.value or 0)
+
         except ValueError:
+            print(traceback.print_exc())
             status_text.value = "Invalid position values"
             status_text.color = "red"
             page.update()
