@@ -1,11 +1,13 @@
-import flet as ft
 import subprocess
 import json
 import threading
-import kdl
 import os
 
+import flet as ft
+import kdl
+
 from typing import cast
+from typing import Any
 
 
 def main(page: ft.Page):
@@ -13,8 +15,8 @@ def main(page: ft.Page):
 
     selected_monitor_name: str | None = None
     primary_monitor_name: str | None = None
-    pending_changes: dict = {}
-    monitors_data: dict = {}
+    pending_changes: dict[str, Any] = {}
+    monitors_data: dict[str, Any] = {}
 
     header = ft.Text("Niri Monitor Configuration", size=24, weight=ft.FontWeight.BOLD)
     status_text = ft.Text("Loading...", size=14, color="gray")
@@ -156,7 +158,7 @@ def main(page: ft.Page):
         else:
             pending_indicator.value = ""
 
-    def get_scale_factor(outputs: dict) -> float:
+    def get_scale_factor(outputs: dict[str, dict[str, Any]]) -> float:
         max_x = max(
             (
                 o.get("logical", {}).get("x", 0)
@@ -284,7 +286,7 @@ def main(page: ft.Page):
         if output:
             select_monitor(output)
 
-    def select_monitor(monitor: dict) -> None:
+    def select_monitor(monitor: dict[str, Any]) -> None:
         nonlocal selected_monitor_name
         nonlocal primary_monitor_name
 
@@ -400,6 +402,7 @@ def main(page: ft.Page):
 
     def write_kdl_config() -> None:
         """Write monitor configuration to ~/.config/monitors.kdl"""
+        nonlocal primary_monitor_name
         try:
             config_path = os.path.expanduser("~/.config/monitors.kdl")
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -422,7 +425,7 @@ def main(page: ft.Page):
                     ),
                     vrr_node,
                 ]
-                if output.get("primary", False):
+                if name == primary_monitor_name:
                     nodes.append(kdl.Node(name="focus-at-startup"))
 
                 output_node = kdl.Node(
@@ -442,12 +445,6 @@ def main(page: ft.Page):
             page.update()
 
     def apply_settings_click(e) -> None:
-        if not pending_changes:
-            status_text.value = "No changes to apply"
-            status_text.color = "gray"
-            page.update()
-            return
-
         errors = []
         applied = []
 
@@ -524,14 +521,7 @@ def main(page: ft.Page):
                 except Exception as ex:
                     errors.append(f"{monitor_name} Mode: {ex}")
 
-            if "primary" in changes:
-                monitors_data[monitor_name]["primary"] = changes["primary"]
-
             applied.append(monitor_name)
-
-        for name in monitors_data:
-            if name in pending_changes and "primary" in pending_changes[name]:
-                monitors_data[name]["primary"] = pending_changes[name]["primary"]
 
         for monitor_name in applied:
             if monitor_name in pending_changes:
