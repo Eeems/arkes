@@ -13,14 +13,12 @@ def main(page: ft.Page):
 
     header = ft.Text("Niri Monitor Configuration", size=24, weight=ft.FontWeight.BOLD)
     status_text = ft.Text("Loading...", size=14, color="gray")
-    debug_text = ft.Text("", size=12, color="gray")
 
-    canvas = ft.Stack(width=800, height=500)
+    canvas = ft.Stack(expand=True)
 
     canvas_container = ft.Container(
         content=canvas,
-        width=800,
-        height=500,
+        expand=True,
         border=ft.border.all(2, "gray"),
         padding=5,
     )
@@ -46,12 +44,11 @@ def main(page: ft.Page):
         on_submit=lambda _: on_scale_input_submit(),
     )
     vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_control_change())
-    
+
     # Position controls
     pos_x_input = ft.TextField(label="X", width=80)
     pos_y_input = ft.TextField(label="Y", width=80)
-    move_btn = ft.ElevatedButton("Move")
-    
+
     apply_btn = ft.ElevatedButton("Apply Changes")
     reset_btn = ft.ElevatedButton("Reset")
 
@@ -70,7 +67,7 @@ def main(page: ft.Page):
                 vrr_switch,
                 ft.Divider(),
                 ft.Text("Position", size=12, weight=ft.FontWeight.BOLD),
-                ft.Row([pos_x_input, pos_y_input, move_btn]),
+                ft.Row([pos_x_input, pos_y_input]),
                 ft.Divider(),
                 ft.Row([apply_btn, reset_btn], spacing=10),
             ],
@@ -81,15 +78,11 @@ def main(page: ft.Page):
         visible=False,
     )
 
-    refresh_btn = ft.ElevatedButton("Refresh")
-
     page.add(
         ft.Column(
             [
                 header,
                 status_text,
-                debug_text,
-                ft.Row([refresh_btn]),
                 ft.Divider(),
                 ft.Row([canvas_container, settings_panel], expand=True, spacing=10),
             ],
@@ -122,7 +115,7 @@ def main(page: ft.Page):
         except ValueError:
             x = 0
             y = 0
-        
+
         pending_changes[selected_monitor_name] = {
             "resolution": resolution_dropdown.value,
             "scale": scale_slider.value,
@@ -224,34 +217,40 @@ def main(page: ft.Page):
                     text_color = "black"
 
                 monitor_content = ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Text(name, size=11, weight=ft.FontWeight.BOLD, color=text_color),
-                            ft.Text(f"{int(width * scale)}x{int(height * scale)}", size=9, color=text_color),
-                            ft.Text(f"({x}, {y})", size=9, color=text_color),
-                            ft.Text(f"s={scale}", size=9, color=text_color),
-                        ],
-                        spacing=1,
-                        alignment=ft.MainAxisAlignment.CENTER,
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    name,
+                                    size=11,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=text_color,
+                                ),
+                                ft.Text(
+                                    f"{int(width * scale)}x{int(height * scale)}",
+                                    size=9,
+                                    color=text_color,
+                                ),
+                                ft.Text(f"({x}, {y})", size=9, color=text_color),
+                                ft.Text(f"s={scale}", size=9, color=text_color),
+                            ],
+                            spacing=1,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        width=canvas_w,
+                        height=canvas_h,
+                        bgcolor=bg_color,
+                        border=ft.border.all(2, border_color),
+                        border_radius=4,
+                        padding=4,
                     ),
-                    width=canvas_w,
-                    height=canvas_h,
-                    bgcolor=bg_color,
-                    border=ft.border.all(2, border_color),
-                    border_radius=4,
-                    padding=4,
-                )
-
-                # Use Container with on_click for selection
-                clickable = ft.Container(
-                    content=monitor_content,
                     width=canvas_w,
                     height=canvas_h,
                     left=canvas_x,
                     top=canvas_y,
                     on_click=lambda e, n=name: select_monitor_by_name(n),
                 )
-                canvas.controls.append(clickable)
+                canvas.controls.append(monitor_content)
 
             page.update()
 
@@ -284,9 +283,12 @@ def main(page: ft.Page):
             if mode_str not in seen:
                 seen.add(mode_str)
                 mode_options.append(ft.dropdown.Option(mode_str))
-        
+
         # Sort by resolution (largest first)
-        mode_options.sort(key=lambda opt: (int(opt.key.split('x')[0]), int(opt.key.split('x')[1])), reverse=True)
+        mode_options.sort(
+            key=lambda opt: (int(opt.key.split("x")[0]), int(opt.key.split("x")[1])),
+            reverse=True,
+        )
         resolution_dropdown.options = mode_options
 
         # Physical resolution = logical * scale
@@ -295,7 +297,9 @@ def main(page: ft.Page):
 
         if selected_monitor_name in pending_changes:
             changes = pending_changes[selected_monitor_name]
-            resolution_dropdown.value = changes.get("resolution", f"{physical_width}x{physical_height}")
+            resolution_dropdown.value = changes.get(
+                "resolution", f"{physical_width}x{physical_height}"
+            )
             scale_slider.value = changes.get("scale", scale)
             vrr_switch.value = changes.get("vrr", vrr)
             pos_x_input.value = str(changes.get("x", logical.get("x", 0)))
@@ -334,8 +338,7 @@ def main(page: ft.Page):
             if not outputs:
                 status_text.value = "No monitors connected"
             else:
-                status_text.value = f"Found {len(outputs)} monitor(s)"
-                status_text.color = "green"
+                status_text.value = ""
 
             update_canvas_display()
 
@@ -368,7 +371,16 @@ def main(page: ft.Page):
             y = changes.get("y", 0)
             try:
                 result = subprocess.run(
-                    ["niri", "msg", "output", selected_monitor_name, "position", "set", str(x), str(y)],
+                    [
+                        "niri",
+                        "msg",
+                        "output",
+                        selected_monitor_name,
+                        "position",
+                        "set",
+                        str(x),
+                        str(y),
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -381,7 +393,14 @@ def main(page: ft.Page):
         if "scale" in changes:
             try:
                 result = subprocess.run(
-                    ["niri", "msg", "output", selected_monitor_name, "scale", str(changes["scale"])],
+                    [
+                        "niri",
+                        "msg",
+                        "output",
+                        selected_monitor_name,
+                        "scale",
+                        str(changes["scale"]),
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -448,11 +467,15 @@ def main(page: ft.Page):
             height = logical.get("height", 1080)
             scale = logical.get("scale", 1.0)
             vrr = output.get("vrr_enabled", False)
+            x = logical.get("x", 0)
+            y = logical.get("y", 0)
 
             resolution_dropdown.value = f"{width}x{height}"
             scale_slider.value = scale
             vrr_switch.value = vrr
             scale_input.value = str(round(scale, 2))
+            pos_x_input.value = str(x)
+            pos_y_input.value = str(y)
 
         update_pending_indicator()
         update_canvas_display()
@@ -478,7 +501,11 @@ def main(page: ft.Page):
                     try:
                         event = json.loads(line)
                         event_type = event.get("type", "")
-                        if event_type in ("OutputCreated", "OutputDestroyed", "OutputChanged"):
+                        if event_type in (
+                            "OutputCreated",
+                            "OutputDestroyed",
+                            "OutputChanged",
+                        ):
 
                             def do_refresh() -> None:
                                 refresh_monitors()
@@ -492,10 +519,12 @@ def main(page: ft.Page):
         thread = threading.Thread(target=listener, daemon=True)
         thread.start()
 
-    def move_btn_click(e) -> None:
+    def move_monitor_from_input(e) -> None:
         nonlocal selected_monitor_name
         if not selected_monitor_name:
+            print("Error: No monitor selected")
             return
+
         try:
             x = int(pos_x_input.value or 0)
             y = int(pos_y_input.value or 0)
@@ -504,21 +533,20 @@ def main(page: ft.Page):
             status_text.color = "red"
             page.update()
             return
-        
+
         if selected_monitor_name not in pending_changes:
             pending_changes[selected_monitor_name] = {}
+
         pending_changes[selected_monitor_name]["x"] = x
         pending_changes[selected_monitor_name]["y"] = y
         update_pending_indicator()
-        update_canvas_display()
-        status_text.value = f"Position set to ({x}, {y})"
-        status_text.color = "green"
         page.update()
+        update_canvas_display()
 
     apply_btn.on_click = apply_settings_click
     reset_btn.on_click = reset_settings_click
-    refresh_btn.on_click = refresh_monitors
-    move_btn.on_click = move_btn_click
+    pos_x_input.on_change = move_monitor_from_input
+    pos_y_input.on_change = move_monitor_from_input
 
     refresh_monitors()
 
