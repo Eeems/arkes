@@ -2,12 +2,17 @@ import flet as ft
 import subprocess
 import json
 import threading
+import kdl
+import os
+
+from typing import cast
 
 
 def main(page: ft.Page):
     page.title = "Niri Monitor Configuration"
 
     selected_monitor_name: str | None = None
+    primary_monitor_name: str | None = None
     pending_changes: dict = {}
     monitors_data: dict = {}
 
@@ -19,7 +24,7 @@ def main(page: ft.Page):
     canvas_container = ft.Container(
         content=canvas,
         expand=True,
-        border=ft.border.all(2, "gray"),
+        border=ft.Border.all(2, "gray"),
         padding=5,
     )
 
@@ -45,12 +50,26 @@ def main(page: ft.Page):
     )
     vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_control_change())
 
+    def make_primary_click(_) -> None:
+        nonlocal selected_monitor_name
+        nonlocal primary_monitor_name
+
+        if not selected_monitor_name:
+            return
+
+        primary_monitor_name = selected_monitor_name
+        update_pending_indicator()
+        update_canvas_display()
+        page.update()
+
+    primary_button = ft.Button("Make primary", on_click=make_primary_click)
+
     # Position controls
     pos_x_input = ft.TextField(label="X", width=80)
     pos_y_input = ft.TextField(label="Y", width=80)
 
-    apply_btn = ft.ElevatedButton("Apply Changes")
-    reset_btn = ft.ElevatedButton("Reset")
+    apply_btn = ft.Button("Apply Changes")
+    reset_btn = ft.Button("Reset")
 
     pending_indicator = ft.Text("", size=12, color="orange", weight=ft.FontWeight.BOLD)
 
@@ -65,6 +84,7 @@ def main(page: ft.Page):
                 scale_slider,
                 ft.Row([scale_input], alignment=ft.MainAxisAlignment.START),
                 vrr_switch,
+                primary_button,
                 ft.Divider(),
                 ft.Text("Position", size=12, weight=ft.FontWeight.BOLD),
                 ft.Row([pos_x_input, pos_y_input]),
@@ -116,13 +136,14 @@ def main(page: ft.Page):
             x = 0
             y = 0
 
-        pending_changes[selected_monitor_name] = {
-            "resolution": resolution_dropdown.value,
-            "scale": scale_slider.value,
-            "vrr": vrr_switch.value,
-            "x": x,
-            "y": y,
-        }
+        if selected_monitor_name not in pending_changes:
+            pending_changes[selected_monitor_name] = {}
+
+        pending_changes[selected_monitor_name]["resolution"] = resolution_dropdown.value
+        pending_changes[selected_monitor_name]["scale"] = scale_slider.value
+        pending_changes[selected_monitor_name]["vrr"] = vrr_switch.value
+        pending_changes[selected_monitor_name]["x"] = x
+        pending_changes[selected_monitor_name]["y"] = y
         update_pending_indicator()
         update_canvas_display()
         page.update()
@@ -221,7 +242,7 @@ def main(page: ft.Page):
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    name,
+                                    f"{'* ' if name == primary_monitor_name else ''}{name}",
                                     size=11,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,
@@ -240,7 +261,7 @@ def main(page: ft.Page):
                         width=canvas_w,
                         height=canvas_h,
                         bgcolor=bg_color,
-                        border=ft.border.all(2, border_color),
+                        border=ft.Border.all(2, border_color),
                         border_radius=4,
                         padding=4,
                     ),
@@ -265,8 +286,9 @@ def main(page: ft.Page):
 
     def select_monitor(monitor: dict) -> None:
         nonlocal selected_monitor_name
+        nonlocal primary_monitor_name
 
-        selected_monitor_name = monitor.get("name")
+        selected_monitor_name = cast(str | None, monitor.get("name"))
 
         logical = monitor.get("logical", {})
         width = logical.get("width", 1920)
@@ -311,6 +333,7 @@ def main(page: ft.Page):
             pos_x_input.value = str(logical.get("x", 0))
             pos_y_input.value = str(logical.get("y", 0))
 
+        primary_button.disabled = selected_monitor_name == primary_monitor_name
         scale_input.value = str(round(scale_slider.value or 1.0, 2))
 
         settings_panel.visible = True
@@ -319,6 +342,7 @@ def main(page: ft.Page):
         page.update()
 
     def refresh_monitors(e=None) -> None:
+        nonlocal primary_monitor_name
         try:
             result = subprocess.run(
                 ["niri", "msg", "--json", "outputs"],
@@ -335,15 +359,20 @@ def main(page: ft.Page):
 
             outputs = json.loads(result.stdout)
 
+            primary_monitor_name = get_primary_monitor()
+
+            for name, output in outputs.items():
+                monitors_data[name] = output
+
             if not outputs:
                 status_text.value = "No monitors connected"
             else:
-                status_text.value = ""
+                status_text.value = f"Found {len(outputs)} monitor(s)"
+                status_text.color = "green"
 
             update_canvas_display()
-
-            if selected_monitor_name and selected_monitor_name in outputs:
-                select_monitor(outputs[selected_monitor_name])
+            if selected_monitor_name:
+                select_monitor_by_name(selected_monitor_name)
 
             page.update()
 
@@ -352,134 +381,198 @@ def main(page: ft.Page):
             status_text.color = "red"
             page.update()
 
-    def apply_settings_click(e) -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
+    def get_primary_monitor() -> str | None:
+        try:
+            config_path = os.path.expanduser("~/.config/monitors.kdl")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    doc = kdl.parse(f.read())
+                    for node in doc.nodes:
+                        if node.name == "output" and node.args:
+                            name = str(node.args[0])
+                            for child in node.nodes:
+                                if child.name == "focus-at-startup":
+                                    return name
+        except Exception as e:
+            print(e)
 
-        changes = pending_changes.get(selected_monitor_name)
-        if not changes:
+        return None
+
+    def write_kdl_config() -> None:
+        """Write monitor configuration to ~/.config/monitors.kdl"""
+        try:
+            config_path = os.path.expanduser("~/.config/monitors.kdl")
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+            kdl_config = kdl.Document()
+
+            for name in monitors_data.keys():
+                output = monitors_data[name]
+                logical = output.get("logical", {})
+                vrr_node = kdl.Node(name="variable-refresh-rate")
+                if not output.get("vrr_enabled", False):
+                    vrr_node.props["on-demand"] = True
+
+                nodes = [
+                    kdl.Node(name="scale", args=[logical.get("scale", 1.0)]),
+                    kdl.Node(
+                        name="position",
+                        args=[],
+                        props={"x": logical.get("x", 0), "y": logical.get("y", 0)},
+                    ),
+                    vrr_node,
+                ]
+                if output.get("primary", False):
+                    nodes.append(kdl.Node(name="focus-at-startup"))
+
+                output_node = kdl.Node(
+                    name="output",
+                    args=[name],
+                    nodes=nodes,
+                )
+                kdl_config.nodes.append(output_node)
+
+            # Write to file
+            with open(config_path, "w") as f:
+                f.write(kdl_config.print())
+
+        except Exception as e:
+            status_text.value = f"Error writing KDL config: {e}"
+            status_text.color = "red"
+            page.update()
+
+    def apply_settings_click(e) -> None:
+        if not pending_changes:
             status_text.value = "No changes to apply"
             status_text.color = "gray"
             page.update()
             return
 
         errors = []
+        applied = []
 
-        if "x" in changes or "y" in changes:
-            x = changes.get("x", 0)
-            y = changes.get("y", 0)
-            try:
-                result = subprocess.run(
-                    [
-                        "niri",
-                        "msg",
-                        "output",
-                        selected_monitor_name,
-                        "position",
-                        "set",
-                        str(x),
-                        str(y),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    errors.append(f"Position: {result.stderr}")
-            except Exception as ex:
-                errors.append(f"Position: {ex}")
+        for monitor_name, changes in pending_changes.items():
+            if "x" in changes or "y" in changes:
+                x = changes.get("x", 0)
+                y = changes.get("y", 0)
+                try:
+                    result = subprocess.run(
+                        [
+                            "niri",
+                            "msg",
+                            "output",
+                            monitor_name,
+                            "position",
+                            "set",
+                            str(x),
+                            str(y),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode != 0:
+                        errors.append(f"{monitor_name} Position: {result.stderr}")
+                except Exception as ex:
+                    errors.append(f"{monitor_name} Position: {ex}")
 
-        if "scale" in changes:
-            try:
-                result = subprocess.run(
-                    [
-                        "niri",
-                        "msg",
-                        "output",
-                        selected_monitor_name,
-                        "scale",
-                        str(changes["scale"]),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    errors.append(f"Scale: {result.stderr}")
-            except Exception as ex:
-                errors.append(f"Scale: {ex}")
+            if "scale" in changes:
+                try:
+                    result = subprocess.run(
+                        [
+                            "niri",
+                            "msg",
+                            "output",
+                            monitor_name,
+                            "scale",
+                            str(changes["scale"]),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode != 0:
+                        errors.append(f"{monitor_name} Scale: {result.stderr}")
+                except Exception as ex:
+                    errors.append(f"{monitor_name} Scale: {ex}")
 
-        if "vrr" in changes:
-            vrr_val = "on" if changes["vrr"] else "off"
-            try:
-                result = subprocess.run(
-                    ["niri", "msg", "output", selected_monitor_name, "vrr", vrr_val],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    errors.append(f"VRR: {result.stderr}")
-            except Exception as ex:
-                errors.append(f"VRR: {ex}")
+            if "vrr" in changes:
+                vrr_val = "on" if changes["vrr"] else "off"
+                try:
+                    result = subprocess.run(
+                        ["niri", "msg", "output", monitor_name, "vrr", vrr_val],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode != 0:
+                        errors.append(f"{monitor_name} VRR: {result.stderr}")
+                except Exception as ex:
+                    errors.append(f"{monitor_name} VRR: {ex}")
 
-        if "resolution" in changes:
-            mode = changes["resolution"]
-            try:
-                result = subprocess.run(
-                    ["niri", "msg", "output", selected_monitor_name, "mode", mode],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    errors.append(f"Mode: {result.stderr}")
-            except Exception as ex:
-                errors.append(f"Mode: {ex}")
+            if "resolution" in changes:
+                mode = changes["resolution"]
+                try:
+                    result = subprocess.run(
+                        ["niri", "msg", "output", monitor_name, "mode", mode],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode != 0:
+                        errors.append(f"{monitor_name} Mode: {result.stderr}")
+                except Exception as ex:
+                    errors.append(f"{monitor_name} Mode: {ex}")
 
-        if selected_monitor_name in pending_changes:
-            del pending_changes[selected_monitor_name]
+            if "primary" in changes:
+                monitors_data[monitor_name]["primary"] = changes["primary"]
+
+            applied.append(monitor_name)
+
+        for name in monitors_data:
+            if name in pending_changes and "primary" in pending_changes[name]:
+                monitors_data[name]["primary"] = pending_changes[name]["primary"]
+
+        for monitor_name in applied:
+            if monitor_name in pending_changes:
+                del pending_changes[monitor_name]
+
         update_pending_indicator()
 
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
             status_text.color = "red"
         else:
-            status_text.value = f"Applied settings to {selected_monitor_name}"
+            status_text.value = f"Applied settings to {len(applied)} monitor(s)"
             status_text.color = "green"
 
         page.update()
+        write_kdl_config()
         refresh_monitors()
 
     def reset_settings_click(e) -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
-
-        if selected_monitor_name in pending_changes:
-            del pending_changes[selected_monitor_name]
-
-        output = monitors_data.get(selected_monitor_name)
-        if output:
-            logical = output.get("logical", {})
-            width = logical.get("width", 1920)
-            height = logical.get("height", 1080)
-            scale = logical.get("scale", 1.0)
-            vrr = output.get("vrr_enabled", False)
-            x = logical.get("x", 0)
-            y = logical.get("y", 0)
-
-            resolution_dropdown.value = f"{width}x{height}"
-            scale_slider.value = scale
-            vrr_switch.value = vrr
-            scale_input.value = str(round(scale, 2))
-            pos_x_input.value = str(x)
-            pos_y_input.value = str(y)
-
+        pending_changes.clear()
         update_pending_indicator()
+        if selected_monitor_name:
+            output = monitors_data.get(selected_monitor_name)
+            if output:
+                logical = output.get("logical", {})
+                width = logical.get("width", 1920)
+                height = logical.get("height", 1080)
+                scale = logical.get("scale", 1.0)
+                vrr = output.get("vrr_enabled", False)
+                x = logical.get("x", 0)
+                y = logical.get("y", 0)
+
+                resolution_dropdown.value = f"{width}x{height}"
+                scale_slider.value = scale
+                vrr_switch.value = vrr
+                scale_input.value = str(round(scale, 2))
+                pos_x_input.value = str(x)
+                pos_y_input.value = str(y)
         update_canvas_display()
-        status_text.value = "Settings reset to current"
+        primary_button.disabled = primary_monitor_name == selected_monitor_name
+        status_text.value = "All changes reset"
         status_text.color = "gray"
         page.update()
 
@@ -554,4 +647,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)
