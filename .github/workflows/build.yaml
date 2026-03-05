@@ -77,9 +77,7 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
-      packages: write
-    with:
-      builder: ${{ needs.builder.outputs.unique_tag }}
+      packages: read
 
   check:
     name: Ensure config is valid
