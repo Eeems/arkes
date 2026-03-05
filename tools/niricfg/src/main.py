@@ -22,7 +22,6 @@ def main(page: ft.Page):
     closed: bool = False
     selected_monitor_name: str | None = None
     primary_monitor_name: str | None = None
-    pending_changes: dict[str, Any] = {}
     canvas_width: float = 0.0
     canvas_height: float = 0.0
     canvas_scale_factor: float = 1.0
@@ -49,6 +48,7 @@ def main(page: ft.Page):
             self._position: tuple[int, int] = position
             self._scale: float = scale
             self.vrr: bool = vrr
+            self.pending: set[str] = set()
             w, h = resolution
             x, y = position
 
@@ -79,22 +79,31 @@ def main(page: ft.Page):
                 padding=4,
                 on_click=lambda e, n=name: select_monitor_by_name(n),
             )
-            # Trigger resize/reposition
-            self.monitor_scale = self._scale
-            self.position = self._position
-            self.resolution = self._resolution
+            self._update()
+
+        def _update(self) -> None:
+            nonlocal canvas_min_x
+            nonlocal canvas_min_y
+            nonlocal canvas_scale_factor
+            w, h = self.resolution
+            x, y = self.position
+            self.left = (x - canvas_min_x) * canvas_scale_factor
+            self.top = (y - canvas_min_y) * canvas_scale_factor
+            self.width = int(w / self.monitor_scale) * canvas_scale_factor
+            self.height = int(h / self.monitor_scale) * canvas_scale_factor
 
         @override
         def update(self) -> None:
+            nonlocal primary_monitor_name
             self.bgcolor = self.bg_color
             self.border = ft.Border.all(2, self.border_color)
             self.scale_text.color = self.resolution_text.color = (
                 self.position_text.color
             ) = self.name_text.color = self.text_color
-            nonlocal primary_monitor_name
             self.name_text.value = (
                 f"{'* ' if self.name == primary_monitor_name else ''}{self.name}"
             )
+            self._update()
             super().update()
 
         @property
@@ -103,17 +112,20 @@ def main(page: ft.Page):
             return self.name == primary_monitor_name
 
         @property
+        def selected(self) -> bool:
+            nonlocal selected_monitor_name
+            return self.name == selected_monitor_name
+
+        @property
         def resolution(self) -> tuple[int, int]:
             return self._resolution
 
         @resolution.setter
         def resolution(self, resolution: tuple[int, int]) -> None:
-            nonlocal canvas_scale_factor
             self._resolution = resolution
-            w, h = self._resolution
+            w, h = resolution
             self.resolution_text.value = f"{w}x{h}"
-            self.width = int(w / self.monitor_scale) * canvas_scale_factor
-            self.height = int(h / self.monitor_scale) * canvas_scale_factor
+            self._update()
 
         @property
         def position(self) -> tuple[int, int]:
@@ -121,14 +133,10 @@ def main(page: ft.Page):
 
         @position.setter
         def position(self, position: tuple[int, int]) -> None:
-            nonlocal canvas_min_x
-            nonlocal canvas_min_y
-            nonlocal canvas_scale_factor
             self._position = position
-            x, y = self._position
-            self.position_text.value = f"({x}, {y})"
-            self.left = (x - canvas_min_x) * canvas_scale_factor
-            self.top = (y - canvas_min_y) * canvas_scale_factor
+            x, y = position
+            self.position_text.value = f"({x},{y})"
+            self._update()
 
         @property
         def monitor_scale(self) -> float:
@@ -138,30 +146,25 @@ def main(page: ft.Page):
         def monitor_scale(self, scale: float | None) -> None:
             self._scale = max(0.5, min(3.0, scale or 1.0))
             self.scale_text.value = f"s={self.monitor_scale}"
-            self.resolution = self.resolution
-            self.position = self._position
+            self._update()
 
         @property
         def text_color(self) -> str:
-            return "white" if self.name == selected_monitor_name else "black"
+            return "white" if self.selected else "black"
 
         @property
         def bg_color(self) -> str:
             return (
-                "blue"
-                if self.name == selected_monitor_name
-                else "orange"
-                if self.name in pending_changes
-                else "lightblue"
+                "blue" if self.selected else "orange" if self.pending else "lightblue"
             )
 
         @property
         def border_color(self) -> str:
             return (
                 "darkblue"
-                if self.name == selected_monitor_name
+                if self.selected
                 else "darkorange"
-                if self.name in pending_changes
+                if self.pending
                 else "blue"
             )
 
@@ -265,14 +268,11 @@ def main(page: ft.Page):
         if not selected_monitor_name:
             return
 
-        if selected_monitor_name not in pending_changes:
-            pending_changes[selected_monitor_name] = {}
-
-        pending_changes[selected_monitor_name]["resolution"] = resolution_dropdown.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
             x, y = resolution_dropdown.value.split("x")
             monitor.resolution = (int(x), int(y))
+            monitor.pending.add("resolution")
 
         update_status()
         update_canvas_display()
@@ -282,13 +282,10 @@ def main(page: ft.Page):
         if not selected_monitor_name:
             return
 
-        if selected_monitor_name not in pending_changes:
-            pending_changes[selected_monitor_name] = {}
-
-        pending_changes[selected_monitor_name]["vrr"] = vrr_switch.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
             monitor.vrr = vrr_switch.value
+            monitor.pending.add("vrr")
 
         update_status()
         update_canvas_display()
@@ -299,13 +296,10 @@ def main(page: ft.Page):
             return
 
         scale_input.value = str(round(max(0.5, min(3.0, scale_slider.value or 1.0)), 1))
-        if selected_monitor_name not in pending_changes:
-            pending_changes[selected_monitor_name] = {}
-
-        pending_changes[selected_monitor_name]["scale"] = scale_slider.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
             monitor.monitor_scale = scale_slider.value
+            monitor.pending.add("scale")
 
         update_status()
         update_canvas_display()
@@ -322,22 +316,21 @@ def main(page: ft.Page):
             print(traceback.print_exc())
 
         scale_input.value = str(scale_slider.value)
-        if selected_monitor_name not in pending_changes:
-            pending_changes[selected_monitor_name] = {}
-
-        pending_changes[selected_monitor_name]["scale"] = scale_slider.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
             monitor.monitor_scale = scale_slider.value
+            monitor.pending.add("scale")
 
         update_status()
         update_canvas_display()
 
     def update_status() -> None:
         nonlocal selected_monitor_name
-        if selected_monitor_name and selected_monitor_name in pending_changes:
-            status_text.value = "Pending changes - click Apply"
+        monitor = get_monitor(selected_monitor_name or "")
+        if monitor and monitor.pending:
+            status_text.value = "Pending changes"
             status_text.color = "orange"
+
         else:
             status_text.value = ""
 
@@ -395,18 +388,13 @@ def main(page: ft.Page):
             calculate_scaling_factor()
             for name, output in outputs.items():
                 logical = output.get("logical", {})
-                pending = pending_changes.get(name, {})
 
-                x = cast(int, pending.get("x", logical.get("x", 0)))
-                y = cast(int, pending.get("y", logical.get("y", 0)))
-                scale = cast(float, pending.get("scale", logical.get("scale", 1.0)))
-                if "resolution" in pending:
-                    width, height = [int(v) for v in pending["resolution"].split("x")]
-
-                else:
-                    mode = output.get("modes", [{}])[output.get("current_mode", 0)]
-                    width = cast(int, mode.get("width", 1920))
-                    height = cast(int, mode.get("height", 1080))
+                x = cast(int, logical.get("x", 0))
+                y = cast(int, logical.get("y", 0))
+                scale = cast(float, logical.get("scale", 1.0))
+                mode = output.get("modes", [{}])[output.get("current_mode", 0)]
+                width = cast(int, mode.get("width", 1920))
+                height = cast(int, mode.get("height", 1080))
 
                 monitor = get_monitor(name)
                 if monitor is None:
@@ -420,9 +408,14 @@ def main(page: ft.Page):
                     canvas.controls.append(monitor)
 
                 else:
-                    monitor.monitor_scale = scale
-                    monitor.resolution = (width, height)
-                    monitor.position = (x, y)
+                    if "scale" not in monitor.pending:
+                        monitor.scale = scale
+
+                    if "resolution" not in monitor.pending:
+                        monitor.resolution = (width, height)
+
+                    if "position" not in monitor.pending:
+                        monitor.position = (x, y)
 
             for monitor in canvas.controls:
                 if monitor.name not in valid_outputs:
@@ -447,20 +440,18 @@ def main(page: ft.Page):
         if output:
             select_monitor(output)
 
-    def select_monitor(monitor: dict[str, Any]) -> None:
+    def select_monitor(output: dict[str, Any]) -> None:
         nonlocal selected_monitor_name
         nonlocal primary_monitor_name
-
-        selected_monitor_name = cast(str | None, monitor.get("name"))
-
-        logical = monitor.get("logical", {})
-        width = logical.get("width", 1920)
-        height = logical.get("height", 1080)
-        scale = logical.get("scale", 1.0)
-        vrr = monitor.get("vrr_enabled", False)
+        selected_monitor_name = cast(str | None, output.get("name"))
+        monitor = get_monitor(selected_monitor_name or "")
+        settings_panel.visible = bool(monitor)
+        [x.update() for x in canvas.controls]
+        if not monitor:
+            return
 
         # Get available modes and populate dropdown
-        modes = monitor.get("modes", [])
+        modes = output.get("modes", [])
         mode_options = []
         seen = set()
         for mode in modes:
@@ -475,32 +466,16 @@ def main(page: ft.Page):
             reverse=True,
         )
         resolution_dropdown.options = mode_options
-
-        # Physical resolution = logical * scale
-        physical_width = int(width * scale)
-        physical_height = int(height * scale)
-
-        if selected_monitor_name in pending_changes:
-            changes = pending_changes[selected_monitor_name]
-            resolution_dropdown.value = changes.get(
-                "resolution", f"{physical_width}x{physical_height}"
-            )
-            scale_slider.value = changes.get("scale", scale)
-            vrr_switch.value = changes.get("vrr", vrr)
-            pos_x_input.value = str(changes.get("x", logical.get("x", 0)))
-            pos_y_input.value = str(changes.get("y", logical.get("y", 0)))
-
-        else:
-            resolution_dropdown.value = f"{physical_width}x{physical_height}"
-            scale_slider.value = scale
-            vrr_switch.value = vrr
-            pos_x_input.value = str(logical.get("x", 0))
-            pos_y_input.value = str(logical.get("y", 0))
-
-        primary_button.disabled = selected_monitor_name == primary_monitor_name
-        scale_input.value = str(round(scale_slider.value or 1.0, 1))
-
-        settings_panel.visible = True
+        w, h = monitor.resolution
+        resolution_dropdown.value = f"{w}x{h}"
+        scale_slider.value = monitor.monitor_scale
+        scale_input.value = str(monitor.monitor_scale)
+        vrr_switch.value = monitor.vrr
+        x, y = monitor.position
+        pos_x_input.value = str(x)
+        pos_y_input.value = str(y)
+        primary_button.disabled = monitor.primary
+        monitor.update()
         update_status()
         update_canvas_display()
         page.schedule_update()
@@ -527,10 +502,10 @@ def main(page: ft.Page):
 
             if not outputs:
                 status_text.value = "No monitors connected"
+                status_text.color = "red"
 
             else:
-                status_text.value = f"Found {len(outputs)} monitor(s)"
-                status_text.color = "green"
+                status_text.value = ""
 
             update_canvas_display()
             if selected_monitor_name:
@@ -569,29 +544,29 @@ def main(page: ft.Page):
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
             kdl_config = kdl.Document()
-
-            for name in outputs.keys():
-                output = outputs[name]
-                logical = output.get("logical", {})
+            for monitor in sorted(
+                cast(list[Monitor], canvas.controls), key=lambda x: x.name
+            ):
                 vrr_node = kdl.Node(name="variable-refresh-rate")
-                if not output.get("vrr_enabled", False):
+                if not monitor.vrr:
                     vrr_node.props["on-demand"] = True
 
+                x, y = monitor.position
                 nodes = [
-                    kdl.Node(name="scale", args=[logical.get("scale", 1.0)]),
+                    kdl.Node(name="scale", args=[monitor.monitor_scale]),
                     kdl.Node(
                         name="position",
                         args=[],
-                        props={"x": logical.get("x", 0), "y": logical.get("y", 0)},
+                        props={"x": x, "y": y},
                     ),
                     vrr_node,
                 ]
-                if name == primary_monitor_name:
+                if monitor.primary:
                     nodes.append(kdl.Node(name="focus-at-startup"))
 
                 output_node = kdl.Node(
                     name="output",
-                    args=[name],
+                    args=[monitor.name],
                     nodes=nodes,
                 )
                 kdl_config.nodes.append(output_node)
@@ -607,20 +582,26 @@ def main(page: ft.Page):
             page.schedule_update()
 
     def apply_settings_click(e) -> None:
-        errors = []
-        applied = []
+        errors: list[str] = []
+        count = 0
 
-        for monitor_name, changes in pending_changes.items():
-            if "x" in changes or "y" in changes:
-                x = changes.get("x", 0)
-                y = changes.get("y", 0)
+        for monitor in sorted(
+            cast(list[Monitor], canvas.controls), key=lambda x: x.name
+        ):
+            if not monitor.pending:
+                continue
+
+            count += 1
+
+            if "position" in monitor.pending:
                 try:
+                    x, y = monitor.position
                     result = subprocess.run(
                         [
                             "niri",
                             "msg",
                             "output",
-                            monitor_name,
+                            monitor.name,
                             "position",
                             "set",
                             str(x),
@@ -631,90 +612,89 @@ def main(page: ft.Page):
                         timeout=5,
                     )
                     if result.returncode != 0:
-                        errors.append(f"{monitor_name} Position: {result.stderr}")
+                        errors.append(f"{monitor.name} Position: {result.stderr}")
 
                 except Exception as ex:
                     print(traceback.print_exc())
-                    errors.append(f"{monitor_name} Position: {ex}")
+                    errors.append(f"{monitor.name} Position: {ex}")
 
-            if "scale" in changes:
+            if "scale" in monitor.pending:
                 try:
                     result = subprocess.run(
                         [
                             "niri",
                             "msg",
                             "output",
-                            monitor_name,
+                            monitor.name,
                             "scale",
-                            str(changes["scale"]),
+                            str(monitor.monitor_scale),
                         ],
                         capture_output=True,
                         text=True,
                         timeout=5,
                     )
                     if result.returncode != 0:
-                        errors.append(f"{monitor_name} Scale: {result.stderr}")
+                        errors.append(f"{monitor.name} Scale: {result.stderr}")
 
                 except Exception as ex:
                     print(traceback.print_exc())
-                    errors.append(f"{monitor_name} Scale: {ex}")
+                    errors.append(f"{monitor.name} Scale: {ex}")
 
-            if "vrr" in changes:
-                vrr_val = "on" if changes["vrr"] else "off"
+            if "vrr" in monitor.pending:
+                vrr_val = "on" if monitor.vrr else "off"
                 try:
                     result = subprocess.run(
-                        ["niri", "msg", "output", monitor_name, "vrr", vrr_val],
+                        ["niri", "msg", "output", monitor.name, "vrr", vrr_val],
                         capture_output=True,
                         text=True,
                         timeout=5,
                     )
                     if result.returncode != 0:
-                        errors.append(f"{monitor_name} VRR: {result.stderr}")
+                        errors.append(f"{monitor.name} VRR: {result.stderr}")
 
                 except Exception as ex:
                     print(traceback.print_exc())
-                    errors.append(f"{monitor_name} VRR: {ex}")
+                    errors.append(f"{monitor.name} VRR: {ex}")
 
-            if "resolution" in changes:
-                mode = changes["resolution"]
+            if "resolution" in monitor.pending:
                 try:
+                    w, h = monitor.resolution
                     result = subprocess.run(
-                        ["niri", "msg", "output", monitor_name, "mode", mode],
+                        ["niri", "msg", "output", monitor.name, "mode", f"{w}x{h}"],
                         capture_output=True,
                         text=True,
                         timeout=5,
                     )
                     if result.returncode != 0:
-                        errors.append(f"{monitor_name} Mode: {result.stderr}")
+                        errors.append(f"{monitor.name} Mode: {result.stderr}")
 
                 except Exception as ex:
                     print(traceback.print_exc())
-                    errors.append(f"{monitor_name} Mode: {ex}")
+                    errors.append(f"{monitor.name} Mode: {ex}")
 
-            applied.append(monitor_name)
-
-        for monitor_name in applied:
-            if monitor_name in pending_changes:
-                del pending_changes[monitor_name]
+            monitor.pending.clear()
 
         update_status()
 
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
             status_text.color = "red"
+
         else:
-            status_text.value = f"Applied settings to {len(applied)} monitor(s)"
+            status_text.value = f"Applied settings to {count} monitor(s)"
             status_text.color = "green"
 
-        page.schedule_update()
         write_kdl_config()
         refresh_monitors()
 
     def reset_settings_click(e) -> None:
-        pending_changes.clear()
         update_status()
         if selected_monitor_name:
             output = outputs.get(selected_monitor_name)
+            monitor = get_monitor(selected_monitor_name)
+            if monitor:
+                monitor.pending.clear()
+
             if output:
                 logical = output.get("logical", {})
                 width = cast(int, logical.get("width", 1920))
@@ -731,7 +711,6 @@ def main(page: ft.Page):
                 pos_x_input.value = str(x)
                 pos_y_input.value = str(y)
 
-                monitor = get_monitor(selected_monitor_name)
                 if monitor:
                     monitor.resolution = (width, height)
                     monitor.monitor_scale = scale
@@ -760,15 +739,10 @@ def main(page: ft.Page):
             page.schedule_update()
             return
 
-        if selected_monitor_name not in pending_changes:
-            pending_changes[selected_monitor_name] = {}
-
-        pending_changes[selected_monitor_name]["x"] = x
-        pending_changes[selected_monitor_name]["y"] = y
-
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
             monitor.position = (x, y)
+            monitor.pending.add("position")
 
         update_status()
         update_canvas_display()
