@@ -1,13 +1,7 @@
 name: Build builder image
 on:
   workflow_call:
-    inputs: &inputs
-      builder:
-        description: Builder tag to use
-        required: false
-        type: string
   workflow_dispatch:
-    inputs: *inputs
 
 permissions:
   contents: read
@@ -16,19 +10,6 @@ permissions:
 jobs:
   builder:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
-      options: >-
-        --privileged
-        --security-opt seccomp=unconfined
-        --security-opt apparmor=unconfined
-        --cap-add=SYS_ADMIN
-        --cap-add=NET_ADMIN
-        --device /dev/fuse
-        --tmpfs /tmp
-        --tmpfs /run
-        --userns=host
-        --volume=/:/run/host
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,33 +26,24 @@ jobs:
 
       - uses: ./.github/actions/mask-registry-passwords
 
+      - name: Generate tags
+        id: meta
+        run: |
+          IMAGE_NAME=ghcr.io/eeems/arkes-builder
+          HASH="$(python ./make/hash-niricfg.py --no-newline)"
+          echo "tags=${IMAGE_NAME}:niricfg,${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
+          echo "missing=$(skopeo list-tags docker://$IMAGE_NAME | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
       - name: Build and push
+        if: fromJson(steps.meta.outputs.missing)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: tools/niricfg/Containerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/eeems/arkes-builder:niricfg
+          tags: ${{ steps.meta.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build executable
-        run: |
-          set -e
-          ./make.py niricfg
-
-      - name: Upload niricfg artifact
-        uses: ./.github/actions/upload-image
-        with:
-          image: ${{ steps.image.outputs.name }}
-          name: ${{ inputs.variant }}
-          if-no-files-found: ignore
-
-      - name: Upload niricfg
-        uses: actions/upload-artifact@v4
-        with:
-          name: niricfg
-          path: tools/niricfg/build/linux
-          if-no-files-found: error
