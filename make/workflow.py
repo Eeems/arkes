@@ -265,7 +265,7 @@ def command(args: Namespace) -> None:
                 "  secrets: inherit",
                 "  permissions:",
                 "    contents: read",
-                "    packages: read",
+                "    packages: write",
                 "",
                 "check:",
                 "  name: Ensure config is valid",
