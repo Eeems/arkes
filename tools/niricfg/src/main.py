@@ -102,9 +102,7 @@ def main(page: ft.Page):
             self.scale_text.color = self.resolution_text.color = (
                 self.position_text.color
             ) = self.name_text.color = self.text_color
-            self.name_text.value = (
-                f"{'* ' if self.name == primary_monitor_name else ''}{self.name}"
-            )
+            self.name_text.value = f"{'* ' if self.primary else ''}{self.name}"
             self._update()
             super().update()
 
@@ -205,7 +203,22 @@ def main(page: ft.Page):
     settings_panel = ft.Container(
         content=ft.Column(
             [
-                ft.Text("Monitor Settings", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row(
+                    [
+                        ft.Text(
+                            "Monitor Settings",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            expand=True,
+                        ),
+                        ft.Button(
+                            ft.Icon(ft.Icons.CLOSE_ROUNDED),
+                            style=ft.ButtonStyle(shape=ft.CircleBorder()),
+                            on_click=lambda _: on_settings_close(),
+                        ),
+                    ]
+                ),
+                ft.Divider(),
                 resolution_dropdown,
                 ft.Text("Scale", size=12, weight=ft.FontWeight.BOLD),
                 scale_slider,
@@ -252,6 +265,9 @@ def main(page: ft.Page):
             spacing=10,
         )
     )
+
+    def on_settings_close() -> None:
+        settings_panel.visible = False
 
     def make_primary_click() -> None:
         nonlocal selected_monitor_name
@@ -382,6 +398,14 @@ def main(page: ft.Page):
             * 0.95
         )
 
+    def update_canvas_controls() -> None:
+        for monitor in canvas.controls:
+            try:
+                monitor.update()
+
+            except RuntimeError:
+                pass
+
     def update_canvas_display() -> None:
         nonlocal outputs
         """Update canvas without re-fetching from niri - just refreshes the display based on current data"""
@@ -429,6 +453,7 @@ def main(page: ft.Page):
 
         finally:
             page.schedule_update()
+            update_canvas_controls()
 
     def get_monitor(name: str) -> Monitor | None:
         for monitor in canvas.controls:
@@ -448,7 +473,7 @@ def main(page: ft.Page):
         selected_monitor_name = cast(str | None, output.get("name"))
         monitor = get_monitor(selected_monitor_name or "")
         settings_panel.visible = bool(monitor)
-        [x.update() for x in canvas.controls]
+        update_canvas_controls()
         if not monitor:
             return
 
@@ -675,7 +700,6 @@ def main(page: ft.Page):
             monitor.pending.clear()
 
         update_status()
-
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
             status_text.color = "red"
@@ -688,7 +712,10 @@ def main(page: ft.Page):
         refresh_monitors()
 
     def reset_settings_click(e) -> None:
+        nonlocal primary_monitor_name
+        nonlocal selected_monitor_name
         update_status()
+        primary_monitor_name = get_primary_monitor()
         if selected_monitor_name:
             output = outputs.get(selected_monitor_name)
             monitor = get_monitor(selected_monitor_name)
@@ -716,6 +743,7 @@ def main(page: ft.Page):
                     monitor.monitor_scale = scale
                     monitor.position = (x, y)
                     monitor.vrr = vrr
+                    print(monitor.primary)
 
         primary_button.disabled = primary_monitor_name == selected_monitor_name
         status_text.value = "All changes reset"
