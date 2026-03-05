@@ -20,18 +20,8 @@ def main(page: ft.Page):
     pending_changes: dict[str, Any] = {}
     monitors_data: dict[str, Any] = {}
 
-    header = ft.Text("Niri Monitor Configuration", size=24, weight=ft.FontWeight.BOLD)
     status_text = ft.Text("Loading...", size=14, color="gray")
-
     canvas = ft.Stack(expand=True)
-
-    canvas_container = ft.Container(
-        content=canvas,
-        expand=True,
-        border=ft.Border.all(2, "gray"),
-        padding=5,
-    )
-
     resolution_dropdown = ft.Dropdown(
         label="Resolution",
         options=[],
@@ -53,32 +43,15 @@ def main(page: ft.Page):
         on_change=lambda _: on_scale_change(),
     )
     vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_vrr_change())
-
-    def make_primary_click(_) -> None:
-        nonlocal selected_monitor_name
-        nonlocal primary_monitor_name
-
-        if not selected_monitor_name:
-            return
-
-        primary_monitor_name = selected_monitor_name
-        update_status()
-        update_canvas_display()
-        page.schedule_update()
-
-    primary_button = ft.Button("Make primary", on_click=make_primary_click)
-
-    # Position controls
+    primary_button = ft.Button("Make primary", on_click=lambda _: make_primary_click())
     pos_x_input = ft.TextField(
         label="X", width=80, on_change=lambda e: move_monitor_from_input(e)
     )
     pos_y_input = ft.TextField(
         label="Y", width=80, on_change=lambda e: move_monitor_from_input(e)
     )
-
     apply_btn = ft.Button("Apply Changes")
     reset_btn = ft.Button("Reset")
-
     settings_panel = ft.Container(
         content=ft.Column(
             [
@@ -101,19 +74,46 @@ def main(page: ft.Page):
         padding=10,
         visible=False,
     )
-
     page.add(
         ft.Column(
             [
-                header,
+                ft.Text(
+                    "Niri Monitor Configuration",
+                    size=24,
+                    weight=ft.FontWeight.BOLD,
+                ),
                 status_text,
                 ft.Divider(),
-                ft.Row([canvas_container, settings_panel], expand=True, spacing=10),
+                ft.Row(
+                    [
+                        ft.Container(
+                            content=canvas,
+                            expand=True,
+                            border=ft.Border.all(2, "gray"),
+                            padding=5,
+                        ),
+                        settings_panel,
+                    ],
+                    expand=True,
+                    spacing=10,
+                ),
             ],
             expand=True,
             spacing=10,
         )
     )
+
+    def make_primary_click() -> None:
+        nonlocal selected_monitor_name
+        nonlocal primary_monitor_name
+
+        if not selected_monitor_name:
+            return
+
+        primary_monitor_name = selected_monitor_name
+        update_status()
+        update_canvas_display()
+        page.schedule_update()
 
     def on_resolution_change() -> None:
         nonlocal selected_monitor_name
