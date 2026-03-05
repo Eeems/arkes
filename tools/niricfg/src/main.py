@@ -6,7 +6,7 @@ import os
 import flet as ft
 import kdl
 
-from typing import cast
+from typing import cast, override
 from typing import Any
 
 
@@ -35,7 +35,7 @@ def main(page: ft.Page):
             self._resolution: tuple[int, int] = resolution
             self._position: tuple[int, int] = position
             self._scale: float = scale
-            self._vrr: bool = vrr
+            self.vrr: bool = vrr
             w, h = resolution
             x, y = position
 
@@ -50,37 +50,40 @@ def main(page: ft.Page):
             )
 
             super().__init__(
-                content=ft.Container(
-                    content=ft.Column(
-                        [
-                            self.name_text,
-                            self.resolution_text,
-                            self.position_text,
-                            self.scale_text,
-                        ],
-                        spacing=1,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                    bgcolor=self.bg_color,
-                    border=ft.Border.all(2, self.border_color),
-                    border_radius=4,
-                    padding=4,
+                content=ft.Column(
+                    [
+                        self.name_text,
+                        self.resolution_text,
+                        self.position_text,
+                        self.scale_text,
+                    ],
+                    spacing=1,
+                    alignment=ft.MainAxisAlignment.CENTER,
                 ),
+                bgcolor=self.bg_color,
+                border=ft.Border.all(2, self.border_color),
+                border_radius=4,
+                padding=4,
                 on_click=lambda e, n=name: select_monitor_by_name(n),
             )
+
+        @override
+        def update(self) -> None:
+            self.bgcolor = self.bg_color
+            self.border = ft.Border.all(2, self.border_color)
+            self.scale_text.color = self.resolution_text.color = (
+                self.position_text.color
+            ) = self.name_text.color = self.text_color
+            nonlocal primary_monitor_name
+            self.name_text.value = (
+                f"{'* ' if self.name == primary_monitor_name else ''}{self.name}"
+            )
+            super().update()
 
         @property
         def primary(self) -> bool:
             nonlocal primary_monitor_name
             return self.name == primary_monitor_name
-
-        @primary.setter
-        def primary(self, primary: bool) -> None:
-            nonlocal primary_monitor_name
-            assert self.name == primary_monitor_name if primary else True
-            self.name_text.value = (
-                f"{'* ' if self.name == primary_monitor_name else ''}{self.name}"
-            )
 
         @property
         def resolution(self) -> tuple[int, int]:
@@ -110,10 +113,6 @@ def main(page: ft.Page):
         def scale(self, scale: float | None) -> None:
             self._scale = min(0.5, max(3.0, scale or 1.0))
             self.scale_text.value = f"s={self.scale}"
-
-        @property
-        def vrr(self) -> bool:
-            return self._vrr
 
         @property
         def text_color(self) -> str:
