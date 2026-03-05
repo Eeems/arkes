@@ -9,6 +9,7 @@ import kdl
 from typing import cast
 from typing import Any
 
+from settingspanel import SettingsPanel
 from monitor import Monitor
 
 CONFIG_PATH = os.path.expanduser("~/.config/niri/monitors.kdl")
@@ -33,74 +34,17 @@ def main(page: ft.Page):
     canvas_min_y: int = 0
     outputs: dict[str, dict[str, Any]] = {}
 
-    status_text = ft.Text("Loading...", size=14, color="gray")
+    status_text = ft.Text("", size=14, color="gray")
     canvas = ft.Stack(expand=True, on_size_change=lambda e: on_canvas_resize(e))
-    resolution_dropdown = ft.Dropdown(
-        label="Resolution",
-        options=[],
-        width=200,
-        on_select=lambda e: on_resolution_change(),
-    )
-    scale_slider = ft.Slider(
-        min=0.5,
-        max=3.0,
-        value=1.0,
-        divisions=20,
-        width=200,
-        label="Scale",
-        on_change=lambda _: on_slider_change(),
-    )
-    scale_input = ft.TextField(
-        label="Scale",
-        width=80,
-        on_change=lambda _: on_scale_change(),
-    )
-    vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_vrr_change())
-    primary_button = ft.Button("Make primary", on_click=lambda _: make_primary_click())
-    pos_x_input = ft.TextField(
-        label="X", width=80, on_change=lambda e: move_monitor_from_input(e)
-    )
-    pos_y_input = ft.TextField(
-        label="Y", width=80, on_change=lambda e: move_monitor_from_input(e)
-    )
-    apply_btn = ft.Button("Apply Changes", on_click=lambda e: apply_settings_click(e))
-    reset_btn = ft.Button("Reset", on_click=lambda e: reset_settings_click(e))
-    settings_panel = ft.Container(
-        content=ft.Column(
-            [
-                ft.Row(
-                    [
-                        ft.Text(
-                            "Monitor Settings",
-                            size=18,
-                            weight=ft.FontWeight.BOLD,
-                            expand=True,
-                        ),
-                        ft.Button(
-                            ft.Icon(ft.Icons.CLOSE_ROUNDED),
-                            style=ft.ButtonStyle(shape=ft.CircleBorder()),
-                            on_click=lambda _: on_settings_close(),
-                        ),
-                    ]
-                ),
-                ft.Divider(),
-                resolution_dropdown,
-                ft.Text("Scale", size=12, weight=ft.FontWeight.BOLD),
-                scale_slider,
-                ft.Row([scale_input], alignment=ft.MainAxisAlignment.START),
-                vrr_switch,
-                primary_button,
-                ft.Divider(),
-                ft.Text("Position", size=12, weight=ft.FontWeight.BOLD),
-                ft.Row([pos_x_input, pos_y_input]),
-                ft.Divider(),
-                ft.Row([apply_btn, reset_btn], spacing=10),
-            ],
-            spacing=10,
-        ),
-        width=280,
-        padding=10,
-        visible=False,
+    settings_panel = SettingsPanel(
+        on_resolution_change=lambda _: update(),
+        on_scale_change=lambda _: update(),
+        on_vrr_change=lambda _: update(),
+        on_make_primary_click=lambda _: make_primary_click(),
+        on_x_change=lambda _: update(),
+        on_y_change=lambda _: update(),
+        on_apply=lambda m, e: apply_settings(m, e),
+        on_reset=lambda m: reset_settings(m),
     )
     page.add(
         ft.Column(
@@ -131,8 +75,9 @@ def main(page: ft.Page):
         )
     )
 
-    def on_settings_close() -> None:
-        settings_panel.visible = False
+    def update() -> None:
+        update_status()
+        update_canvas_display()
 
     def make_primary_click() -> None:
         nonlocal selected_monitor_name
@@ -141,71 +86,12 @@ def main(page: ft.Page):
         if not selected_monitor_name:
             return
 
+        monitor = get_monitor(primary_monitor_name)
+        if monitor:
+            monitor.pending.add("primary")
+
         primary_monitor_name = selected_monitor_name
-        update_status()
-        update_canvas_display()
-        page.schedule_update()
-
-    def on_resolution_change() -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
-
-        monitor = get_monitor(selected_monitor_name)
-        if monitor is not None:
-            x, y = resolution_dropdown.value.split("x")
-            monitor.resolution = (int(x), int(y))
-            monitor.pending.add("resolution")
-
-        update_status()
-        update_canvas_display()
-
-    def on_vrr_change() -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
-
-        monitor = get_monitor(selected_monitor_name)
-        if monitor is not None:
-            monitor.vrr = vrr_switch.value
-            monitor.pending.add("vrr")
-
-        update_status()
-        update_canvas_display()
-
-    def on_slider_change() -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
-
-        scale_input.value = str(round(max(0.5, min(3.0, scale_slider.value or 1.0)), 1))
-        monitor = get_monitor(selected_monitor_name)
-        if monitor is not None:
-            monitor.monitor_scale = scale_slider.value
-            monitor.pending.add("scale")
-
-        update_status()
-        update_canvas_display()
-
-    def on_scale_change() -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            return
-
-        try:
-            scale_slider.value = round(max(0.5, min(3.0, float(scale_input.value))), 1)
-
-        except ValueError:
-            print(traceback.print_exc())
-
-        scale_input.value = str(scale_slider.value)
-        monitor = get_monitor(selected_monitor_name)
-        if monitor is not None:
-            monitor.monitor_scale = scale_slider.value
-            monitor.pending.add("scale")
-
-        update_status()
-        update_canvas_display()
+        update()
 
     def update_status() -> None:
         nonlocal selected_monitor_name
@@ -222,7 +108,6 @@ def main(page: ft.Page):
         nonlocal canvas_height
         canvas_width = e.width
         canvas_height = e.height
-        print(f"Canvas: {e.width}x{e.height}")
         update_canvas_display()
 
     def calculate_scaling_factor() -> None:
@@ -326,7 +211,7 @@ def main(page: ft.Page):
 
                 else:
                     if "scale" not in monitor.pending:
-                        monitor.scale = scale
+                        monitor.monitor_scale = scale
 
                     if "resolution" not in monitor.pending:
                         monitor.resolution = (width, height)
@@ -363,7 +248,7 @@ def main(page: ft.Page):
         nonlocal primary_monitor_name
         selected_monitor_name = cast(str | None, output.get("name"))
         monitor = get_monitor(selected_monitor_name or "")
-        settings_panel.visible = bool(monitor)
+        settings_panel.monitor = monitor
         update_canvas_controls()
         if not monitor:
             return
@@ -383,20 +268,18 @@ def main(page: ft.Page):
             key=lambda opt: (int(opt.key.split("x")[0]), int(opt.key.split("x")[1])),
             reverse=True,
         )
-        resolution_dropdown.options = mode_options
+        settings_panel.resolution_dropdown.options = mode_options
         w, h = monitor.resolution
-        resolution_dropdown.value = f"{w}x{h}"
-        scale_slider.value = monitor.monitor_scale
-        scale_input.value = str(monitor.monitor_scale)
-        vrr_switch.value = monitor.vrr
+        settings_panel.resolution_dropdown.value = f"{w}x{h}"
+        settings_panel.scale_slider.value = monitor.monitor_scale
+        settings_panel.scale_input.value = str(monitor.monitor_scale)
+        settings_panel.vrr_switch.value = monitor.vrr
         x, y = monitor.position
-        pos_x_input.value = str(x)
-        pos_y_input.value = str(y)
-        primary_button.disabled = monitor.primary
+        settings_panel.pos_x_input.value = str(x)
+        settings_panel.pos_y_input.value = str(y)
+        settings_panel.primary_button.disabled = monitor.primary
         monitor.update()
-        update_status()
-        update_canvas_display()
-        page.schedule_update()
+        update()
 
     def refresh_monitors(e=None) -> None:
         nonlocal primary_monitor_name
@@ -497,173 +380,39 @@ def main(page: ft.Page):
             status_text.color = "red"
             page.schedule_update()
 
-    def apply_settings_click(e) -> None:
-        errors: list[str] = []
-        count = 0
-
-        for monitor in sorted(
-            cast(list[Monitor], canvas.controls), key=lambda x: x.name
-        ):
-            if not monitor.pending:
-                continue
-
-            count += 1
-
-            if "position" in monitor.pending:
-                try:
-                    x, y = monitor.position
-                    result = subprocess.run(
-                        [
-                            "niri",
-                            "msg",
-                            "output",
-                            monitor.name,
-                            "position",
-                            "set",
-                            str(x),
-                            str(y),
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode != 0:
-                        errors.append(f"{monitor.name} Position: {result.stderr}")
-
-                except Exception as ex:
-                    print(traceback.print_exc())
-                    errors.append(f"{monitor.name} Position: {ex}")
-
-            if "scale" in monitor.pending:
-                try:
-                    result = subprocess.run(
-                        [
-                            "niri",
-                            "msg",
-                            "output",
-                            monitor.name,
-                            "scale",
-                            str(monitor.monitor_scale),
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode != 0:
-                        errors.append(f"{monitor.name} Scale: {result.stderr}")
-
-                except Exception as ex:
-                    print(traceback.print_exc())
-                    errors.append(f"{monitor.name} Scale: {ex}")
-
-            if "vrr" in monitor.pending:
-                vrr_val = "on" if monitor.vrr else "off"
-                try:
-                    result = subprocess.run(
-                        ["niri", "msg", "output", monitor.name, "vrr", vrr_val],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode != 0:
-                        errors.append(f"{monitor.name} VRR: {result.stderr}")
-
-                except Exception as ex:
-                    print(traceback.print_exc())
-                    errors.append(f"{monitor.name} VRR: {ex}")
-
-            if "resolution" in monitor.pending:
-                try:
-                    w, h = monitor.resolution
-                    result = subprocess.run(
-                        ["niri", "msg", "output", monitor.name, "mode", f"{w}x{h}"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode != 0:
-                        errors.append(f"{monitor.name} Mode: {result.stderr}")
-
-                except Exception as ex:
-                    print(traceback.print_exc())
-                    errors.append(f"{monitor.name} Mode: {ex}")
-
-            monitor.pending.clear()
-
+    def apply_settings(monitor: Monitor, errors: list[str]) -> None:
         update_status()
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
             status_text.color = "red"
 
         else:
-            status_text.value = f"Applied settings to {count} monitor(s)"
+            status_text.value = "Applied settings"
             status_text.color = "green"
 
         write_kdl_config()
         refresh_monitors()
 
-    def reset_settings_click(e) -> None:
+    def reset_settings(monitor: Monitor) -> None:
         nonlocal primary_monitor_name
-        nonlocal selected_monitor_name
         update_status()
         primary_monitor_name = get_primary_monitor()
-        if selected_monitor_name:
-            output = outputs.get(selected_monitor_name)
-            monitor = get_monitor(selected_monitor_name)
-            if monitor:
-                monitor.pending.clear()
+        output = outputs.get(monitor.name)
+        if output:
+            logical = output.get("logical", {})
+            width = cast(int, logical.get("width", 1920))
+            height = cast(int, logical.get("height", 1080))
+            scale = cast(float, logical.get("scale", 1.0))
+            vrr = cast(bool, output.get("vrr_enabled", False))
+            x = cast(int, logical.get("x", 0))
+            y = cast(int, logical.get("y", 0))
+            monitor.resolution = (width, height)
+            monitor.monitor_scale = scale
+            monitor.position = (x, y)
+            monitor.vrr = vrr
 
-            if output:
-                logical = output.get("logical", {})
-                width = cast(int, logical.get("width", 1920))
-                height = cast(int, logical.get("height", 1080))
-                scale = cast(float, logical.get("scale", 1.0))
-                vrr = cast(bool, output.get("vrr_enabled", False))
-                x = cast(int, logical.get("x", 0))
-                y = cast(int, logical.get("y", 0))
-
-                resolution_dropdown.value = f"{width}x{height}"
-                scale_slider.value = scale
-                scale_input.value = str(round(scale, 1))
-                vrr_switch.value = vrr
-                pos_x_input.value = str(x)
-                pos_y_input.value = str(y)
-
-                if monitor:
-                    monitor.resolution = (width, height)
-                    monitor.monitor_scale = scale
-                    monitor.position = (x, y)
-                    monitor.vrr = vrr
-                    print(monitor.primary)
-
-        primary_button.disabled = primary_monitor_name == selected_monitor_name
         status_text.value = "All changes reset"
         status_text.color = "gray"
-        update_canvas_display()
-
-    def move_monitor_from_input(e) -> None:
-        nonlocal selected_monitor_name
-        if not selected_monitor_name:
-            print("Error: No monitor selected")
-            return
-
-        try:
-            x = int(pos_x_input.value or 0)
-            y = int(pos_y_input.value or 0)
-
-        except ValueError:
-            print(traceback.print_exc())
-            status_text.value = "Invalid position values"
-            status_text.color = "red"
-            page.schedule_update()
-            return
-
-        monitor = get_monitor(selected_monitor_name)
-        if monitor is not None:
-            monitor.position = (x, y)
-            monitor.pending.add("position")
-
-        update_status()
         update_canvas_display()
 
     refresh_monitors()
