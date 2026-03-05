@@ -3,6 +3,7 @@ import flet as ft
 from typing import Callable
 from typing import override
 
+
 @ft.control
 class Monitor(ft.Container):
     def __init__(
@@ -13,22 +14,22 @@ class Monitor(ft.Container):
         scale: float,
         vrr: bool,
         on_click: ft.ControlEventHandler[ft.Container] | None,
-        primary_monitor: Callable[[], str | None],
-        selected_monitor: Callable[[], str | None],
-        canvas_min_x: Callable[[], int],
-        canvas_min_y: Callable[[], int],
-        canvas_scale_factor: Callable[[], float],
+        is_primary: Callable[["Monitor"], bool],
+        is_selected: Callable[["Monitor"], bool],
+        on_layout: Callable[["Monitor"], None],
     ):
         self.name: str = name
-        self._primary_monitor = primary_monitor
-        self._selected_monitor = selected_monitor
-        self._canvas_min_x = canvas_min_x
-        self._canvas_min_y = canvas_min_y
-        self._canvas_scale_factor = canvas_scale_factor
+        self.is_primary: Callable[["Monitor"], bool] = is_primary
+        self.is_selected: Callable[["Monitor"], bool] = is_selected
+        self.on_layout: Callable[["Monitor"], None] = on_layout
         self._resolution: tuple[int, int] = resolution
+        self._orig_resolution: tuple[int, int] = self._resolution
         self._position: tuple[int, int] = position
-        self._scale: float = scale
+        self._orig_position: tuple[int, int] = self._position
+        self._scale: float = self._clamp_scale(scale)
+        self._orig_scale: float = self._scale
         self.vrr: bool = vrr
+        self._orig_vrr: bool = self.vrr
         self.pending: set[str] = set()
         w, h = resolution
         x, y = position
@@ -63,15 +64,13 @@ class Monitor(ft.Container):
         self._update()
 
     def _update(self) -> None:
-        canvas_min_x = self._canvas_min_x()
-        canvas_min_y = self._canvas_min_y()
-        canvas_scale_factor = self._canvas_scale_factor()
         w, h = self.resolution
         x, y = self.position
-        self.left = (x - canvas_min_x) * canvas_scale_factor
-        self.top = (y - canvas_min_y) * canvas_scale_factor
-        self.width = int(w / self.monitor_scale) * canvas_scale_factor
-        self.height = int(h / self.monitor_scale) * canvas_scale_factor
+        self.left = x
+        self.top = y
+        self.width = int(w / self.monitor_scale)
+        self.height = int(h / self.monitor_scale)
+        self.on_layout(self)
 
     @override
     def update(self) -> None:
@@ -84,13 +83,49 @@ class Monitor(ft.Container):
         self._update()
         super().update()
 
+    def reset(self) -> None:
+        for name in self.pending:
+            match name:
+                case "position":
+                    self._position = self._orig_position
+
+                case "scale":
+                    self._scale = self._orig_scale
+
+                case "resolution":
+                    self._resolution = self._orig_resolution
+
+                case "vrr":
+                    self._vrr = self._orig_vrr
+
+        self.pending.clear()
+        self.update()
+
+    def apply(self) -> None:
+        for name in self.pending:
+            match name:
+                case "position":
+                    self._orig_position = self._position
+
+                case "scale":
+                    self._orig_scale = self._scale
+
+                case "resolution":
+                    self._orig_resolution = self._resolution
+
+                case "vrr":
+                    self._orig_vrr = self._vrr
+
+        self.pending.clear()
+        self.update()
+
     @property
     def primary(self) -> bool:
-        return self.name == self._primary_monitor()
+        return self.is_primary(self)
 
     @property
     def selected(self) -> bool:
-        return self.name == self._selected_monitor()
+        return self.is_selected(self)
 
     @property
     def resolution(self) -> tuple[int, int]:
@@ -120,9 +155,12 @@ class Monitor(ft.Container):
 
     @monitor_scale.setter
     def monitor_scale(self, scale: float | None) -> None:
-        self._scale = max(0.5, min(3.0, scale or 1.0))
+        self._scale = self._clamp_scale(scale)
         self.scale_text.value = f"s={self.monitor_scale}"
         self._update()
+
+    def _clamp_scale(self, scale: float | None) -> float:
+        return round(max(0.5, min(3.0, scale or 1.0)), 1)
 
     @property
     def text_color(self) -> str:
@@ -130,16 +168,8 @@ class Monitor(ft.Container):
 
     @property
     def bg_color(self) -> str:
-        return (
-            "blue" if self.selected else "orange" if self.pending else "lightblue"
-        )
+        return "blue" if self.selected else "orange" if self.pending else "lightblue"
 
     @property
     def border_color(self) -> str:
-        return (
-            "darkblue"
-            if self.selected
-            else "darkorange"
-            if self.pending
-            else "blue"
-        )
+        return "darkblue" if self.selected else "darkorange" if self.pending else "blue"

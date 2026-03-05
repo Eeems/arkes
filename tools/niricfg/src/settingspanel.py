@@ -201,15 +201,14 @@ class SettingsPanel(ft.Container):
                 print(traceback.print_exc())
                 errors.append(f"{self.monitor.name} Mode: {ex}")
 
-        self.monitor.pending.clear()
+        self.monitor.apply()
         self.on_apply(self.monitor, errors)
 
     def reset(self) -> None:
         if self.monitor is None:
             return
 
-        self.monitor.pending.clear()
-        self.on_reset(self.monitor)
+        self.monitor.reset()
         w, h = self.monitor.resolution
         self.resolution_dropdown.value = f"{w}x{h}"
         self.scale_slider.value = self.monitor.monitor_scale
@@ -218,7 +217,8 @@ class SettingsPanel(ft.Container):
         x, y = self.monitor.position
         self.pos_x_input.value = str(x)
         self.pos_y_input.value = str(y)
-        self.primary_button.disabled = self.monitor.primary
+        self.primary_button.disabled = self.monitor and self.monitor.primary
+        self.on_reset(self.monitor)
 
     @property
     def monitor(self) -> Monitor | None:
@@ -280,6 +280,7 @@ class SettingsPanel(ft.Container):
 
         self.monitor.pending.add("primary")
         self.on_make_primary_click(self.monitor)
+        self.primary_button.disabled = self.monitor and self.monitor.primary
 
     def _on_x_change(self) -> None:
         if self.monitor is None:

@@ -40,11 +40,11 @@ def main(page: ft.Page):
         on_resolution_change=lambda _: update(),
         on_scale_change=lambda _: update(),
         on_vrr_change=lambda _: update(),
-        on_make_primary_click=lambda _: make_primary_click(),
+        on_make_primary_click=lambda _: on_make_primary_click(),
         on_x_change=lambda _: update(),
         on_y_change=lambda _: update(),
-        on_apply=lambda m, e: apply_settings(m, e),
-        on_reset=lambda m: reset_settings(m),
+        on_apply=lambda m, e: on_apply(e),
+        on_reset=lambda _: on_reset(),
     )
     page.add(
         ft.Column(
@@ -79,29 +79,33 @@ def main(page: ft.Page):
         update_status()
         update_canvas_display()
 
-    def make_primary_click() -> None:
+    def on_make_primary_click() -> None:
         nonlocal selected_monitor_name
         nonlocal primary_monitor_name
 
         if not selected_monitor_name:
             return
 
-        monitor = get_monitor(primary_monitor_name)
-        if monitor:
-            monitor.pending.add("primary")
+        if primary_monitor_name:
+            monitor = get_monitor(primary_monitor_name)
+            if monitor:
+                monitor.pending.add("primary")
 
         primary_monitor_name = selected_monitor_name
         update()
 
     def update_status() -> None:
         nonlocal selected_monitor_name
-        monitor = get_monitor(selected_monitor_name or "")
-        if monitor and monitor.pending:
-            status_text.value = "Pending changes"
-            status_text.color = "orange"
+        status_text.value = ""
+        if selected_monitor_name is None:
+            return
 
-        else:
-            status_text.value = ""
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is None or not monitor.pending:
+            return
+
+        status_text.value = "Pending changes"
+        status_text.color = "orange"
 
     def on_canvas_resize(e: ft.LayoutSizeChangeEvent[ft.LayoutControl]) -> None:
         nonlocal canvas_width
@@ -156,28 +160,26 @@ def main(page: ft.Page):
             except RuntimeError:
                 pass
 
-    def get_primary_monitor_name() -> str | None:
+    def is_primary_monitor(monitor: Monitor) -> bool:
         nonlocal primary_monitor_name
-        return primary_monitor_name
+        return monitor.name == primary_monitor_name
 
-    def get_selected_monitor_name() -> str | None:
+    def is_selected_monitor(monitor: Monitor) -> bool:
         nonlocal selected_monitor_name
-        return selected_monitor_name
+        return monitor.name == selected_monitor_name
 
-    def get_canvas_min_x() -> int:
-        nonlocal canvas_min_x
-        return canvas_min_x
-
-    def get_canvas_min_y() -> int:
-        nonlocal canvas_min_y
-        return canvas_min_y
-
-    def get_canvas_scale_factor() -> float:
+    def layout_monitor(monitor: Monitor) -> None:
         nonlocal canvas_scale_factor
-        return canvas_scale_factor
+        nonlocal canvas_min_x
+        nonlocal canvas_min_y
+        monitor.left = (monitor.left - canvas_min_x) * canvas_scale_factor
+        monitor.top = (monitor.top - canvas_min_y) * canvas_scale_factor
+        monitor.width *= canvas_scale_factor
+        monitor.height *= canvas_scale_factor
 
     def update_canvas_display() -> None:
         nonlocal outputs
+        nonlocal canvas_scale_factor
         """Update canvas without re-fetching from niri - just refreshes the display based on current data"""
         try:
             valid_outputs = list(outputs.keys())
@@ -201,11 +203,9 @@ def main(page: ft.Page):
                         scale,
                         cast(bool, logical.get("vrr", False)),
                         lambda _, n=name: select_monitor_by_name(n),
-                        get_primary_monitor_name,
-                        get_selected_monitor_name,
-                        get_canvas_min_x,
-                        get_canvas_min_y,
-                        get_canvas_scale_factor,
+                        is_primary=is_primary_monitor,
+                        is_selected=is_selected_monitor,
+                        on_layout=lambda m: layout_monitor(m),
                     )
                     canvas.controls.append(monitor)
 
@@ -247,7 +247,12 @@ def main(page: ft.Page):
         nonlocal selected_monitor_name
         nonlocal primary_monitor_name
         selected_monitor_name = cast(str | None, output.get("name"))
-        monitor = get_monitor(selected_monitor_name or "")
+        if not selected_monitor_name:
+            settings_panel.monitor = None
+            update_canvas_controls()
+            return
+
+        monitor = get_monitor(selected_monitor_name)
         settings_panel.monitor = monitor
         update_canvas_controls()
         if not monitor:
@@ -380,7 +385,7 @@ def main(page: ft.Page):
             status_text.color = "red"
             page.schedule_update()
 
-    def apply_settings(monitor: Monitor, errors: list[str]) -> None:
+    def on_apply(errors: list[str]) -> None:
         update_status()
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
@@ -393,24 +398,10 @@ def main(page: ft.Page):
         write_kdl_config()
         refresh_monitors()
 
-    def reset_settings(monitor: Monitor) -> None:
+    def on_reset() -> None:
         nonlocal primary_monitor_name
         update_status()
         primary_monitor_name = get_primary_monitor()
-        output = outputs.get(monitor.name)
-        if output:
-            logical = output.get("logical", {})
-            width = cast(int, logical.get("width", 1920))
-            height = cast(int, logical.get("height", 1080))
-            scale = cast(float, logical.get("scale", 1.0))
-            vrr = cast(bool, output.get("vrr_enabled", False))
-            x = cast(int, logical.get("x", 0))
-            y = cast(int, logical.get("y", 0))
-            monitor.resolution = (width, height)
-            monitor.monitor_scale = scale
-            monitor.position = (x, y)
-            monitor.vrr = vrr
-
         status_text.value = "All changes reset"
         status_text.color = "gray"
         update_canvas_display()
