@@ -36,7 +36,7 @@ def main(page: ft.Page):
         label="Resolution",
         options=[],
         width=200,
-        on_select=lambda e: on_control_change(),
+        on_select=lambda e: on_resolution_change(),
     )
     scale_slider = ft.Slider(
         min=0.5,
@@ -50,9 +50,9 @@ def main(page: ft.Page):
     scale_input = ft.TextField(
         label="Scale",
         width=80,
-        on_submit=lambda _: on_scale_input_submit(),
+        on_change=lambda _: on_scale_change(),
     )
-    vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_control_change())
+    vrr_switch = ft.Switch(label="VRR", on_change=lambda _: on_vrr_change())
 
     def make_primary_click(_) -> None:
         nonlocal selected_monitor_name
@@ -62,27 +62,27 @@ def main(page: ft.Page):
             return
 
         primary_monitor_name = selected_monitor_name
-        update_pending_indicator()
+        update_status()
         update_canvas_display()
-        page.update()
+        page.schedule_update()
 
     primary_button = ft.Button("Make primary", on_click=make_primary_click)
 
     # Position controls
-    pos_x_input = ft.TextField(label="X", width=80)
-    pos_y_input = ft.TextField(label="Y", width=80)
+    pos_x_input = ft.TextField(
+        label="X", width=80, on_change=lambda e: move_monitor_from_input(e)
+    )
+    pos_y_input = ft.TextField(
+        label="Y", width=80, on_change=lambda e: move_monitor_from_input(e)
+    )
 
     apply_btn = ft.Button("Apply Changes")
     reset_btn = ft.Button("Reset")
-
-    pending_indicator = ft.Text("", size=12, color="orange", weight=ft.FontWeight.BOLD)
 
     settings_panel = ft.Container(
         content=ft.Column(
             [
                 ft.Text("Monitor Settings", size=18, weight=ft.FontWeight.BOLD),
-                pending_indicator,
-                ft.Divider(),
                 resolution_dropdown,
                 ft.Text("Scale", size=12, weight=ft.FontWeight.BOLD),
                 scale_slider,
@@ -115,54 +115,69 @@ def main(page: ft.Page):
         )
     )
 
-    def on_slider_change() -> None:
-        scale_input.value = str(round(scale_slider.value or 1.0, 2))
-        on_control_change()
-
-    def on_scale_input_submit() -> None:
-        try:
-            val = float(scale_input.value)
-            val = max(0.5, min(3.0, val))
-            scale_slider.value = val
-            on_control_change()
-            page.update()
-        except ValueError:
-            print(traceback.print_exc())
-            pass
-
-    def on_control_change() -> None:
+    def on_resolution_change() -> None:
         nonlocal selected_monitor_name
         if not selected_monitor_name:
             return
-
-        try:
-            x = int(pos_x_input.value or 0)
-            y = int(pos_y_input.value or 0)
-
-        except ValueError:
-            print(traceback.print_exc())
-            x = 0
-            y = 0
 
         if selected_monitor_name not in pending_changes:
             pending_changes[selected_monitor_name] = {}
 
         pending_changes[selected_monitor_name]["resolution"] = resolution_dropdown.value
-        pending_changes[selected_monitor_name]["scale"] = scale_slider.value
-        pending_changes[selected_monitor_name]["vrr"] = vrr_switch.value
-        pending_changes[selected_monitor_name]["x"] = x
-        pending_changes[selected_monitor_name]["y"] = y
-        update_pending_indicator()
+        update_status()
         update_canvas_display()
-        page.update()
 
-    def update_pending_indicator() -> None:
+    def on_vrr_change() -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+
+        if selected_monitor_name not in pending_changes:
+            pending_changes[selected_monitor_name] = {}
+
+        pending_changes[selected_monitor_name]["vrr"] = vrr_switch.value
+        update_status()
+        update_canvas_display()
+
+    def on_slider_change() -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+
+        scale_input.value = str(round(max(0.5, min(3.0, scale_slider.value or 1.0)), 2))
+        if selected_monitor_name not in pending_changes:
+            pending_changes[selected_monitor_name] = {}
+
+        pending_changes[selected_monitor_name]["scale"] = scale_input.value
+        update_status()
+        update_canvas_display()
+
+    def on_scale_change() -> None:
+        nonlocal selected_monitor_name
+        if not selected_monitor_name:
+            return
+
+        try:
+            scale_slider.value = round(max(0.5, min(3.0, float(scale_input.value))), 2)
+
+        except ValueError:
+            print(traceback.print_exc())
+
+        scale_input.value = str(scale_slider.value)
+        if selected_monitor_name not in pending_changes:
+            pending_changes[selected_monitor_name] = {}
+
+        pending_changes[selected_monitor_name]["scale"] = scale_input.value
+        update_status()
+        update_canvas_display()
+
+    def update_status() -> None:
         nonlocal selected_monitor_name
         if selected_monitor_name and selected_monitor_name in pending_changes:
-            pending_indicator.value = "Pending changes - click Apply"
-            pending_indicator.color = "orange"
+            status_text.value = "Pending changes - click Apply"
+            status_text.color = "orange"
         else:
-            pending_indicator.value = ""
+            status_text.value = ""
 
     def get_scale_factor(outputs: dict[str, dict[str, Any]]) -> float:
         max_x = max(
@@ -236,10 +251,12 @@ def main(page: ft.Page):
                     bg_color = "blue"
                     border_color = "darkblue"
                     text_color = "white"
+
                 elif is_pending:
                     bg_color = "orange"
                     border_color = "darkorange"
                     text_color = "black"
+
                 else:
                     bg_color = "lightblue"
                     border_color = "blue"
@@ -281,12 +298,12 @@ def main(page: ft.Page):
                 )
                 canvas.controls.append(monitor_content)
 
-            page.update()
+            page.schedule_update()
 
         except Exception as e:
             print(traceback.print_exc())
             status_text.value = f"Error: {e}"
-            page.update()
+            page.schedule_update()
 
     def select_monitor_by_name(name: str) -> None:
         output = monitors_data.get(name)
@@ -335,6 +352,7 @@ def main(page: ft.Page):
             vrr_switch.value = changes.get("vrr", vrr)
             pos_x_input.value = str(changes.get("x", logical.get("x", 0)))
             pos_y_input.value = str(changes.get("y", logical.get("y", 0)))
+
         else:
             resolution_dropdown.value = f"{physical_width}x{physical_height}"
             scale_slider.value = scale
@@ -346,9 +364,9 @@ def main(page: ft.Page):
         scale_input.value = str(round(scale_slider.value or 1.0, 2))
 
         settings_panel.visible = True
-        update_pending_indicator()
+        update_status()
         update_canvas_display()
-        page.update()
+        page.schedule_update()
 
     def refresh_monitors(e=None) -> None:
         nonlocal primary_monitor_name
@@ -363,7 +381,7 @@ def main(page: ft.Page):
             if result.returncode != 0:
                 status_text.value = f"Error: niri returned {result.returncode}"
                 status_text.color = "red"
-                page.update()
+                page.schedule_update()
                 return
 
             outputs = json.loads(result.stdout)
@@ -375,6 +393,7 @@ def main(page: ft.Page):
 
             if not outputs:
                 status_text.value = "No monitors connected"
+
             else:
                 status_text.value = f"Found {len(outputs)} monitor(s)"
                 status_text.color = "green"
@@ -383,13 +402,13 @@ def main(page: ft.Page):
             if selected_monitor_name:
                 select_monitor_by_name(selected_monitor_name)
 
-            page.update()
+            page.schedule_update()
 
         except Exception as e:
             print(traceback.print_exc())
             status_text.value = f"Error: {e}"
             status_text.color = "red"
-            page.update()
+            page.schedule_update()
 
     def get_primary_monitor() -> str | None:
         try:
@@ -451,7 +470,7 @@ def main(page: ft.Page):
             print(traceback.print_exc())
             status_text.value = f"Error writing KDL config: {e}"
             status_text.color = "red"
-            page.update()
+            page.schedule_update()
 
     def apply_settings_click(e) -> None:
         errors = []
@@ -544,7 +563,7 @@ def main(page: ft.Page):
             if monitor_name in pending_changes:
                 del pending_changes[monitor_name]
 
-        update_pending_indicator()
+        update_status()
 
         if errors:
             status_text.value = f"Errors: {'; '.join(errors)}"
@@ -553,13 +572,13 @@ def main(page: ft.Page):
             status_text.value = f"Applied settings to {len(applied)} monitor(s)"
             status_text.color = "green"
 
-        page.update()
+        page.schedule_update()
         write_kdl_config()
         refresh_monitors()
 
     def reset_settings_click(e) -> None:
         pending_changes.clear()
-        update_pending_indicator()
+        update_status()
         if selected_monitor_name:
             output = monitors_data.get(selected_monitor_name)
             if output:
@@ -582,7 +601,7 @@ def main(page: ft.Page):
         primary_button.disabled = primary_monitor_name == selected_monitor_name
         status_text.value = "All changes reset"
         status_text.color = "gray"
-        page.update()
+        page.schedule_update()
 
     def on_close() -> None:
         nonlocal closed
@@ -639,7 +658,7 @@ def main(page: ft.Page):
             print(traceback.print_exc())
             status_text.value = "Invalid position values"
             status_text.color = "red"
-            page.update()
+            page.schedule_update()
             return
 
         if selected_monitor_name not in pending_changes:
@@ -647,14 +666,12 @@ def main(page: ft.Page):
 
         pending_changes[selected_monitor_name]["x"] = x
         pending_changes[selected_monitor_name]["y"] = y
-        update_pending_indicator()
-        page.update()
+        update_status()
+        page.schedule_update()
         update_canvas_display()
 
     apply_btn.on_click = apply_settings_click
     reset_btn.on_click = reset_settings_click
-    pos_x_input.on_change = move_monitor_from_input
-    pos_y_input.on_change = move_monitor_from_input
 
     refresh_monitors()
 
