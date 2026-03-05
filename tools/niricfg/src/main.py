@@ -9,6 +9,8 @@ import kdl
 from typing import cast, override
 from typing import Any
 
+CONFIG_PATH = os.path.expanduser("~/.config/niri/monitors.kdl")
+
 
 def main(page: ft.Page):
     page.title = "Niri Monitor Configuration"
@@ -521,9 +523,8 @@ def main(page: ft.Page):
 
     def get_primary_monitor() -> str | None:
         try:
-            config_path = os.path.expanduser("~/.config/monitors.kdl")
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
+            if os.path.exists(CONFIG_PATH):
+                with open(CONFIG_PATH, "r") as f:
                     doc = kdl.parse(f.read())
                     for node in doc.nodes:
                         if node.name == "output" and node.args:
@@ -540,8 +541,7 @@ def main(page: ft.Page):
         """Write monitor configuration to ~/.config/monitors.kdl"""
         nonlocal primary_monitor_name
         try:
-            config_path = os.path.expanduser("~/.config/monitors.kdl")
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
 
             kdl_config = kdl.Document()
             for monitor in sorted(
@@ -572,7 +572,7 @@ def main(page: ft.Page):
                 kdl_config.nodes.append(output_node)
 
             # Write to file
-            with open(config_path, "w") as f:
+            with open(CONFIG_PATH, "w") as f:
                 f.write(kdl_config.print())
 
         except Exception as e:

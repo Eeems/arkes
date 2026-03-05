@@ -21,10 +21,16 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     if cast(bool, args.pre):
-        os.makedirs("/usr/local/share/niri/", exist_ok=True)
-        if not os.path.exists("/usr/local/share/niri/config.kdl"):
-            with open("/usr/local/share/niri/config.kdl", "w") as f:
-                _ = f.write("\n")
+        cfg_path = os.path.expanduser("~/.config/niri")
+        os.makedirs(cfg_path, exist_ok=True)
+        kdl_path = os.path.join(cfg_path, "config.kdl")
+        if not os.path.exists(kdl_path):
+            os.link("/usr/share/niri/config.kdl", kdl_path)
+
+        kdl_path = os.path.join(cfg_path, "config.kdl")
+        if not os.path.exists(kdl_path):
+            with open(kdl_path, "w") as f:
+                _ = f.write("")
 
         return
 
