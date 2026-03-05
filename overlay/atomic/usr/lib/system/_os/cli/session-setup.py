@@ -25,9 +25,9 @@ def command(args: Namespace) -> None:
         os.makedirs(cfg_path, exist_ok=True)
         kdl_path = os.path.join(cfg_path, "config.kdl")
         if not os.path.exists(kdl_path):
-            os.link("/usr/share/niri/config.kdl", kdl_path)
+            os.symlink("/usr/share/niri/config.kdl", kdl_path)
 
-        kdl_path = os.path.join(cfg_path, "config.kdl")
+        kdl_path = os.path.join(cfg_path, "monitors.kdl")
         if not os.path.exists(kdl_path):
             with open(kdl_path, "w") as f:
                 _ = f.write("")

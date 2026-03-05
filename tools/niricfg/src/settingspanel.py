@@ -12,14 +12,14 @@ from monitor import Monitor
 class SettingsPanel(ft.Container):
     def __init__(
         self,
-        on_resolution_change=Callable[[tuple[int, int]], None],
-        on_scale_change=Callable[[float], None],
-        on_vrr_change=Callable[[bool], None],
-        on_make_primary_click=Callable[[Monitor], None],
-        on_x_change=Callable[[int], None],
-        on_y_change=Callable[[int], None],
-        on_apply=Callable[[Monitor, list[str]], None],
-        on_reset=Callable[[Monitor], None],
+        on_resolution_change: Callable[[tuple[int, int]], None],
+        on_scale_change: Callable[[float], None],
+        on_vrr_change: Callable[[bool], None],
+        on_make_primary_click: Callable[[Monitor], None],
+        on_x_change: Callable[[int], None],
+        on_y_change: Callable[[int], None],
+        on_apply: Callable[[Monitor, list[str]], None],
+        on_reset: Callable[[Monitor], None],
     ):
         self._monitor: Monitor | None = None
         self.on_resolution_change: Callable[[tuple[int, int]], None] = (
@@ -115,7 +115,6 @@ class SettingsPanel(ft.Container):
     def close(self) -> None:
         self.visible = False
         self.monitor = None
-        self.on_close()
 
     def apply(self):
         if self.monitor is None:
@@ -201,7 +200,9 @@ class SettingsPanel(ft.Container):
                 print(traceback.print_exc())
                 errors.append(f"{self.monitor.name} Mode: {ex}")
 
-        self.monitor.apply()
+        if not errors:
+            self.monitor.apply()
+
         self.on_apply(self.monitor, errors)
 
     def reset(self) -> None:

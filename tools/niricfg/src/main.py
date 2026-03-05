@@ -130,7 +130,7 @@ def main(page: ft.Page):
                 x, y = monitor.position
                 width, height = monitor.resolution
                 width = int(width / monitor.monitor_scale)
-                height = int(width / monitor.monitor_scale)
+                height = int(height / monitor.monitor_scale)
 
             else:
                 logical = cast(dict[str, int], output.get("logical", {}))
@@ -219,7 +219,7 @@ def main(page: ft.Page):
                     if "position" not in monitor.pending:
                         monitor.position = (x, y)
 
-            for monitor in canvas.controls:
+            for monitor in list(canvas.controls):
                 if monitor.name not in valid_outputs:
                     canvas.controls.remove(monitor)
 
@@ -392,10 +392,10 @@ def main(page: ft.Page):
             status_text.color = "red"
 
         else:
+            write_kdl_config()
             status_text.value = "Applied settings"
             status_text.color = "green"
 
-        write_kdl_config()
         refresh_monitors()
 
     def on_reset() -> None:

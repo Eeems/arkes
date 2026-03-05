@@ -71,6 +71,17 @@ jobs:
       contents: read
       packages: write
 
+  niricfg:
+    name: Build niricfg application
+    needs: builder
+    uses: ./.github/workflows/tool-niricfg.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
   check:
     name: Ensure config is valid
     runs-on: ubuntu-latest

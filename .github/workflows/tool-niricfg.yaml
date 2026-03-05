@@ -1,0 +1,77 @@
+name: Build builder image
+on:
+  workflow_call:
+    inputs: &inputs
+      builder:
+        description: Builder tag to use
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs: *inputs
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  builder:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt seccomp=unconfined
+        --security-opt apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device /dev/fuse
+        --tmpfs /tmp
+        --tmpfs /run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          username: ${{github.actor}}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+
+      - uses: ./.github/actions/mask-registry-passwords
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/niricfg/Containerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/eeems/arkes-builder:niricfg
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build executable
+        run: |
+          set -e
+          ./make.py niricfg
+
+      - name: Upload niricfg artifact
+        uses: ./.github/actions/upload-image
+        with:
+          image: ${{ steps.image.outputs.name }}
+          name: ${{ inputs.variant }}
+          if-no-files-found: ignore
+
+      - name: Upload niricfg
+        uses: actions/upload-artifact@v4
+        with:
+          name: niricfg
+          path: tools/niricfg/build/linux
+          if-no-files-found: error

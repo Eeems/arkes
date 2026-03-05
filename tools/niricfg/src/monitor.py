@@ -28,7 +28,7 @@ class Monitor(ft.Container):
         self._orig_position: tuple[int, int] = self._position
         self._scale: float = self._clamp_scale(scale)
         self._orig_scale: float = self._scale
-        self.vrr: bool = vrr
+        self._vrr: bool = vrr
         self._orig_vrr: bool = self.vrr
         self.pending: set[str] = set()
         w, h = resolution
@@ -118,6 +118,10 @@ class Monitor(ft.Container):
 
         self.pending.clear()
         self.update()
+
+    @property
+    def vrr(self) -> bool:
+        return self._vrr
 
     @property
     def primary(self) -> bool:
