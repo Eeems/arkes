@@ -20,6 +20,125 @@ def main(page: ft.Page):
     pending_changes: dict[str, Any] = {}
     monitors_data: dict[str, Any] = {}
 
+    @ft.control
+    class Monitor(ft.Container):
+        def __init__(
+            self,
+            name: str,
+            resolution: tuple[int, int],
+            position: tuple[int, int],
+            scale: float,
+            vrr: bool,
+        ):
+            nonlocal primary_monitor_name
+            self.name: str = name
+            self._resolution: tuple[int, int] = resolution
+            self._position: tuple[int, int] = position
+            self._scale: float = scale
+            self._vrr: bool = vrr
+            w, h = resolution
+            x, y = position
+
+            self.scale_text = ft.Text(f"s={scale}", size=9, color=self.text_color)
+            self.resolution_text = ft.Text(f"{w}x{h}", size=9, color=self.text_color)
+            self.position_text = ft.Text(f"({x}, {y})", size=9, color=self.text_color)
+            self.name_text = ft.Text(
+                f"{'* ' if name == primary_monitor_name else ''}{name}",
+                size=11,
+                weight=ft.FontWeight.BOLD,
+                color=self.text_color,
+            )
+
+            super().__init__(
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            self.name_text,
+                            self.resolution_text,
+                            self.position_text,
+                            self.scale_text,
+                        ],
+                        spacing=1,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    bgcolor=self.bg_color,
+                    border=ft.Border.all(2, self.border_color),
+                    border_radius=4,
+                    padding=4,
+                ),
+                on_click=lambda e, n=name: select_monitor_by_name(n),
+            )
+
+        @property
+        def primary(self) -> bool:
+            nonlocal primary_monitor_name
+            return self.name == primary_monitor_name
+
+        @primary.setter
+        def primary(self, primary: bool) -> None:
+            nonlocal primary_monitor_name
+            assert self.name == primary_monitor_name if primary else True
+            self.name_text.value = (
+                f"{'* ' if self.name == primary_monitor_name else ''}{self.name}"
+            )
+
+        @property
+        def resolution(self) -> tuple[int, int]:
+            return self._resolution
+
+        @resolution.setter
+        def resolution(self, resolution: tuple[int, int]) -> None:
+            self._resolution = resolution
+            w, h = self._resolution
+            self.resolution_text.value = f"{w}x{h}"
+
+        @property
+        def position(self) -> tuple[int, int]:
+            return self._position
+
+        @position.setter
+        def position(self, position: tuple[int, int]) -> None:
+            self._position = position
+            x, y = self._position
+            self.position_text.value = f"({x}, {y})"
+
+        @property
+        def scale(self) -> float:
+            return self._scale
+
+        @scale.setter
+        def scale(self, scale: float | None) -> None:
+            self._scale = min(0.5, max(3.0, scale or 1.0))
+            self.scale_text.value = f"s={self.scale}"
+
+        @property
+        def vrr(self) -> bool:
+            return self._vrr
+
+        @property
+        def text_color(self) -> str:
+            return "white" if self.name == selected_monitor_name else "black"
+
+        @property
+        def bg_color(self) -> str:
+            return (
+                "blue"
+                if self.name == selected_monitor_name
+                else "orange"
+                if self.name in pending_changes
+                else "lightblue"
+            )
+
+        @property
+        def border_color(self) -> str:
+            return (
+                "darkblue"
+                if self.name == selected_monitor_name
+                else "darkorange"
+                if self.name in pending_changes
+                else "blue"
+            )
+
     status_text = ft.Text("Loading...", size=14, color="gray")
     canvas = ft.Stack(expand=True)
     resolution_dropdown = ft.Dropdown(
@@ -124,6 +243,11 @@ def main(page: ft.Page):
             pending_changes[selected_monitor_name] = {}
 
         pending_changes[selected_monitor_name]["resolution"] = resolution_dropdown.value
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is not None:
+            x, y = resolution_dropdown.value.split("x")
+            monitor.resolution = (int(x), int(y))
+
         update_status()
         update_canvas_display()
 
@@ -136,6 +260,10 @@ def main(page: ft.Page):
             pending_changes[selected_monitor_name] = {}
 
         pending_changes[selected_monitor_name]["vrr"] = vrr_switch.value
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is not None:
+            monitor.vrr = vrr_switch.value
+
         update_status()
         update_canvas_display()
 
@@ -149,6 +277,10 @@ def main(page: ft.Page):
             pending_changes[selected_monitor_name] = {}
 
         pending_changes[selected_monitor_name]["scale"] = scale_input.value
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is not None:
+            monitor.scale = scale_slider.value
+
         update_status()
         update_canvas_display()
 
@@ -168,6 +300,10 @@ def main(page: ft.Page):
             pending_changes[selected_monitor_name] = {}
 
         pending_changes[selected_monitor_name]["scale"] = scale_input.value
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is not None:
+            monitor.scale = scale_slider.value
+
         update_status()
         update_canvas_display()
 
@@ -212,6 +348,7 @@ def main(page: ft.Page):
             if result.returncode != 0:
                 return
             outputs = json.loads(result.stdout)
+            valid_outputs = outputs.keys()
 
             scale_factor = get_scale_factor(outputs)
             canvas.controls.clear()
@@ -239,62 +376,25 @@ def main(page: ft.Page):
                 canvas_w = width * scale_factor
                 canvas_h = height * scale_factor
 
-                canvas_w = max(canvas_w, 80)
-                canvas_h = max(canvas_h, 50)
+                monitor = get_monitor(name)
+                if monitor is None:
+                    monitor = Monitor(
+                        name,
+                        (width, height),
+                        (x, y),
+                        scale,
+                        logical.get("scale", 1.0),
+                    )
 
-                canvas_x = min(canvas_x, 790 - canvas_w)
-                canvas_y = min(canvas_y, 490 - canvas_h)
+                monitor.width = canvas_w
+                monitor.height = canvas_h
+                monitor.top = canvas_y
+                monitor.left = canvas_x
+                canvas.controls.append(monitor)
 
-                if name == selected_monitor_name:
-                    bg_color = "blue"
-                    border_color = "darkblue"
-                    text_color = "white"
-
-                elif name in pending_changes:
-                    bg_color = "orange"
-                    border_color = "darkorange"
-                    text_color = "black"
-
-                else:
-                    bg_color = "lightblue"
-                    border_color = "blue"
-                    text_color = "black"
-
-                monitor_content = ft.Container(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Text(
-                                    f"{'* ' if name == primary_monitor_name else ''}{name}",
-                                    size=11,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=text_color,
-                                ),
-                                ft.Text(
-                                    f"{int(width * scale)}x{int(height * scale)}",
-                                    size=9,
-                                    color=text_color,
-                                ),
-                                ft.Text(f"({x}, {y})", size=9, color=text_color),
-                                ft.Text(f"s={scale}", size=9, color=text_color),
-                            ],
-                            spacing=1,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        width=canvas_w,
-                        height=canvas_h,
-                        bgcolor=bg_color,
-                        border=ft.Border.all(2, border_color),
-                        border_radius=4,
-                        padding=4,
-                    ),
-                    width=canvas_w,
-                    height=canvas_h,
-                    left=canvas_x,
-                    top=canvas_y,
-                    on_click=lambda e, n=name: select_monitor_by_name(n),
-                )
-                canvas.controls.append(monitor_content)
+            for monitor in canvas.controls:
+                if monitor.name not in valid_outputs:
+                    canvas.controls.remove(monitor)
 
             page.schedule_update()
 
@@ -302,6 +402,13 @@ def main(page: ft.Page):
             print(traceback.print_exc())
             status_text.value = f"Error: {e}"
             page.schedule_update()
+
+    def get_monitor(name: str) -> Monitor | None:
+        for monitor in canvas.controls:
+            if monitor.name == name:
+                return monitor
+
+        return None
 
     def select_monitor_by_name(name: str) -> None:
         output = monitors_data.get(name)
@@ -664,8 +771,12 @@ def main(page: ft.Page):
 
         pending_changes[selected_monitor_name]["x"] = x
         pending_changes[selected_monitor_name]["y"] = y
+
+        monitor = get_monitor(selected_monitor_name)
+        if monitor is not None:
+            monitor.position = (x, y)
+
         update_status()
-        page.schedule_update()
         update_canvas_display()
 
     apply_btn.on_click = apply_settings_click
