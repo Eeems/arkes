@@ -226,13 +226,11 @@ def main(page: ft.Page):
                 y = logical.get("y", 0)
                 scale = logical.get("scale", 1.0)
 
-                is_pending = name in pending_changes
-                is_selected = name == selected_monitor_name
-
-                if is_pending and name in pending_changes:
+                if name in pending_changes:
                     pending = pending_changes[name]
                     if "x" in pending:
                         x = pending["x"]
+
                     if "y" in pending:
                         y = pending["y"]
 
@@ -247,12 +245,12 @@ def main(page: ft.Page):
                 canvas_x = min(canvas_x, 790 - canvas_w)
                 canvas_y = min(canvas_y, 490 - canvas_h)
 
-                if is_selected:
+                if name == selected_monitor_name:
                     bg_color = "blue"
                     border_color = "darkblue"
                     text_color = "white"
 
-                elif is_pending:
+                elif name in pending_changes:
                     bg_color = "orange"
                     border_color = "darkorange"
                     text_color = "black"
