@@ -12,6 +12,11 @@ from typing import Any
 
 def main(page: ft.Page):
     page.title = "Niri Monitor Configuration"
+
+    def on_close() -> None:
+        nonlocal closed
+        closed = True
+
     page.on_close = lambda _: on_close()
 
     closed: bool = False
@@ -19,6 +24,8 @@ def main(page: ft.Page):
     primary_monitor_name: str | None = None
     pending_changes: dict[str, Any] = {}
     monitors_data: dict[str, Any] = {}
+    canvas_width: float = 0.0
+    canvas_height: float = 0.0
 
     @ft.control
     class Monitor(ft.Container):
@@ -106,11 +113,11 @@ def main(page: ft.Page):
             self.position_text.value = f"({x}, {y})"
 
         @property
-        def scale(self) -> float:
+        def monitor_scale(self) -> float:
             return self._scale
 
-        @scale.setter
-        def scale(self, scale: float | None) -> None:
+        @monitor_scale.setter
+        def monitor_scale(self, scale: float | None) -> None:
             self._scale = min(0.5, max(3.0, scale or 1.0))
             self.scale_text.value = f"s={self.scale}"
 
@@ -139,7 +146,7 @@ def main(page: ft.Page):
             )
 
     status_text = ft.Text("Loading...", size=14, color="gray")
-    canvas = ft.Stack(expand=True)
+    canvas = ft.Stack(expand=True, on_size_change=lambda e: on_canvas_resize(e))
     resolution_dropdown = ft.Dropdown(
         label="Resolution",
         options=[],
@@ -278,7 +285,7 @@ def main(page: ft.Page):
         pending_changes[selected_monitor_name]["scale"] = scale_input.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
-            monitor.scale = scale_slider.value
+            monitor.monitor_scale = scale_slider.value
 
         update_status()
         update_canvas_display()
@@ -301,7 +308,7 @@ def main(page: ft.Page):
         pending_changes[selected_monitor_name]["scale"] = scale_input.value
         monitor = get_monitor(selected_monitor_name)
         if monitor is not None:
-            monitor.scale = scale_slider.value
+            monitor.monitor_scale = scale_slider.value
 
         update_status()
         update_canvas_display()
@@ -315,6 +322,8 @@ def main(page: ft.Page):
             status_text.value = ""
 
     def get_scale_factor(outputs: dict[str, dict[str, Any]]) -> float:
+        nonlocal canvas_width
+        nonlocal canvas_height
         max_x = max(
             (
                 o.get("logical", {}).get("x", 0)
@@ -331,9 +340,14 @@ def main(page: ft.Page):
             ),
             default=1080,
         )
-        canvas_w = 790
-        canvas_h = 490
-        return min(canvas_w / max(max_x, 1), canvas_h / max(max_y, 1)) * 0.95
+        return min(canvas_width / max(max_x, 1), canvas_height / max(max_y, 1)) * 0.95
+
+    def on_canvas_resize(e: ft.LayoutSizeChangeEvent[ft.LayoutControl]) -> None:
+        nonlocal canvas_width
+        nonlocal canvas_height
+        canvas_width = e.width
+        canvas_height = e.height
+        update_canvas_display()
 
     def update_canvas_display() -> None:
         """Update canvas without re-fetching from niri - just refreshes the display based on current data"""
@@ -346,10 +360,31 @@ def main(page: ft.Page):
             )
             if result.returncode != 0:
                 return
+
             outputs = json.loads(result.stdout)
             valid_outputs = outputs.keys()
 
-            scale_factor = get_scale_factor(outputs)
+            min_x = min(o.get("logical", {}).get("x", 0) for o in outputs.values())
+            min_y = min(o.get("logical", {}).get("y", 0) for o in outputs.values())
+            max_x = (
+                max(
+                    o.get("logical", {}).get("x", 0)
+                    + o.get("logical", {}).get("width", 1920)
+                    for o in outputs.values()
+                )
+                - min_x
+            )
+            max_y = (
+                max(
+                    o.get("logical", {}).get("y", 0)
+                    + o.get("logical", {}).get("height", 1080)
+                    for o in outputs.values()
+                )
+                - min_y
+            )
+            scale_factor = (
+                min(canvas_width / max(max_x, 1), canvas_height / max(max_y, 1)) * 0.95
+            )
             canvas.controls.clear()
 
             for name, output in outputs.items():
@@ -370,8 +405,8 @@ def main(page: ft.Page):
                     if "y" in pending:
                         y = pending["y"]
 
-                canvas_x = x * scale_factor
-                canvas_y = y * scale_factor
+                canvas_x = (x - min_x) * scale_factor
+                canvas_y = (y - min_y) * scale_factor
                 canvas_w = width * scale_factor
                 canvas_h = height * scale_factor
 
@@ -706,10 +741,6 @@ def main(page: ft.Page):
         status_text.value = "All changes reset"
         status_text.color = "gray"
         page.schedule_update()
-
-    def on_close() -> None:
-        nonlocal closed
-        closed = True
 
     def start_event_listener() -> None:
         def listener() -> None:
