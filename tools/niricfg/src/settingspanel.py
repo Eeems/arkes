@@ -50,7 +50,7 @@ class SettingsPanel(ft.Container):
         self.scale_input = ft.TextField(
             label="Scale",
             width=80,
-            on_change=lambda _: on_scale_change(),
+            on_change=lambda _: self._on_scale_change(),
         )
         self.vrr_switch = ft.Switch(
             label="VRR", on_change=lambda _: self._on_vrr_change()
