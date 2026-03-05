@@ -1,6 +1,6 @@
 [project]
 name = "niricfg"
-version = "0.1.0"
+version = "0.0.1"
 description = ""
 readme = "README.md"
 requires-python = ">=3.10"
@@ -8,7 +8,8 @@ authors = [
     { name = "Flet developer", email = "you@example.com" }
 ]
 dependencies = [
-    "flet>=0.81.0"
+    "flet>=0.81.0",
+    "kdl-py==1.2.0"
 ]
 
 [dependency-groups]
@@ -19,10 +20,10 @@ dev = [
 ]
 
 [tool.flet]
-org = "com.mycompany"
+org = "codes.eeems"
 product = "niricfg"
-company = "Flet"
-copyright = "Copyright (C) 2023-2026 by Flet"
+company = "Eeems"
+copyright = "Copyright (C) 2026 by Eeems"
 
 [tool.flet.app]
 path = "src"
