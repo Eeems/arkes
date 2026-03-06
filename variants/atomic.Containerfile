@@ -72,7 +72,7 @@ RUN <<EOT
   echo "Exec=/opt/niricfg/niricfg" >> /usr/share/applications/niricfg.desktop
   echo "Terminal=false" >> /usr/share/applications/niricfg.desktop
   echo "Type=Application" >> /usr/share/applications/niricfg.desktop
-  echo "Categories=System;Settings;HardwareSettings;GTK" >> /usr/share/applications/niricfg.desktop
+  echo "Categories=System;Settings;HardwareSettings;GTK;" >> /usr/share/applications/niricfg.desktop
 EOT
 
 RUN systemctl enable \
