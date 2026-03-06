@@ -1,0 +1,10 @@
+#!/bin/bash
+echo "[system] Installing microcode"
+case "$(grep vendor_id /proc/cpuinfo | cut -d: -f2 | uniq | xargs)" in
+GenuineIntel)
+    /usr/lib/system/package_layer intel-ucode
+    ;;
+AuthenticAMD)
+    /usr/lib/system/package_layer amd-ucode
+    ;;
+esac
