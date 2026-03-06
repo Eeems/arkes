@@ -65,6 +65,7 @@ RUN <<EOT
   mkdir -p /opt/niricfg
   tar xf /tmp/niricfg.tar.gz -C /opt/niricfg
   rm /tmp/niricfg.tar.gz
+  chmod +x /opt/niricfg/niricfg
   echo "[Desktop Entry]" > /usr/share/applications/niricfg.desktop
   echo "Name=Display Settings" >> /usr/share/applications/niricfg.desktop
   echo "Exec=/opt/niricfg/niricfg" >> /usr/share/applications/niricfg.desktop
