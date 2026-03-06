@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.7
 
-FROM golang:1.25.4-alpine as dockerfile2llbjson
+FROM golang:1.26.1-alpine3.23 as dockerfile2llbjson
 
 WORKDIR /app
 COPY tools/dockerfile2llbjson/go.mod tools/dockerfile2llbjson/go.sum ./
