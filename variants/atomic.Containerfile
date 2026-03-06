@@ -47,7 +47,6 @@ RUN /usr/lib/system/package_layer \
   cups-pdf \
   networkmanager-dmenu \
   --aur \
-  python-kdl-py \
   python-imageio-ffmpeg \
   python-screeninfo \
   waypaper \
