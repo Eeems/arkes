@@ -61,7 +61,7 @@ RUN /usr/lib/system/package_layer \
 
 RUN <<EOT
   set -e
-  curl https://github.com/Eeems/niricfg/releases/download/0.0.1/niricfg.tar.gz -o /tmp/niricfg.tar.gz
+  curl -L https://github.com/Eeems/niricfg/releases/download/0.0.1/niricfg.tar.gz -o /tmp/niricfg.tar.gz
   mkdir -p /opt/niricfg
   tar xf /tmp/niricfg.tar.gz -C /opt/niricfg
   rm /tmp/niricfg.tar.gz
