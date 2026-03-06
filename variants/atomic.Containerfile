@@ -60,11 +60,11 @@ RUN /usr/lib/system/package_layer \
   prelockd
 
 RUN <<EOT
-  cd /tmp
-  wget https://github.com/Eeems/niricfg/releases/download/0.0.1/niricfg.tar.gz
+  set -e
+  curl https://github.com/Eeems/niricfg/releases/download/0.0.1/niricfg.tar.gz -o /tmp/niricfg.tar.gz
   mkdir -p /opt/niricfg
-  tar xf niricfg.tar.gz -C /opt/niricfg
-  rm niricfg.tar.gz
+  tar xf /tmp/niricfg.tar.gz -C /opt/niricfg
+  rm /tmp/niricfg.tar.gz
   echo "[Desktop Entry]" > /usr/share/applications/niricfg.desktop
   echo "Name=Display Settings" >> /usr/share/applications/niricfg.desktop
   echo "Exec=/opt/niricfg/niricfg" >> /usr/share/applications/niricfg.desktop
