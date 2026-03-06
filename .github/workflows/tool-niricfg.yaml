@@ -1,10 +1,7 @@
 name: Build builder image
 on:
-  workflow_dispatch:
   workflow_call:
-    outputs:
-      unique_tag:
-        value: ${{ jobs.builder.outputs.unique_tag }}
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,8 +10,6 @@ permissions:
 jobs:
   builder:
     runs-on: ubuntu-latest
-    outputs:
-      unique_tag: ${{ steps.meta.outputs.unique_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,11 +30,8 @@ jobs:
         id: meta
         run: |
           IMAGE_NAME=ghcr.io/eeems/arkes-builder
-          HASH="$(python ./make/hash-builder.py --no-newline)"
-          echo "unique_tag=${HASH}" >> $GITHUB_OUTPUT
-          echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-          ref=$(python ./make/ref.py "${{ github.head_ref || github.ref_name }}")
-          echo "tags=${IMAGE_NAME}:$ref,${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
+          HASH="$(python ./make/hash-niricfg.py --no-newline)"
+          echo "tags=${IMAGE_NAME}:niricfg,${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
           echo "missing=$(skopeo list-tags docker://$IMAGE_NAME | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
@@ -48,7 +40,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: tools/builder/Containerfile
+          file: tools/niricfg/Containerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
