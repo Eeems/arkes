@@ -54,6 +54,11 @@ RUN /usr/lib/system/package_layer \
   bcachefs-dkms \
   linux-apfs-rw-dkms
 
+# All the possible microcode
+RUN /usr/lib/system/package_layer \
+  amd-ucode \
+  intel-ucode
+
 RUN <<EOT
   set -e
   sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso
