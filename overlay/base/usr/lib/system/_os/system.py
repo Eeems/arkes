@@ -229,7 +229,8 @@ def checkupdates(image: str | None = None) -> list[str]:
 
     deployment = current_deployment()
     image_packages = deployment.imagePackages
-    local_pkgs = image_packages or deployment.packages
+    deployment_packages = deployment.packages
+    local_pkgs = image_packages or deployment_packages
 
     for pkg in local_pkgs.keys():
         if pkg in version_changes:
@@ -249,7 +250,7 @@ def checkupdates(image: str | None = None) -> list[str]:
 
     user_pkgs = {
         k: v
-        for k, v in deployment.packages.items()
+        for k, v in deployment_packages.items()
         if k not in image_packages and k not in remote_pkgs
     }
     mirrorlist_str = remote_labels.get("mirrorlist", "")
@@ -270,7 +271,7 @@ def checkupdates(image: str | None = None) -> list[str]:
             ) as f:
                 packages_path = f.name
                 for pkg in user_pkgs.keys():
-                    _ = f.write(pkg)
+                    _ = f.write(f"{pkg}\n")
 
             packages_script: list[str] = []
             packages_script += [
@@ -285,9 +286,11 @@ def checkupdates(image: str | None = None) -> list[str]:
                 "  ret=$?",
                 "  if [ $ret -ne 0 ];then",
                 "    case $output in",
-                "      'error: target not found:'*) ;;",
+                "      'error: target not found:'*) echo \"$output\" > /dev/stderr;;",
                 "      *) errors=$errors$output\\n;;",
                 "    esac",
+                "  else",
+                '    echo "$output"',
                 "  fi",
                 "}",
                 "export -f c",
@@ -317,21 +320,15 @@ def checkupdates(image: str | None = None) -> list[str]:
                 if " " not in line:
                     continue
 
-                name, remote_version = line.split(" ", 1)
-                installed_version = user_pkgs.get(name)
-                if installed_version is None:
-                    continue
+                name, version = line.split(" ", 1)
+                if name not in deployment_packages:
+                    if name not in additions:
+                        additions[name] = "-", version
 
-                if name in remote_pkgs:
-                    if remote_pkgs[name] != installed_version:
-                        version_changes[name] = installed_version, remote_pkgs[name]
-
-                elif name in local_pkgs:
-                    if remote_version != local_pkgs[name]:
-                        version_changes[name] = local_pkgs[name], remote_version
-
-                elif name not in version_changes:
-                    additions[name] = "-", remote_version
+                elif (
+                    name not in version_changes and deployment_packages[name] != version
+                ):
+                    version_changes[name] = deployment_packages[name], version
 
         finally:
             if mirrorlist_path is not None:
