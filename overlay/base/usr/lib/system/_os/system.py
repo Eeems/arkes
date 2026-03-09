@@ -1,19 +1,19 @@
+import json
 import os
-import sys
-import subprocess
 import shlex
 import shutil
-
+import subprocess
+import sys
+import tempfile
 from datetime import datetime
 
-from typing import TextIO
+from glob import iglob
+from select import select
+
 from typing import BinaryIO
 from typing import Callable
 from typing import cast
-
-from glob import iglob
-
-from select import select
+from typing import TextIO
 
 
 from . import SYSTEM_PATH
@@ -228,7 +228,9 @@ def checkupdates(image: str | None = None) -> list[str]:
         remote_pkgs[pkg] = ver
 
     deployment = current_deployment()
-    local_pkgs = deployment.imagePackages or deployment.packages
+    image_packages = deployment.imagePackages
+    local_pkgs = image_packages or deployment.packages
+
     for pkg in local_pkgs.keys():
         if pkg in version_changes:
             continue
@@ -244,6 +246,99 @@ def checkupdates(image: str | None = None) -> list[str]:
             continue
 
         additions[pkg] = "-", remote_pkgs[pkg]
+
+    user_pkgs = {
+        k: v
+        for k, v in deployment.packages.items()
+        if k not in image_packages and k not in remote_pkgs
+    }
+    mirrorlist_str = remote_labels.get("mirrorlist", "")
+    if mirrorlist_str and user_pkgs:
+        mirrorlist_urls = cast(list[str], json.loads(mirrorlist_str))
+        mirrorlist_content = "\n".join(f"Server = {url}" for url in mirrorlist_urls)
+        mirrorlist_path: str | None = None
+        packages_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".mirrorlist", delete=False
+            ) as f:
+                _ = f.write(mirrorlist_content)
+                mirrorlist_path = f.name
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".packages", delete=False
+            ) as f:
+                packages_path = f.name
+                for pkg in user_pkgs.keys():
+                    _ = f.write(pkg)
+
+            packages_script: list[str] = []
+            packages_script += [
+                "set -e",
+                "overlay_dir=$(mktemp -d)",
+                'mkdir -p "$overlay_dir/upper" "$overlay_dir/work"',
+                'mount -t overlay overlay -o lowerdir=/usr/lib/pacman,upperdir="$overlay_dir/upper",workdir="$overlay_dir/work" /usr/lib/pacman',
+                "chronic pacman -Sy",
+                "errors=''",
+                "c(){",
+                "  output=$(pacman -Sp --print-format '%n %v' $1 2>&1)",
+                "  ret=$?",
+                "  if [ $ret -ne 0 ];then",
+                "    case $output in",
+                "      'error: target not found:'*) ;;",
+                "      *) errors=$errors$output\\n;;",
+                "    esac",
+                "  fi",
+                "}",
+                "export -f c",
+                "cat /tmp/packages | xargs -rn 1 -P $(nproc) bash -c 'c \"$@\"' _",
+                "umount /usr/lib/pacman",
+                'rm -rf "$overlay_dir"',
+                'if [[ "$errors" != "" ]];then',
+                '  echo "$errors"',
+                "  exit 1",
+                "fi",
+            ]
+            output = (
+                in_nspawn_system_output(
+                    "sh",
+                    "-ec",
+                    "\n".join(packages_script),
+                    binds=[
+                        f"--bind={mirrorlist_path}:/etc/pacman.d/mirrorlist",
+                        f"--bind={packages_path}:/tmp/packages",
+                    ],
+                )
+                .strip()
+                .decode("utf-8")
+            )
+
+            for line in output.splitlines():
+                if " " not in line:
+                    continue
+
+                name, remote_version = line.split(" ", 1)
+                installed_version = user_pkgs.get(name)
+                if installed_version is None:
+                    continue
+
+                if name in remote_pkgs:
+                    if remote_pkgs[name] != installed_version:
+                        version_changes[name] = installed_version, remote_pkgs[name]
+
+                elif name in local_pkgs:
+                    if remote_version != local_pkgs[name]:
+                        version_changes[name] = local_pkgs[name], remote_version
+
+                elif name not in version_changes:
+                    additions[name] = "-", remote_version
+
+        finally:
+            if mirrorlist_path is not None:
+                os.unlink(mirrorlist_path)
+
+            if packages_path is not None:
+                os.unlink(packages_path)
 
     return list(
         dict.fromkeys(
@@ -262,6 +357,7 @@ def in_nspawn_system_cmd(
     *args: str,
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
+    binds: list[str] | None = None,
 ) -> list[str]:
     from .ostree import Deployment
     from .ostree import current_deployment
@@ -309,6 +405,7 @@ def in_nspawn_system_cmd(
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
         f"--bind={cache}:{cache}",
         f"--bind=+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var",
+        *(binds if binds else []),
         f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
     ]
@@ -319,11 +416,12 @@ def in_nspawn_system(
     check: bool = False,
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
+    binds: list[str] | None = None,
 ) -> int:
     if not is_root():
         raise RuntimeError("in_nspawn_system can only be called as root")
 
-    cmd = in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment)
+    cmd = in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment, binds=binds)
     ret = _execute(shlex.join(cmd))
     if ret and check:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
@@ -335,12 +433,13 @@ def in_nspawn_system_output(
     *args: str,
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
+    binds: list[str] | None = None,
 ) -> bytes:
     if not is_root():
         raise RuntimeError("in_nspawn_system_output can only be called as root")
 
     return subprocess.check_output(
-        in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment),
+        in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment, binds=binds),
         stderr=subprocess.DEVNULL if quiet else None,
     )
 
