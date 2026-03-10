@@ -273,34 +273,36 @@ def checkupdates(image: str | None = None) -> list[str]:
                 for pkg in user_pkgs.keys():
                     _ = f.write(f"{pkg}\n")
 
-            packages_script: list[str] = []
-            packages_script += [
+            packages_script: list[str] = [
                 "set -e",
                 "overlay_dir=$(mktemp -d)",
                 'mkdir -p "$overlay_dir/upper" "$overlay_dir/work"',
                 'mount -t overlay overlay -o lowerdir=/usr/lib/pacman,upperdir="$overlay_dir/upper",workdir="$overlay_dir/work" /usr/lib/pacman',
                 "chronic pacman -Sy",
-                "errors=''",
+                "error_dir=$(mktemp -d)",
                 "c(){",
-                "  output=$(pacman -Sp --print-format '%n %v' $1 2>&1)",
+                "  output=$(pacman -Sp --print-format '%n %v' \"$1\" 2>&1)",
                 "  ret=$?",
-                "  if [ $ret -ne 0 ];then",
+                "  if [ $ret -ne 0 ]; then",
                 "    case $output in",
-                "      'error: target not found:'*) echo \"$output\" > /dev/stderr;;",
-                "      *) errors=$errors$output\\n;;",
+                "      'error: target not found:'*) echo \"$output\" >&2;;",
+                '      *) echo "$output" > "${error_dir}/${BASHPID}";;',
                 "    esac",
                 "  else",
                 '    echo "$output"',
                 "  fi",
                 "}",
                 "export -f c",
+                "export error_dir",
                 "cat /tmp/packages | xargs -rn 1 -P $(nproc) bash -c 'c \"$@\"' _",
                 "umount /usr/lib/pacman",
                 'rm -rf "$overlay_dir"',
-                'if [[ "$errors" != "" ]];then',
-                '  echo "$errors"',
+                'if ls "$error_dir"/* >/dev/null 2>&1; then',
+                '  cat "$error_dir"/*',
+                '  rm -rf "$error_dir"',
                 "  exit 1",
                 "fi",
+                'rm -rf "$error_dir"',
             ]
             output = (
                 in_nspawn_system_output(
