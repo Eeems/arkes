@@ -192,6 +192,12 @@ class Object(dbus.service.Object):
                     "checkupdates",
                 )
 
+        except subprocess.CalledProcessError as e:
+            self.checkupdates_stderr(cast(bytes, e.stderr or e.output or b""))
+            self.checkupdates_status("error")
+            self.notify_all("Failed to checkupdates base image", "checkupdates")
+            raise
+
         except BaseException as e:
             self.checkupdates_stderr(
                 f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
@@ -271,6 +277,12 @@ class Object(dbus.service.Object):
             )
             self.pull_status("success")
             self.notify_all("Base image pulled", "pull")
+
+        except subprocess.CalledProcessError as e:
+            self.pull_stderr(cast(bytes, e.stderr or e.output or b""))
+            self.pull_status("error")
+            self.notify_all("Failed to pull base image", "pull")
+            raise
 
         except BaseException as e:
             self.pull_stderr(
