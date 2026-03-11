@@ -201,7 +201,10 @@ def checkupdates(image: str | None = None) -> list[str]:
     system_updates: list[str] = []
     try:
         system_updates = (
-            in_nspawn_system_output("checkupdates").strip().decode("utf-8").splitlines()
+            in_nspawn_system_output("checkupdates", etc="overlay")
+            .strip()
+            .decode("utf-8")
+            .splitlines()
         )
 
     except subprocess.CalledProcessError as e:
@@ -310,8 +313,8 @@ def checkupdates(image: str | None = None) -> list[str]:
                     "-ec",
                     "\n".join(packages_script),
                     binds=[
-                        f"--bind={mirrorlist_path}:/etc/pacman.d/mirrorlist",
-                        f"--bind={packages_path}:/tmp/packages",
+                        f"{mirrorlist_path}:/etc/pacman.d/mirrorlist",
+                        f"{packages_path}:/tmp/packages",
                     ],
                 )
                 .strip()
@@ -357,6 +360,10 @@ def in_nspawn_system_cmd(
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
     binds: list[str] | None = None,
+    overlays: list[str] | None = None,
+    etc: str = "ro",
+    home: str = "ro",
+    var: str = "ro",
 ) -> list[str]:
     from .ostree import Deployment
     from .ostree import current_deployment
@@ -389,6 +396,60 @@ def in_nspawn_system_cmd(
     if deployment is None:
         deployment = current_deployment()
 
+    if binds is None:
+        binds = []
+
+    if overlays is None:
+        overlays = []
+
+    if etc == "rw":
+        etc = "bind"
+
+    match etc:
+        case "overlay":
+            overlays.append("+/etc::/etc")
+
+        case "bind":
+            binds.append("/etc")
+
+        case "ro":
+            pass
+
+        case _:
+            raise NotImplementedError(f"Unknown etc setting: {etc}")
+
+    if home == "rw":
+        home = "bind"
+
+    match home:
+        case "overlay":
+            overlays.append("+/var/home::/var/home")
+
+        case "bind":
+            binds.append("/var/home")
+
+        case "ro":
+            pass
+
+        case _:
+            raise NotImplementedError(f"Unknown home setting: {home}")
+
+    if var == "rw":
+        var = "bind"
+
+    match var:
+        case "overlay":
+            overlays.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var::/var")
+
+        case "bind":
+            binds.append("/var")
+
+        case "ro":
+            binds.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
+
+        case _:
+            raise NotImplementedError(f"Unknown var setting: {var}")
+
     os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
     # TODO overlay /usr/lib/pacman somehow
     return [
@@ -398,13 +459,14 @@ def in_nspawn_system_cmd(
         "--volatile=state",
         "--link-journal=no",
         "--directory=/sysroot",
+        "--resolv-conf=off",
         *(["--quiet"] if quiet else []),
         f"--bind={SYSTEM_PATH}:{SYSTEM_PATH}",
         "--bind=/boot:/boot",
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
-        f"--bind={cache}:{cache}",
-        f"--bind=+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var",
-        *(binds if binds else []),
+        f"--bind={cache}",
+        *[f"--bind={x}" for x in binds],
+        *[f"--overlay={x}" for x in overlays],
         f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
     ]
@@ -416,11 +478,24 @@ def in_nspawn_system(
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
     binds: list[str] | None = None,
+    overlays: list[str] | None = None,
+    etc: str = "ro",
+    home: str = "ro",
+    var: str = "ro",
 ) -> int:
     if not is_root():
         raise RuntimeError("in_nspawn_system can only be called as root")
 
-    cmd = in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment, binds=binds)
+    cmd = in_nspawn_system_cmd(
+        *args,
+        quiet=quiet,
+        deployment=deployment,
+        binds=binds,
+        overlays=overlays,
+        etc=etc,
+        home=home,
+        var=var,
+    )
     ret = _execute(shlex.join(cmd))
     if ret and check:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
@@ -433,12 +508,25 @@ def in_nspawn_system_output(
     quiet: bool = False,
     deployment: object | None = None,  # ostree.Deployment
     binds: list[str] | None = None,
+    overlays: list[str] | None = None,
+    etc: str = "ro",
+    home: str = "ro",
+    var: str = "ro",
 ) -> bytes:
     if not is_root():
         raise RuntimeError("in_nspawn_system_output can only be called as root")
 
     return subprocess.check_output(
-        in_nspawn_system_cmd(*args, quiet=quiet, deployment=deployment, binds=binds),
+        in_nspawn_system_cmd(
+            *args,
+            quiet=quiet,
+            deployment=deployment,
+            binds=binds,
+            overlays=overlays,
+            etc=etc,
+            home=home,
+            var=var,
+        ),
         stderr=subprocess.DEVNULL if quiet else None,
     )
 
