@@ -26,7 +26,7 @@ def command(_: Namespace) -> None:
         sys.exit(1)
 
     editor = os.environ.get("EDITOR", "micro")
-    retcode = _execute(shlex.join([editor, "/etc/system/Systemfile"]))
+    retcode = _execute(shlex.join([*shlex.split(editor), "/etc/system/Systemfile"]))
     if retcode:
         print("Something went wrong while editing the systemfile")
         sys.exit(retcode)
