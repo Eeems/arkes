@@ -22,7 +22,7 @@ def register(_: ArgumentParser) -> None:
 
 def command(_: Namespace) -> None:
     if not is_root():
-        print("Must be run as root")
+        print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     editor = os.environ.get("EDITOR", "micro")

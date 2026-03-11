@@ -35,7 +35,7 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     if not is_root():
-        print("Must be run as root")
+        print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     _args = in_nspawn_system_cmd(
