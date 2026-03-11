@@ -28,7 +28,7 @@ def command(_: Namespace) -> None:
     editor = os.environ.get("EDITOR", "micro")
     retcode = _execute(shlex.join([*shlex.split(editor), "/etc/system/Systemfile"]))
     if retcode:
-        print("Something went wrong while editing the systemfile")
+        print("Something went wrong while editing the systemfile", file=sys.stderr)
         sys.exit(retcode)
 
     if system_hash() == context_hash(
