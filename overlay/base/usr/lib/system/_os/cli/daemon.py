@@ -37,7 +37,7 @@ POLICY = """
 
 def command(args: Namespace) -> None:  # pyright:ignore [reportUnusedParameter]
     if not is_root():
-        print("Must be run as root")
+        print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     os.makedirs("/etc/dbus-1/system.d", exist_ok=True)

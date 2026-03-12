@@ -22,13 +22,13 @@ def register(_: ArgumentParser) -> None:
 
 def command(_: Namespace) -> None:
     if not is_root():
-        print("Must be run as root")
+        print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     editor = os.environ.get("EDITOR", "micro")
-    retcode = _execute(shlex.join([editor, "/etc/system/Systemfile"]))
+    retcode = _execute(shlex.join([*shlex.split(editor), "/etc/system/Systemfile"]))
     if retcode:
-        print("Something went wrong while editing the systemfile")
+        print("Something went wrong while editing the systemfile", file=sys.stderr)
         sys.exit(retcode)
 
     if system_hash() == context_hash(

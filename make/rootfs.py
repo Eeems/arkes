@@ -34,7 +34,7 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     if not is_root() and not noBuild:
-        print("Must be run as root")
+        print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     containerfile = "rootfs.Containerfile"
