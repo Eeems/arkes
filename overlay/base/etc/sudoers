@@ -1,4 +1,4 @@
 root ALL = (ALL:ALL) NOPASSWD:ALL
-!pwfeedback
+Defaults !pwfeedback
 
 @includedir /etc/sudoers.d
