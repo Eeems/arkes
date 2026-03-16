@@ -4,6 +4,42 @@
 # x-templates=nvidia
 ARG HASH
 
+FROM ghcr.io/eeems/arkes:base_2026.03.13 as pwvucontrol
+
+RUN <<EOT
+  /usr/lib/system/initialize_pacman
+  mkdir /var/home
+
+  /usr/lib/system/install_aur_packages libwireplumber-4.0-compat
+  echo "[system] Installing fakeroot debugedit pkg-config"
+  chronic pacman -Syu --asdeps --needed --noconfirm fakeroot debugedit pkg-config
+  chronic useradd -m aur
+  chronic passwd -d aur
+  echo "aur ALL=(ALL:ALL) NOPASSWD: ALL" >/etc/sudoers.d/aur
+  chronic sudo -u aur git clone \
+    --branch pwvucontrol \
+    --single-branch \
+    https://github.com/archlinux/aur.git \
+    /tmp/src
+  cd /tmp/src
+  sudo -u aur chronic makepkg \
+    --noconfirm \
+    --needed \
+    --syncdeps \
+    --install
+    rm pwvucontrol-debug-*.pkg.tar.zst
+  mv pwvucontrol-*.pkg.tar.zst /pwvucontrol.pkg.tar.zst
+
+  cd ..
+  chronic rm -r src
+  chronic rm /etc/sudoers.d/aur
+  chronic userdel aur
+  chronic rm -r /home/aur
+  /usr/lib/system/remove_unused_packages
+  rmdir /var/home
+  /usr/lib/system/remove_pacman_files
+EOT
+
 FROM arkes:base
 
 RUN /usr/lib/system/package_layer \
@@ -54,9 +90,16 @@ RUN /usr/lib/system/package_layer \
   overskride \
   distroshelf \
   libwireplumber-4.0-compat \
-  pwvucontrol \
   wego \
   prelockd
+
+RUN --mount=target=/mnt,from=pwvucontrol,src=/ <<EOT
+  set -e
+  /usr/lib/system/initialize_pacman
+  echo "[system] Installing pwvucontrol"
+  chronic pacman -U --needed --noconfirm /mnt/pwvucontrol.pkg.tar.zst
+  /usr/lib/system/remove_pacman_files
+EOT
 
 RUN <<EOT
   set -e
