@@ -51,6 +51,7 @@ RUN <<EOT
     pacman-contrib \
     python-pyxattr \
     python-requests \
+    python-progressbar \
     python-dbus \
     distrobox \
     xdelta3 \

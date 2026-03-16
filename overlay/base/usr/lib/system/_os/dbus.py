@@ -89,7 +89,11 @@ def pull():
         raise Exception("Base image pull failed")
 
 
-def upgrade():
+def upgrade(
+    onstdout: Callable[[str], None] = lambda x: print(x, end=""),
+    onstderr: Callable[[str], None] = lambda x: print(x, file=sys.stderr, end=""),
+    onprogress: Callable[[tuple[int, str]], None] = lambda _: None,
+):
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -101,25 +105,23 @@ def upgrade():
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stdout(stdout: str):
-        print(stdout, end="")
-
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
-        print(f"Status: {status}")
+        onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
 
     connect_to_signal = cast(
-        Callable[[str, Callable[[str], None]], None],
+        Callable[
+            [str, Callable[[str], None] | Callable[[tuple[int, str]], None]],
+            None,
+        ],
         interface.connect_to_signal,
     )
-    connect_to_signal("upgrade_stdout", on_stdout)
-    connect_to_signal("upgrade_stderr", on_stderr)
+    connect_to_signal("upgrade_stdout", onstdout)
+    connect_to_signal("upgrade_stderr", onstderr)
     connect_to_signal("upgrade_status", on_status)
+    connect_to_signal("progress", onprogress)
     cast(Callable[[], None], interface.upgrade)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
