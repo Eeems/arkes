@@ -92,7 +92,7 @@ def pull():
 def upgrade(
     onstdout: Callable[[str], None] = lambda x: print(x, end=""),
     onstderr: Callable[[str], None] = lambda x: print(x, file=sys.stderr, end=""),
-    onprogress: Callable[[tuple[int, str]], None] = lambda _: None,
+    onprogress: Callable[[int], None] = lambda _: None,
 ):
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -112,10 +112,7 @@ def upgrade(
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
 
     connect_to_signal = cast(
-        Callable[
-            [str, Callable[[str], None] | Callable[[tuple[int, str]], None]],
-            None,
-        ],
+        Callable[[str, Callable[..., None]], None],
         interface.connect_to_signal,
     )
     connect_to_signal("upgrade_stdout", onstdout)

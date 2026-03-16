@@ -28,7 +28,7 @@ class Object(dbus.service.Object):
         self._upgrade_status: str = ""
         self._pull_status: str = ""
         self._checkupdates_status: str = ""
-        self._upgrade_progress: tuple[int, str] = (0, "")
+        self._upgrade_progress: int = 0
         self._upgrade_step: int = 0
         self._upgrade_step_total: int = 5
         self._upgrade_sub_current: int = 0
@@ -112,7 +112,7 @@ class Object(dbus.service.Object):
                 onstdout=self.upgrade_stdout,
                 onstderr=self._upgrade_stderr,
             )
-            self._upgrade_progress = (100, "Complete")
+            self._upgrade_progress = 100
             self.progress(self._upgrade_progress)
             self.upgrade_status("success")
             self.notify_all("System upgrade complete, reboot required", "upgrade")
@@ -207,13 +207,7 @@ class Object(dbus.service.Object):
             )
 
         percent = int(base_percent + sub_percent)
-        step_names = ("Build", "Commit", "Prune", "Deploy", "Bootloader")
-        step_name = (
-            step_names[self._upgrade_step - 1]
-            if self._upgrade_step <= len(step_names)
-            else ""
-        )
-        self._upgrade_progress = (percent, step_name)
+        self._upgrade_progress = percent
         self.progress(self._upgrade_progress)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
@@ -240,16 +234,16 @@ class Object(dbus.service.Object):
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
-        signature="(is)",
+        signature="i",
     )
-    def progress(self, progress: tuple[int, str]):
+    def progress(self, progress: int):
         self._upgrade_progress = progress
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
-        out_signature="(is)",
+        out_signature="i",
     )
-    def progress_status(self) -> tuple[int, str]:
+    def progress_status(self) -> int:
         return self._upgrade_progress
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
