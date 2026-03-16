@@ -27,7 +27,7 @@ RUN <<EOT
     --needed \
     --syncdeps \
     --install
-    rm pwvucontrol-debug-*.pkg.tar.zst
+  rm pwvucontrol-debug-*.pkg.tar.zst
   mv pwvucontrol-*.pkg.tar.zst /pwvucontrol.pkg.tar.zst
 
   cd ..
