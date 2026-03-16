@@ -71,6 +71,9 @@ Templates create variant combinations using `-` separator:
 - basedpyright warnings should also be addressed.
 - Prefer early exits instead of if/else at the end of a statement.
 - Try to reduce the levels on indentation in a method if possible. You can early exit, hoist common code, etc to accomplish this.
+- Imports should not be merged, always have one import per line.
+- `import` lines should always come before `from X import Y` lines and be separated by a blank line
+- Package `from .X import Y` lines should always come after `from X import Y` lines and be separated by a blank line
 
 ### Go (1.25.4)
 - Use gofmt for formatting, go vet for static analysis

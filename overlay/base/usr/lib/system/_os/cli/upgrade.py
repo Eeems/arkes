@@ -1,9 +1,14 @@
+import sys
+import progressbar
+
+
 from argparse import ArgumentParser
 from argparse import Namespace
+
+from typing import TextIO
 from typing import cast
 from typing import Any
 
-import progressbar
 
 from ..system import baseImage
 from ..dbus import pull
@@ -15,13 +20,28 @@ from ..dbus import upgrade
 kwds = {"help": "Perform a system upgrade"}
 
 
-def _on_progress(
-    progress_bar: progressbar.ProgressBar,
-    progress: tuple[int, str],
-) -> None:
-    percent, step = progress
-    progress_bar.widgets[4] = step
-    progress_bar.update(percent)
+class _ProgressState:
+    def __init__(self, bar: progressbar.ProgressBar) -> None:
+        self.percent: int = 0
+        self.bar: progressbar.ProgressBar = bar
+
+    def update(self, progress: tuple[int, str]) -> None:
+        percent, step = progress
+        self.percent = percent
+        self.bar.widgets[4] = step
+        self.bar.update(percent)
+
+    def _print(self, line: str, file: TextIO) -> None:
+        self.bar.finish()
+        print(line, end="", file=file)
+        _ = self.bar.start()
+        self.bar.update(self.percent)
+
+    def stdout(self, line: str) -> None:
+        self._print(line, sys.stdout)
+
+    def stderr(self, line: str) -> None:
+        self._print(line, sys.stderr)
 
 
 def register(parser: ArgumentParser) -> None:
@@ -41,6 +61,7 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     if not cast(bool, args.noPull) and upgrade_status() != "pending":
+        print("Checking for updates...")
         updates = checkupdates()
         image = baseImage()
         if [x for x in updates if x.startswith(f"{image} ")]:
@@ -50,26 +71,17 @@ def command(args: Namespace) -> None:
         upgrade()
         return
 
-    progress_bar = progressbar.ProgressBar(
-        maxval=100,
-        widgets=[
-            progressbar.Bar(),
-            " ",
-            progressbar.Percentage(),
-            " - ",
-            "",
-        ],
+    state = _ProgressState(
+        progressbar.ProgressBar(
+            widgets=[progressbar.Bar(), " ", progressbar.Percentage(), " - ", "Build"],
+            maxval=100,
+        ).start()
     )
-    _ = progress_bar.start()
     try:
-        upgrade(
-            onprogress=lambda progress, pb=progress_bar: _on_progress(pb, progress),
-            onstdout=lambda _: None,
-            onstderr=lambda _: None,
-        )
+        upgrade(onprogress=state.update, onstdout=state.stdout, onstderr=state.stderr)
 
     finally:
-        progress_bar.finish()
+        state.bar.finish()
 
 
 if __name__ == "__main__":
