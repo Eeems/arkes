@@ -2,16 +2,19 @@ import dbus  # pyright:ignore [reportMissingTypeStubs]
 import dbus.service  # pyright:ignore [reportMissingTypeStubs]
 import grp
 import pwd
-import sys
 
 from dbus.mainloop.glib import DBusGMainLoop  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType]
 from gi.repository import GLib  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType,reportAttributeAccessIssue]
 
 from typing import Callable
 from typing import cast
+from .console import print_stderr
 
 
-def checkupdates(force: bool = False) -> list[str]:
+def checkupdates(
+    force: bool = False,
+    onstderr: Callable[[str], None] = print_stderr,
+) -> list[str]:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -28,9 +31,6 @@ def checkupdates(force: bool = False) -> list[str]:
 
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
         setattr(on_status, "status", status)
         if status in ["error", "none", "available"]:
@@ -41,7 +41,7 @@ def checkupdates(force: bool = False) -> list[str]:
         interface.connect_to_signal,
     )
     connect_to_signal("checkupdates_status", on_status)
-    connect_to_signal("checkupdates_stderr", on_stderr)
+    connect_to_signal("checkupdates_stderr", onstderr)
     cast(Callable[[], None], interface.checkupdates)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
@@ -51,7 +51,10 @@ def checkupdates(force: bool = False) -> list[str]:
     return cast(Callable[[], list[str]], interface.updates)()
 
 
-def pull():
+def pull(
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
+) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -63,14 +66,8 @@ def pull():
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stdout(stdout: str):
-        print(stdout, end="")
-
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
-        print(f"Status: {status}")
+        onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
@@ -79,8 +76,8 @@ def pull():
         Callable[[str, Callable[[str], None]], None],
         interface.connect_to_signal,
     )
-    connect_to_signal("pull_stdout", on_stdout)
-    connect_to_signal("pull_stderr", on_stderr)
+    connect_to_signal("pull_stdout", onstdout)
+    connect_to_signal("pull_stderr", onstderr)
     connect_to_signal("pull_status", on_status)
     cast(Callable[[], None], interface.pull)()
 
@@ -89,7 +86,11 @@ def pull():
         raise Exception("Base image pull failed")
 
 
-def upgrade():
+def upgrade(
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
+    onprogress: Callable[[int], None] = lambda _: None,
+) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -101,25 +102,20 @@ def upgrade():
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stdout(stdout: str):
-        print(stdout, end="")
-
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
-        print(f"Status: {status}")
+        onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
 
     connect_to_signal = cast(
-        Callable[[str, Callable[[str], None]], None],
+        Callable[[str, Callable[..., None]], None],
         interface.connect_to_signal,
     )
-    connect_to_signal("upgrade_stdout", on_stdout)
-    connect_to_signal("upgrade_stderr", on_stderr)
+    connect_to_signal("upgrade_stdout", onstdout)
+    connect_to_signal("upgrade_stderr", onstderr)
     connect_to_signal("upgrade_status", on_status)
+    connect_to_signal("upgrade_progress", onprogress)
     cast(Callable[[], None], interface.upgrade)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
@@ -137,7 +133,57 @@ def upgrade_status() -> str:
         ),
         "system.upgrade",
     )
-    return cast(Callable[[], str], interface.status)()
+    return cast(Callable[[], str], interface.get_upgrade_status)()
+
+
+def build(
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
+    onprogress: Callable[[int], None] = lambda _: None,
+) -> None:
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    interface = dbus.Interface(
+        bus.get_object(  # pyright:ignore [reportUnknownMemberType]
+            "os.system",
+            "/system",
+        ),
+        "system.build",
+    )
+    loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
+
+    def on_status(status: str):
+        onstderr(f"Status: {status}")
+        setattr(on_status, "status", status)
+        if status in ["error", "success"]:
+            loop.quit()  # pyright:ignore [reportUnknownMemberType]
+
+    connect_to_signal = cast(
+        Callable[[str, Callable[..., None]], None],
+        interface.connect_to_signal,
+    )
+    connect_to_signal("build_stdout", onstdout)
+    connect_to_signal("build_stderr", onstderr)
+    connect_to_signal("build_status", on_status)
+    connect_to_signal("build_progress", onprogress)
+    cast(Callable[[], None], interface.build)()
+
+    loop.run()  # pyright:ignore [reportUnknownMemberType]
+    if getattr(on_status, "status") == "error":
+        raise Exception("Build failed")
+
+
+def build_status() -> str:
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    interface = dbus.Interface(
+        bus.get_object(  # pyright:ignore [reportUnknownMemberType]
+            "os.system",
+            "/system",
+        ),
+        "system.build",
+    )
+    return cast(Callable[[], str], interface.get_build_status)()
 
 
 def groups_for_sender(obj: dbus.service.Object, sender: str) -> set[str]:

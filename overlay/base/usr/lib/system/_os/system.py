@@ -3,9 +3,7 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import tempfile
-from datetime import datetime
 
 from glob import iglob
 from select import select
@@ -17,7 +15,7 @@ from typing import TextIO
 
 
 from . import SYSTEM_PATH
-from . import OS_NAME
+
 from .console import bytes_to_stdout
 from .console import bytes_to_stderr
 
@@ -531,85 +529,17 @@ def in_nspawn_system_output(
     )
 
 
-def upgrade(
-    branch: str = "system",
+def update_bootloader(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
-    from .podman import export_stream
-    from .podman import build
-
-    from .ostree import prune
-    from .ostree import deploy
-    from .ostree import ostree_cmd
-
-    if not os.path.exists("/ostree"):
-        print("OSTree repo missing")
-        sys.exit(1)
-
-    if not os.path.exists(SYSTEM_PATH):
-        os.makedirs(SYSTEM_PATH, exist_ok=True)
-
-    build(
-        buildArgs={"KARGS": system_kernelCommandLine()},
-        onstdout=onstdout,
+) -> None:
+    execute(
+        "/usr/bin/grub-mkconfig",
+        "-o",
+        "/boot/efi/EFI/grub/grub.cfg",
         onstderr=onstderr,
-    )
-    with export_stream(
-        setup="""
-        rm -f /etc
-        rm -rf /var/*
-        find / -xdev \\
-          \\( \\
-            -path /dev \\
-            -o -path /proc \\
-            -o -path /sys \\
-            -o -path /run \\
-            -o -path /tmp \\
-          \\) -prune -o -print0 \\
-        | xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
-        """,
-        workingDir=SYSTEM_PATH,
         onstdout=onstdout,
-        onstderr=onstderr,
-    ) as stdout:
-        cmd = ostree_cmd(
-            "commit",
-            "--generate-composefs-metadata",
-            "--generate-sizes",
-            f"--branch={OS_NAME}/{branch}",
-            f"--subject={datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}",
-            "--tree=tar=-",
-            "--tar-pathname-filter=^,./",
-            "--tar-autocreate-parents",
-        )
-        env = os.environ.copy()
-        env["SOURCE_DATE_EPOCH"] = "0"
-        ostree_proc = subprocess.Popen(cmd, stdin=stdout, env=env)
-        ostree_out, ostree_err = ostree_proc.communicate()
-        if ostree_out is not None:  # pyright: ignore[reportUnnecessaryComparison]
-            onstdout(ostree_out)
-
-        if ostree_err is not None:  # pyright: ignore[reportUnnecessaryComparison]
-            onstderr(ostree_err)
-
-        if ostree_proc.returncode:
-            raise subprocess.CalledProcessError(
-                ostree_proc.returncode, cmd, ostree_out, ostree_err
-            )
-
-    prune(branch, onstdout=onstdout, onstderr=onstderr)
-    deploy(branch, "/", onstdout=onstdout, onstderr=onstderr)
-    cmd = shlex.join(
-        [
-            "/usr/bin/grub-mkconfig",
-            "-o",
-            "/boot/efi/EFI/grub/grub.cfg",
-        ]
     )
-    ret = _execute(cmd)
-    if ret:
-        raise subprocess.CalledProcessError(ret, cmd, None, None)
 
 
 def delete(glob: str):

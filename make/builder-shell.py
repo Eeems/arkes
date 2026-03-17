@@ -70,7 +70,7 @@ def command(args: Namespace) -> None:
             "--env=CI=true",
             "--volume=/var/run/docker.sock:/var/run/docker.sock",
             f"--volume={__w}:/__w",
-            f"--volume={os.path.realpath('.')}:/__w/arkes/arkes:O",
+            f"--volume={os.path.realpath('.')}:/__w/arkes/arkes",
             f"--volume={__e}:/__e:ro",
             f"--volume={_temp}:/__w/temp",
             f"--volume={_actions}:/__w/_actions",

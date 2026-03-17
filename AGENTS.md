@@ -8,6 +8,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 - Don't try to directly debug `make/*.py` files by importing them, just edit the files and clean them up when done.
 - Keep any documentation concise.
 - When adding documentation, link to the archwiki where possible.
+- Never modify AGENTS.md
 
 ## Build Commands
 - `./make.py check` - Run linting, formatting, and type checking (use `--fix` to auto-fix)
@@ -64,10 +65,15 @@ Templates create variant combinations using `-` separator:
 - Use Ruff for formatting/linting, basedpyright for type checking.
 - Type hints required on all function signatures and variables.
 - Import order: standard library → third-party → local imports.
+- Imports should not be merged, always have one import per line.
+- `import` lines should always come before `from X import Y` lines and be separated by a blank line
+- Package `from .X import Y` lines should always come after `from X import Y` lines and be separated by a blank line
 - Use `cast()` for type assertions when needed.
 - Every `make/*.py` command must have exactly `register()` and `command()` functions.
 - Use `[command] message` format for all command output to stderr.
 - basedpyright warnings should also be addressed.
+- Prefer early exits instead of if/else at the end of a statement.
+- Try to reduce the levels on indentation in a method if possible. You can early exit, hoist common code, etc to accomplish this.
 
 ### Go (1.25.4)
 - Use gofmt for formatting, go vet for static analysis

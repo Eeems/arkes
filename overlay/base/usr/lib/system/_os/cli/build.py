@@ -2,26 +2,53 @@ import sys
 
 from argparse import ArgumentParser
 from argparse import Namespace
-from typing import cast
 from typing import Any
+from typing import Callable
+from typing import cast
 
-from ..podman import build
-from ..system import is_root
-from ..system import system_kernelCommandLine
+from ..dbus import build
+from ..console import print_stderr
+from .upgrade import ProgressState
+from .upgrade import noop
+
 
 kwds = {"help": "Build your system image"}
 
 
-def register(_: ArgumentParser) -> None:
-    pass
+def register(parser: ArgumentParser) -> None:
+    _ = parser.add_argument(
+        "--no-progress",
+        help="Disable progress bar",
+        action="store_true",
+        dest="noProgress",
+    )
+    _ = parser.add_argument(
+        "--quiet",
+        help="Disable status output",
+        action="store_true",
+    )
 
 
-def command(_: Namespace) -> None:
-    if not is_root():
-        print("Must be run as root", file=sys.stderr)
-        sys.exit(1)
+def command(args: Namespace) -> None:
+    quiet = cast(bool, args.quiet)
+    if cast(bool, args.noProgress) or not sys.stdin.isatty():
+        build(
+            onstdout=noop if quiet else cast(Callable[[str], None], print),
+            onstderr=noop if quiet else cast(Callable[[str], None], print_stderr),
+        )
+        return
 
-    build(buildArgs={"KARGS": system_kernelCommandLine()})
+    state = ProgressState(quiet)
+    assert state.quiet == quiet
+    try:
+        build(
+            onprogress=state.update,
+            onstdout=state.stdout,
+            onstderr=state.stderr,
+        )
+
+    finally:
+        state.bar.finish()
 
 
 if __name__ == "__main__":
