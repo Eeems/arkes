@@ -24,7 +24,8 @@ kwds = {"help": "Perform a system upgrade"}
 class ProgressState:
     MAX_LABEL_SIZE: int = 30
 
-    def __init__(self) -> None:
+    def __init__(self, quiet: bool = False) -> None:
+        self.quiet: bool = quiet
         self.percent: int = 0
         self.last_line: str | None = None
         self.bar: AlwaysUpdateProgressBar = AlwaysUpdateProgressBar(
@@ -45,14 +46,14 @@ class ProgressState:
         self.bar.update(percent)
 
     def _print(self, line: str, file: TextIO) -> None:
-        print("\r\033[K", end="", file=file)
-        if self.last_line is not None:
-            print(self.last_line, end="", file=file)
-            if not self.last_line.endswith("\n"):
-                print(file=file)
+        if not self.quiet:
+            print("\r\033[K", end="", file=file)
+            if self.last_line is not None:
+                print(self.last_line, end="", file=file)
+                if not self.last_line.endswith("\n"):
+                    print(file=file)
 
-            self.last_line = None
-
+        self.last_line = None
         if line.startswith("[system] "):
             self.last_line = line
             status = line[9:].strip()
@@ -77,7 +78,7 @@ class ProgressState:
 
             self.bar.widgets[0] = status.ljust(ProgressState.MAX_LABEL_SIZE)
 
-        else:
+        elif not self.quiet:
             print(line, end="", file=file)
             if not line.endswith("\n"):
                 print(file=file)
@@ -117,15 +118,14 @@ def noop(_: str) -> None:
 
 def command(args: Namespace) -> None:
     quiet = cast(bool, args.quiet)
-    onstdout: Callable[[str], None] = (
-        noop if quiet else cast(Callable[[str], None], print)
-    )
-    onstderr: Callable[[str], None] = (
-        noop if quiet else cast(Callable[[str], None], print_stderr)
-    )
     if not cast(bool, args.noPull) and upgrade_status() != "pending":
-        if not quiet:
-            print("Checking for updates...", file=sys.stderr)
+        onstdout: Callable[[str], None] = (
+            noop if quiet else cast(Callable[[str], None], print)
+        )
+        onstderr: Callable[[str], None] = (
+            noop if quiet else cast(Callable[[str], None], print_stderr)
+        )
+        onstderr("Checking for updates...")
 
         updates = checkupdates(onstderr=onstderr)
         image = baseImage()
@@ -136,9 +136,13 @@ def command(args: Namespace) -> None:
         upgrade()
         return
 
-    state = ProgressState()
+    state = ProgressState(quiet)
     try:
-        upgrade(onprogress=state.update, onstdout=state.stdout, onstderr=state.stderr)
+        upgrade(
+            onprogress=state.update,
+            onstdout=state.stdout,
+            onstderr=state.stderr,
+        )
 
     finally:
         state.bar.finish()

@@ -159,6 +159,7 @@ class Object(dbus.service.Object):
                 onstdout=self.upgrade_stdout,
                 onstderr=self.upgrade_stderr,
             )
+            self.upgrade_stderr(b"[system] Done\n")
             self.upgrade_progress(100)
             self.upgrade_status("success")
             self.notify_all("System upgrade complete, reboot required", "upgrade")
@@ -416,6 +417,7 @@ class Object(dbus.service.Object):
                 onstdout=self.build_stdout,
                 onstderr=self.build_stderr,
             )
+            self.build_stderr(b"[system] Done\n")
             self.build_progress(100)
             self.build_status("success")
             self.notify_all("System image built successfully", "build")

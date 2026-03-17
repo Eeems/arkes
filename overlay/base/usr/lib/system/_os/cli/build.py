@@ -31,19 +31,21 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     quiet = cast(bool, args.quiet)
-    onstdout: Callable[[str], None] = (
-        noop if quiet else cast(Callable[[str], None], print)
-    )
-    onstderr: Callable[[str], None] = (
-        noop if quiet else cast(Callable[[str], None], print_stderr)
-    )
     if cast(bool, args.noProgress) or not sys.stdin.isatty():
-        build(onstdout=onstdout, onstderr=onstderr)
+        build(
+            onstdout=noop if quiet else cast(Callable[[str], None], print),
+            onstderr=noop if quiet else cast(Callable[[str], None], print_stderr),
+        )
         return
 
-    state = ProgressState()
+    state = ProgressState(quiet)
+    assert state.quiet == quiet
     try:
-        build(onprogress=state.update, onstdout=state.stdout, onstderr=state.stderr)
+        build(
+            onprogress=state.update,
+            onstdout=state.stdout,
+            onstderr=state.stderr,
+        )
 
     finally:
         state.bar.finish()
