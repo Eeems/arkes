@@ -109,8 +109,7 @@ class Object(dbus.service.Object):
                 onstdout=self.upgrade_stdout,
                 onstderr=self.upgrade_stderr,
             )
-            self._upgrade_progress = 100
-            self.progress(self._upgrade_progress)
+            self.progress(100)
             self.upgrade_status("success")
             self.notify_all("System upgrade complete, reboot required", "upgrade")
 
@@ -196,7 +195,6 @@ class Object(dbus.service.Object):
             self._emit_upgrade_progress()
 
     def _emit_upgrade_progress(self) -> None:
-        percent: float = 0
         build_scale = 0.8  # How much of the bar should the build step be?
         status_current, status_total = self._upgrade_progress_status
         build_scale_100 = 1 + build_scale
@@ -220,10 +218,7 @@ class Object(dbus.service.Object):
             step_percent = (step_current - 1) / step_total
             current += total * build_scale * step_percent
 
-        percent = current / total
-        self._upgrade_progress = round(percent * 100)
-        self.progress(self._upgrade_progress)
-        print(f"Progress: {percent:.2%}")
+        self.progress(round(current / total * 100))
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
@@ -255,6 +250,7 @@ class Object(dbus.service.Object):
     )
     def progress(self, progress: int):
         self._upgrade_progress = progress
+        print(f"Progress: {progress}")
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
