@@ -29,12 +29,9 @@ class Object(dbus.service.Object):
         self._pull_status: str = ""
         self._checkupdates_status: str = ""
         self._upgrade_progress: int = 0
-        self._upgrade_current: int = 0
-        self._upgrade_total: int = 5
-        self._upgrade_step_current: int = 0
-        self._upgrade_step_total: int = 0
-        self._upgrade_dkms_current: int = 0
-        self._upgrade_dkms_total: int = 0
+        self._upgrade_progress_status: tuple[int, int] = (0, 5)
+        self._upgrade_step_progress_status: tuple[int, int] = (0, 0)
+        self._upgrade_dkms_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_thread: threading.Thread | None = None
         self._pull_thread: threading.Thread | None = None
         self._checkupdates_thread: threading.Thread | None = None
@@ -149,15 +146,12 @@ class Object(dbus.service.Object):
                 )
                 return
 
-            self._upgrade_current = step
-            self._upgrade_total = total
-            self._upgrade_step_current = 0
-            self._upgrade_step_total = 0
-            self._upgrade_dkms_current = 0
-            self._upgrade_dkms_total = 0
+            self._upgrade_progress_status = (step, total)
+            self._upgrade_step_progress_status = (0, 0)
+            self._upgrade_dkms_progress_status = (0, 0)
             self._emit_upgrade_progress()
 
-        elif line.startswith(b"STEP ") and self._upgrade_current == 1:
+        elif line.startswith(b"STEP ") and self._upgrade_progress_status[0] == 1:
             parts = line[5:].split(b"/", 1)
             if len(parts) != 2:
                 self.upgrade_stderr(
@@ -174,13 +168,11 @@ class Object(dbus.service.Object):
                 self.upgrade_stderr(f"Failed to parse STEP: {line!r}\n\t{e}\n".encode())
                 return
 
-            self._upgrade_step_current = current
-            self._upgrade_step_total = total
-            self._upgrade_dkms_current = 0
-            self._upgrade_dkms_total = 0
+            self._upgrade_step_progress_status = (current, total)
+            self._upgrade_dkms_progress_status = (0, 0)
             self._emit_upgrade_progress()
 
-        elif line.startswith(b"[dkms] (") and self._upgrade_current == 1:
+        elif line.startswith(b"[dkms] (") and self._upgrade_progress_status[0] == 1:
             parts = line.split(b"(", 1)
             parts = parts[1].split(b"/", 1)
             if len(parts) != 2:
@@ -200,28 +192,28 @@ class Object(dbus.service.Object):
                 )
                 return
 
-            self._upgrade_dkms_current = current
-            self._upgrade_dkms_total = total
+            self._upgrade_dkms_progress_status = (current, total)
             self._emit_upgrade_progress()
 
     def _emit_upgrade_progress(self) -> None:
         percent: float = 0
-        current = self._upgrade_current - 1
         build_scale = 0.8  # How much of the bar should the build step be?
-        total = self._upgrade_total * (1 + build_scale)
+        current_step, current_total = self._upgrade_progress_status
+        total = current_total * (1 + build_scale)
+        current = current_step - 1
         if current:
-            current += self._upgrade_total * build_scale
+            current += current_total * build_scale
 
-        if self._upgrade_dkms_total > 0:
-            dkms_percent = (self._upgrade_dkms_current - 1) / self._upgrade_dkms_total
-            step_percent = (
-                dkms_percent + self._upgrade_step_current
-            ) / self._upgrade_step_total
-            current = total * build_scale * step_percent
+        dkms_step, dkms_total = self._upgrade_dkms_progress_status
+        step_step, step_total = self._upgrade_step_progress_status
+        if dkms_total > 0:
+            dkms_percent = (dkms_step - 1) / dkms_total
+            step_percent = (dkms_percent + step_step) / step_total
+            current += total * build_scale * step_percent
 
-        elif self._upgrade_step_total > 0:
-            step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
-            current = total * build_scale * step_percent
+        elif step_total > 0:
+            step_percent = (step_step - 1) / step_total
+            current += total * build_scale * step_percent
 
         percent = current / total
         self._upgrade_progress = round(percent * 100)
