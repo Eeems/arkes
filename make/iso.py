@@ -32,7 +32,7 @@ def command(args: Namespace) -> None:
     for target in cast(list[str], args.target):
         image = f"{REPO}:{target}"
         _ = in_system(
-            "build",
+            "_build",
             target=image,
             check=True,
             flags=["cap-add=SYS_ADMIN"],

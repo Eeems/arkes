@@ -1,3 +1,5 @@
+import sys
+
 from argparse import ArgumentParser
 from argparse import Namespace
 from typing import Any
@@ -35,8 +37,7 @@ def command(args: Namespace) -> None:
     onstderr: Callable[[str], None] = (
         noop if quiet else cast(Callable[[str], None], print_stderr)
     )
-
-    if cast(bool, args.noProgress):
+    if cast(bool, args.noProgress) or not sys.stdin.isatty():
         build(onstdout=onstdout, onstderr=onstderr)
         return
 
