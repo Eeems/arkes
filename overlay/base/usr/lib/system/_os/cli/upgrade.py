@@ -1,12 +1,11 @@
 import sys
-import time
 import progressbar
 
 
 from argparse import ArgumentParser
 from argparse import Namespace
 
-from typing import Callable, override
+from typing import Callable
 from typing import TextIO
 from typing import cast
 from typing import Any
@@ -17,32 +16,10 @@ from ..dbus import checkupdates
 from ..dbus import upgrade_status
 from ..dbus import upgrade
 from ..console import print_stderr
+from ..console import AlwaysUpdateProgressBar
 
 
 kwds = {"help": "Perform a system upgrade"}
-
-
-class AlwaysUpdateProgressBar(progressbar.ProgressBar):
-    # Patched to always update
-    @override
-    def update(self, value: int | None = None):  # pyright: ignore[reportIncompatibleMethodOverride]
-        if value is not None and value is not progressbar.UnknownLength:
-            if not 0 <= value <= self.maxval:  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-                raise ValueError("Value out of range")
-
-            self.currval = value  # pyright: ignore[reportAttributeAccessIssue, reportUnannotatedClassAttribute]
-
-        # The following line was removed
-        # if not self._need_update(): return
-        if self.start_time is None:
-            raise RuntimeError('You must call "start" before calling "update"')
-
-        now = time.time()
-        self.seconds_elapsed = now - self.start_time  # pyright: ignore[reportOperatorIssue, reportUnannotatedClassAttribute]
-        self.next_update = self.currval + self.update_interval  # pyright: ignore[reportAttributeAccessIssue, reportUnannotatedClassAttribute, reportUnknownMemberType]
-        _ = self.fd.write(self._format_line() + "\r")
-        self.fd.flush()
-        self.last_update_time = now  # pyright: ignore[reportUnannotatedClassAttribute]
 
 
 class ProgressState:

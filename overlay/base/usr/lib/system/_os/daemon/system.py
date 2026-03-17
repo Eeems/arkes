@@ -8,6 +8,7 @@ import traceback
 from typing import Callable
 from typing import cast
 
+from ..podman import build
 from ..podman import pull
 from ..system import baseImage
 from ..system import checkupdates
@@ -26,6 +27,7 @@ class Object(dbus.service.Object):
         self._updates: list[str] = []
         self._notification: dict[str, str] = {}
         self._upgrade_status: str = ""
+        self._build_status: str = ""
         self._pull_status: str = ""
         self._checkupdates_status: str = ""
         self._upgrade_progress: int = 0
@@ -33,6 +35,7 @@ class Object(dbus.service.Object):
         self._upgrade_step_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_dkms_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_thread: threading.Thread | None = None
+        self._build_thread: threading.Thread | None = None
         self._pull_thread: threading.Thread | None = None
         self._checkupdates_thread: threading.Thread | None = None
 
@@ -265,6 +268,94 @@ class Object(dbus.service.Object):
     )
     def status(self) -> str:
         return self._upgrade_status
+
+    @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
+        in_signature="",
+        out_signature="",
+        sender_keyword="sender",
+        async_callbacks=("success", "error"),
+    )
+    def build(
+        self,
+        success: Callable[[], None],
+        error: Callable[..., None],
+        sender: str | None = None,
+    ):
+        try:
+            assert sender is not None
+            if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
+                error("Permission denied")
+                return
+
+            if self._build_status == "pending":
+                success()
+                return
+
+            assert self._build_thread is None
+            self.build_status("pending")
+            self._build_thread = threading.Thread(target=self._build)
+            self._build_thread.start()
+            success()
+
+        except BaseException as e:
+            error(f"Exception: {e}\n{traceback.format_exc()}")
+
+    def _build(self):
+        self.notify_all("Building system image", "build")
+        try:
+            from ..system import system_kernelCommandLine
+
+            build(
+                buildArgs={"KARGS": system_kernelCommandLine()},
+                onstdout=self.build_stdout,
+                onstderr=self.build_stderr,
+            )
+            self.progress(100)
+            self.build_status("success")
+            self.notify_all("System image built successfully", "build")
+
+        except BaseException as e:
+            self.build_stderr(
+                f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
+            )
+            self.build_status("error")
+            self.notify_all("System build failed", "build")
+
+        finally:
+            self._build_thread = None
+
+        return False
+
+    @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
+        signature="s",
+    )
+    def build_status(self, status: str):
+        self._build_status = status
+        print(f"build status: {status}")
+
+    @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
+        signature="s",
+    )
+    def build_stdout(self, stdout: bytes):
+        bytes_to_stdout(stdout)
+
+    @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
+        signature="s",
+    )
+    def build_stderr(self, stderr: bytes):
+        bytes_to_stderr(stderr)
+
+    @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
+        in_signature="",
+        out_signature="s",
+    )
+    def build_status_method(self) -> str:
+        return self._build_status
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.checkupdates",

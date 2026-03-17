@@ -136,6 +136,56 @@ def upgrade_status() -> str:
     return cast(Callable[[], str], interface.status)()
 
 
+def build(
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
+    onprogress: Callable[[int], None] = lambda _: None,
+):
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    interface = dbus.Interface(
+        bus.get_object(  # pyright:ignore [reportUnknownMemberType]
+            "os.system",
+            "/system",
+        ),
+        "system.build",
+    )
+    loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
+
+    def on_status(status: str):
+        onstderr(f"Status: {status}")
+        setattr(on_status, "status", status)
+        if status in ["error", "success"]:
+            loop.quit()  # pyright:ignore [reportUnknownMemberType]
+
+    connect_to_signal = cast(
+        Callable[[str, Callable[..., None]], None],
+        interface.connect_to_signal,
+    )
+    connect_to_signal("build_stdout", onstdout)
+    connect_to_signal("build_stderr", onstderr)
+    connect_to_signal("build_status", on_status)
+    connect_to_signal("progress", onprogress)
+    cast(Callable[[], None], interface.build)()
+
+    loop.run()  # pyright:ignore [reportUnknownMemberType]
+    if getattr(on_status, "status") == "error":
+        raise Exception("Build failed")
+
+
+def build_status() -> str:
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    interface = dbus.Interface(
+        bus.get_object(  # pyright:ignore [reportUnknownMemberType]
+            "os.system",
+            "/system",
+        ),
+        "system.build",
+    )
+    return cast(Callable[[], str], interface.status)()
+
+
 def groups_for_sender(obj: dbus.service.Object, sender: str) -> set[str]:
     userid = cast(
         Callable[[str], int],
