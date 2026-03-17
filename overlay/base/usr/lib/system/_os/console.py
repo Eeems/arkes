@@ -17,6 +17,12 @@ def bytes_to_stderr(line: bytes):
     _ = sys.stderr.flush()
 
 
+def print_stderr(
+    *values: object, sep: str | None = " ", end: str | None = "\n", flush: bool = False
+) -> None:
+    print(*values, file=sys.stderr, sep=sep, end=end, flush=flush)
+
+
 def bytes_to_iec(size_bytes: int) -> str:
     units = ["KiB", "MiB", "GiB", "TiB", "PiB"]
     size = float(size_bytes)

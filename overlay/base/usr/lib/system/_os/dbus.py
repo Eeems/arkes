@@ -2,16 +2,19 @@ import dbus  # pyright:ignore [reportMissingTypeStubs]
 import dbus.service  # pyright:ignore [reportMissingTypeStubs]
 import grp
 import pwd
-import sys
 
 from dbus.mainloop.glib import DBusGMainLoop  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType]
 from gi.repository import GLib  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType,reportAttributeAccessIssue]
 
 from typing import Callable
 from typing import cast
+from .console import print_stderr
 
 
-def checkupdates(force: bool = False) -> list[str]:
+def checkupdates(
+    force: bool = False,
+    onstderr: Callable[[str], None] = print_stderr,
+) -> list[str]:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -28,9 +31,6 @@ def checkupdates(force: bool = False) -> list[str]:
 
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
         setattr(on_status, "status", status)
         if status in ["error", "none", "available"]:
@@ -41,7 +41,7 @@ def checkupdates(force: bool = False) -> list[str]:
         interface.connect_to_signal,
     )
     connect_to_signal("checkupdates_status", on_status)
-    connect_to_signal("checkupdates_stderr", on_stderr)
+    connect_to_signal("checkupdates_stderr", onstderr)
     cast(Callable[[], None], interface.checkupdates)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
@@ -51,7 +51,10 @@ def checkupdates(force: bool = False) -> list[str]:
     return cast(Callable[[], list[str]], interface.updates)()
 
 
-def pull():
+def pull(
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
+):
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -63,12 +66,6 @@ def pull():
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_stdout(stdout: str):
-        print(stdout, end="")
-
-    def on_stderr(stderr: str):
-        print(stderr, file=sys.stderr, end="")
-
     def on_status(status: str):
         print(f"Status: {status}")
         setattr(on_status, "status", status)
@@ -79,8 +76,8 @@ def pull():
         Callable[[str, Callable[[str], None]], None],
         interface.connect_to_signal,
     )
-    connect_to_signal("pull_stdout", on_stdout)
-    connect_to_signal("pull_stderr", on_stderr)
+    connect_to_signal("pull_stdout", onstdout)
+    connect_to_signal("pull_stderr", onstderr)
     connect_to_signal("pull_status", on_status)
     cast(Callable[[], None], interface.pull)()
 
@@ -90,8 +87,8 @@ def pull():
 
 
 def upgrade(
-    onstdout: Callable[[str], None] = lambda x: print(x, end=""),
-    onstderr: Callable[[str], None] = lambda x: print(x, file=sys.stderr, end=""),
+    onstdout: Callable[[str], None] = print,
+    onstderr: Callable[[str], None] = print_stderr,
     onprogress: Callable[[int], None] = lambda _: None,
 ):
     DBusGMainLoop(set_as_default=True)
