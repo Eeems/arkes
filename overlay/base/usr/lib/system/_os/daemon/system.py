@@ -131,8 +131,11 @@ class Object(dbus.service.Object):
 
     def _upgrade_parse(self, line: bytes):
         if line.startswith(b"PROGRESS "):
-            parts = line[9:].split(b"/")
+            parts = line[9:].split(b"/", 1)
             if len(parts) != 2:
+                self.upgrade_stderr(
+                    f"Failed to parse PROGRESS: {line!r}\n\tNo b'/' found\n".encode()
+                )
                 return
 
             second_part = parts[1].split(b" ")
@@ -155,8 +158,11 @@ class Object(dbus.service.Object):
             self._emit_progress()
 
         elif line.startswith(b"STEP ") and self._upgrade_step == 1:
-            parts = line[5:].split(b"/")
+            parts = line[5:].split(b"/", 1)
             if len(parts) != 2:
+                self.upgrade_stderr(
+                    f"Failed to parse STEP: {line!r}\n\tNo b'/' found\n".encode()
+                )
                 return
 
             second_part = parts[1].split(b":")
@@ -175,9 +181,12 @@ class Object(dbus.service.Object):
             self._emit_progress()
 
         elif line.startswith(b"[dkms] (") and self._upgrade_step == 1:
-            parts = line.split(b"(")
-            parts = parts[1].split(b"/")
+            parts = line.split(b"(", 1)
+            parts = parts[1].split(b"/", 1)
             if len(parts) != 2:
+                self.upgrade_stderr(
+                    f"Failed to parse [dkms]: {line!r}\n\tNo b'/' found\n".encode()
+                )
                 return
 
             second_part = parts[1].split(b")")
@@ -196,27 +205,30 @@ class Object(dbus.service.Object):
             self._emit_progress()
 
     def _emit_progress(self) -> None:
-        base_percent = (self._upgrade_step - 1) * (100 / 5)
-        step_portion = 100 / 5
+        percent: float = 0
+        step_portion = 100 / self._upgrade_step_total
+        if self._upgrade_step == 1:
+            if self._upgrade_sub_total > 0:
+                percent = (
+                    self._upgrade_sub_current / self._upgrade_sub_total * step_portion
+                )
 
-        if self._upgrade_step == 1 and self._upgrade_sub_total > 0:
-            step_portion = 100 / 5
-            sub_percent = int(
-                (self._upgrade_sub_current / self._upgrade_sub_total) * step_portion
-            )
+            elif self._upgrade_dkms_total > 0:
+                percent = (
+                    (
+                        (self._upgrade_dkms_current / self._upgrade_dkms_total)
+                        + self._upgrade_sub_current
+                    )
+                    / self._upgrade_sub_total
+                    * step_portion
+                )
+
         else:
-            sub_percent = 0
+            percent = (self._upgrade_step - 1) * step_portion
 
-        if self._upgrade_dkms_total > 0:
-            dkms_percent = int(
-                self._upgrade_dkms_current / self._upgrade_dkms_total * step_portion
-            )
-            sub_percent += dkms_percent
-
-        percent = int(base_percent + sub_percent)
-        self._upgrade_progress = percent
+        self._upgrade_progress = int(percent)
         self.progress(self._upgrade_progress)
-        print(f"Progress: {percent}")
+        print(f"Progress: {percent:.2%}")
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
