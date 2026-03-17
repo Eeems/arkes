@@ -137,7 +137,7 @@ class Object(dbus.service.Object):
 
             second_part = parts[1].split(b" ")
             try:
-                step = int(parts[0])
+                current = int(parts[0])
                 total = int(second_part[0])
 
             except ValueError as e:
@@ -146,7 +146,7 @@ class Object(dbus.service.Object):
                 )
                 return
 
-            self._upgrade_progress_status = (step, total)
+            self._upgrade_progress_status = (current, total)
             self._upgrade_step_progress_status = (0, 0)
             self._upgrade_dkms_progress_status = (0, 0)
             self._emit_upgrade_progress()
@@ -198,21 +198,26 @@ class Object(dbus.service.Object):
     def _emit_upgrade_progress(self) -> None:
         percent: float = 0
         build_scale = 0.8  # How much of the bar should the build step be?
-        current_step, current_total = self._upgrade_progress_status
-        total = current_total * (1 + build_scale)
-        current = current_step - 1
+        status_current, status_total = self._upgrade_progress_status
+        build_scale_100 = 1 + build_scale
+        total = status_total * build_scale_100
+        current = status_current - 1
+        # The build step takes up 80% of the bar, so any steps after it need to adjust
         if current:
-            current += current_total * build_scale
+            current = (
+                build_scale
+                + (status_current - 2) / (status_total - 1) * (1 - build_scale)
+            ) * total
 
-        dkms_step, dkms_total = self._upgrade_dkms_progress_status
-        step_step, step_total = self._upgrade_step_progress_status
+        dkms_current, dkms_total = self._upgrade_dkms_progress_status
+        step_current, step_total = self._upgrade_step_progress_status
         if dkms_total > 0:
-            dkms_percent = (dkms_step - 1) / dkms_total
-            step_percent = (dkms_percent + step_step) / step_total
+            dkms_percent = (dkms_current - 1) / dkms_total
+            step_percent = (dkms_percent + step_current - 1) / step_total
             current += total * build_scale * step_percent
 
         elif step_total > 0:
-            step_percent = (step_step - 1) / step_total
+            step_percent = (step_current - 1) / step_total
             current += total * build_scale * step_percent
 
         percent = current / total
