@@ -37,9 +37,12 @@ class Object(dbus.service.Object):
         self._pull_status: str = ""
         self._checkupdates_status: str = ""
         self._upgrade_progress: int = 0
-        self._upgrade_progress_status: tuple[int, int] = (0, 5)
+        self._build_progress: int = 0
+        self._upgrade_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_step_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_dkms_progress_status: tuple[int, int] = (0, 0)
+        self._build_step_progress_status: tuple[int, int] = (0, 0)
+        self._build_dkms_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_thread: threading.Thread | None = None
         self._build_thread: threading.Thread | None = None
         self._pull_thread: threading.Thread | None = None
@@ -146,7 +149,7 @@ class Object(dbus.service.Object):
                 onstdout=self.upgrade_stdout,
                 onstderr=self.upgrade_stderr,
             )
-            self.progress(100)
+            self.upgrade_progress(100)
             self.upgrade_status("success")
             self.notify_all("System upgrade complete, reboot required", "upgrade")
 
@@ -187,7 +190,7 @@ class Object(dbus.service.Object):
             self._upgrade_dkms_progress_status = (0, 0)
             self._emit_upgrade_progress()
 
-        elif line.startswith(b"STEP ") and self._upgrade_progress_status[0] == 1:
+        elif line.startswith(b"STEP "):
             parts = line[5:].split(b"/", 1)
             if len(parts) != 2:
                 self.upgrade_stderr(
@@ -208,7 +211,7 @@ class Object(dbus.service.Object):
             self._upgrade_dkms_progress_status = (0, 0)
             self._emit_upgrade_progress()
 
-        elif line.startswith(b"[dkms] (") and self._upgrade_progress_status[0] == 1:
+        elif line.startswith(b"[dkms] ("):
             parts = line.split(b"(", 1)
             parts = parts[1].split(b"/", 1)
             if len(parts) != 2:
@@ -234,6 +237,7 @@ class Object(dbus.service.Object):
     def _emit_upgrade_progress(self) -> None:
         build_scale = 0.8  # How much of the bar should the build step be?
         status_current, status_total = self._upgrade_progress_status
+        assert status_total
         build_scale_100 = 1 + build_scale
         total = status_total * build_scale_100
         current = status_current - 1
@@ -255,7 +259,7 @@ class Object(dbus.service.Object):
             step_percent = (step_current - 1) / step_total
             current += total * build_scale * step_percent
 
-        self.progress(round(current / total * 100))
+        self.upgrade_progress(round(current / total * 100))
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
@@ -285,9 +289,9 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         signature="i",
     )
-    def progress(self, progress: int):
+    def upgrade_progress(self, progress: int):
         self._upgrade_progress = progress
-        print(f"Progress: {progress}")
+        print(f"Upgrade progress: {progress}")
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
@@ -335,6 +339,62 @@ class Object(dbus.service.Object):
         except BaseException as e:
             error(f"Exception: {e}\n{traceback.format_exc()}")
 
+    def _emit_build_progress(self) -> None:
+        status_current, status_total = self._build_step_progress_status
+        assert status_total
+        current = status_current - 1
+        dkms_current, dkms_total = self._build_dkms_progress_status
+        if dkms_total > 0:
+            step_percent = (dkms_current - 1) / dkms_total
+            current += status_total * step_percent
+
+        self.build_progress(round(current / status_total * 100))
+
+    def _build_parse(self, line: bytes):
+        if line.startswith(b"STEP "):
+            parts = line[5:].split(b"/", 1)
+            if len(parts) != 2:
+                self.upgrade_stderr(
+                    f"Failed to parse STEP: {line!r}\n\tNo b'/' found\n".encode()
+                )
+                return
+
+            second_part = parts[1].split(b":")
+            try:
+                current = int(parts[0])
+                total = int(second_part[0])
+
+            except ValueError as e:
+                self.upgrade_stderr(f"Failed to parse STEP: {line!r}\n\t{e}\n".encode())
+                return
+
+            self._build_step_progress_status = (current, total)
+            self._build_dkms_progress_status = (0, 0)
+            self._emit_build_progress()
+
+        elif line.startswith(b"[dkms] ("):
+            parts = line.split(b"(", 1)
+            parts = parts[1].split(b"/", 1)
+            if len(parts) != 2:
+                self.upgrade_stderr(
+                    f"Failed to parse [dkms]: {line!r}\n\tNo b'/' found\n".encode()
+                )
+                return
+
+            second_part = parts[1].split(b")")
+            try:
+                current = int(parts[0])
+                total = int(second_part[0])
+
+            except ValueError as e:
+                self.upgrade_stderr(
+                    f"Failed to parse [dkms]: {line!r}\n\t{e}\n".encode()
+                )
+                return
+
+            self._build_dkms_progress_status = (current, total)
+            self._emit_build_progress()
+
     def _build(self):
         self.notify_all("Building system image", "build")
         try:
@@ -343,7 +403,7 @@ class Object(dbus.service.Object):
                 onstdout=self.build_stdout,
                 onstderr=self.build_stderr,
             )
-            self.progress(100)
+            self.build_progress(100)
             self.build_status("success")
             self.notify_all("System image built successfully", "build")
 
@@ -361,6 +421,14 @@ class Object(dbus.service.Object):
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
+        signature="i",
+    )
+    def build_progress(self, progress: int):
+        self._build_progress = progress
+        print(f"Build progress: {progress}")
+
+    @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.build",
         signature="s",
     )
     def build_status(self, status: str):
@@ -373,6 +441,7 @@ class Object(dbus.service.Object):
     )
     def build_stdout(self, stdout: bytes):
         bytes_to_stdout(stdout)
+        self._build_parse(stdout)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
@@ -380,6 +449,7 @@ class Object(dbus.service.Object):
     )
     def build_stderr(self, stderr: bytes):
         bytes_to_stderr(stderr)
+        self._build_parse(stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",

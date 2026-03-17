@@ -115,7 +115,7 @@ def upgrade(
     connect_to_signal("upgrade_stdout", onstdout)
     connect_to_signal("upgrade_stderr", onstderr)
     connect_to_signal("upgrade_status", on_status)
-    connect_to_signal("progress", onprogress)
+    connect_to_signal("upgrade_progress", onprogress)
     cast(Callable[[], None], interface.upgrade)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
@@ -165,7 +165,7 @@ def build(
     connect_to_signal("build_stdout", onstdout)
     connect_to_signal("build_stderr", onstderr)
     connect_to_signal("build_status", on_status)
-    connect_to_signal("progress", onprogress)
+    connect_to_signal("build_progress", onprogress)
     cast(Callable[[], None], interface.build)()
 
     loop.run()  # pyright:ignore [reportUnknownMemberType]
