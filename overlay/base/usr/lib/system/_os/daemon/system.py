@@ -131,7 +131,7 @@ class Object(dbus.service.Object):
                 os.makedirs(SYSTEM_PATH, exist_ok=True)
 
             def onerror(msg: str):
-                self.build_status("error")
+                self.upgrade_status("error")
                 self.upgrade_stderr(f"Build failed: {msg}\n".encode())
                 self._upgrade_event.set()
 
