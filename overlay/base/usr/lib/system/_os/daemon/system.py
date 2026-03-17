@@ -38,6 +38,7 @@ class Object(dbus.service.Object):
         self._checkupdates_status: str = ""
         self._upgrade_progress: int = 0
         self._build_progress: int = 0
+        self._upgrade_event: threading.Event = threading.Event()
         self._upgrade_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_step_progress_status: tuple[int, int] = (0, 0)
         self._upgrade_dkms_progress_status: tuple[int, int] = (0, 0)
@@ -107,14 +108,16 @@ class Object(dbus.service.Object):
 
             assert self._upgrade_thread is None
             self.upgrade_status("pending")
-            self._upgrade_thread = threading.Thread(target=self._upgrade)
+            self._upgrade_thread = threading.Thread(
+                target=self._upgrade, args=(sender,)
+            )
             self._upgrade_thread.start()
             success()
 
         except BaseException as e:
             error(f"Exception: {e}\n{traceback.format_exc()}")
 
-    def _upgrade(self):
+    def _upgrade(self, sender: str):
         self.notify_all("Starting system upgrade", "upgrade")
         try:
             self.upgrade_stderr(b"PROGRESS 1/5 Building system:latest\n")
@@ -127,11 +130,18 @@ class Object(dbus.service.Object):
             if not os.path.exists(SYSTEM_PATH):
                 os.makedirs(SYSTEM_PATH, exist_ok=True)
 
-            build(
-                buildArgs={"KARGS": system_kernelCommandLine()},
-                onstdout=self.upgrade_stdout,
-                onstderr=self.upgrade_stderr,
-            )
+            def onerror(msg: str):
+                self.build_status("error")
+                self.upgrade_stderr(f"Build failed: {msg}\n".encode())
+                self._upgrade_event.set()
+
+            self.build(lambda: None, onerror, sender)
+            while self._build_status == "pending":
+                _ = self._upgrade_event.wait()
+
+            if self._build_status == "error":
+                return
+
             self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")
             commit_export(
                 onstdout=self.upgrade_stdout,
@@ -235,6 +245,9 @@ class Object(dbus.service.Object):
             self._emit_upgrade_progress()
 
     def _emit_upgrade_progress(self) -> None:
+        if self._upgrade_thread is None:
+            return
+
         build_scale = 0.8  # How much of the bar should the build step be?
         status_current, status_total = self._upgrade_progress_status
         assert status_total
@@ -274,7 +287,7 @@ class Object(dbus.service.Object):
         signature="s",
     )
     def upgrade_stdout(self, stdout: bytes):
-        bytes_to_stdout(stdout)
+        bytes_to_stdout(b"[upgrade:1] " + stdout)
         self._upgrade_parse(stdout)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
@@ -282,7 +295,7 @@ class Object(dbus.service.Object):
         signature="s",
     )
     def upgrade_stderr(self, stderr: bytes):
-        bytes_to_stderr(stderr)
+        bytes_to_stderr(b"[upgrade:2] " + stderr)
         self._upgrade_parse(stderr)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
@@ -298,7 +311,7 @@ class Object(dbus.service.Object):
         out_signature="i",
     )
     def progress_status(self) -> int:
-        return self._upgrade_progress
+        return 0 if self._upgrade_thread is None else self._upgrade_progress
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.upgrade",
@@ -434,22 +447,33 @@ class Object(dbus.service.Object):
     def build_status(self, status: str):
         self._build_status = status
         print(f"build status: {status}")
+        self._upgrade_event.set()
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
         signature="s",
     )
     def build_stdout(self, stdout: bytes):
-        bytes_to_stdout(stdout)
+        bytes_to_stdout(b"[build:1] " + stdout)
         self._build_parse(stdout)
+        if self._upgrade_thread is None:
+            self._upgrade_parse(stdout)
+
+        else:
+            self.upgrade_stdout(stdout)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
         signature="s",
     )
     def build_stderr(self, stderr: bytes):
-        bytes_to_stderr(stderr)
+        bytes_to_stderr(b"[build:2] " + stderr)
         self._build_parse(stderr)
+        if self._upgrade_thread is None:
+            self._upgrade_parse(stderr)
+
+        else:
+            self.upgrade_stdout(stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
@@ -537,7 +561,7 @@ class Object(dbus.service.Object):
         signature="s",
     )
     def checkupdates_stderr(self, stderr: bytes):
-        bytes_to_stderr(stderr)
+        bytes_to_stderr(b"[checkupdates:2] " + stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.checkupdates",
@@ -623,11 +647,11 @@ class Object(dbus.service.Object):
         signature="s",
     )
     def pull_stdout(self, stdout: bytes):
-        bytes_to_stdout(stdout)
+        bytes_to_stdout(b"[pull:1] " + stdout)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.pull",
         signature="s",
     )
     def pull_stderr(self, stderr: bytes):
-        bytes_to_stderr(stderr)
+        bytes_to_stderr(b"[pull:2] " + stderr)
