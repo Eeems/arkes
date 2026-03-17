@@ -155,7 +155,7 @@ class Object(dbus.service.Object):
             self._upgrade_step_total = 0
             self._upgrade_dkms_current = 0
             self._upgrade_dkms_total = 0
-            self._emit_progress()
+            self._emit_upgrade_progress()
 
         elif line.startswith(b"STEP ") and self._upgrade_current == 1:
             parts = line[5:].split(b"/", 1)
@@ -178,7 +178,7 @@ class Object(dbus.service.Object):
             self._upgrade_step_total = total
             self._upgrade_dkms_current = 0
             self._upgrade_dkms_total = 0
-            self._emit_progress()
+            self._emit_upgrade_progress()
 
         elif line.startswith(b"[dkms] (") and self._upgrade_current == 1:
             parts = line.split(b"(", 1)
@@ -202,12 +202,12 @@ class Object(dbus.service.Object):
 
             self._upgrade_dkms_current = current
             self._upgrade_dkms_total = total
-            self._emit_progress()
+            self._emit_upgrade_progress()
 
-    def _emit_progress(self) -> None:
+    def _emit_upgrade_progress(self) -> None:
         percent: float = 0
         current = self._upgrade_current - 1
-        build_scale = 0.5  # How much of the bar should the build step be?
+        build_scale = 0.8  # How much of the bar should the build step be?
         total = self._upgrade_total * (1 + build_scale)
         if current:
             current += self._upgrade_total * build_scale

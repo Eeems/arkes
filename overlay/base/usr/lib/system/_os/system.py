@@ -550,13 +550,13 @@ def upgrade(
     if not os.path.exists(SYSTEM_PATH):
         os.makedirs(SYSTEM_PATH, exist_ok=True)
 
-    onstderr(b"PROGRESS 1/5 Build\n")
+    onstderr(b"PROGRESS 1/5 Building system:latest\n")
     build(
         buildArgs={"KARGS": system_kernelCommandLine()},
         onstdout=onstdout,
         onstderr=onstderr,
     )
-    onstderr(b"PROGRESS 2/5 Commit\n")
+    onstderr(b"PROGRESS 2/5 Committing to ostree\n")
     with export_stream(
         setup="""
         rm -f /etc
@@ -600,11 +600,11 @@ def upgrade(
                 ostree_proc.returncode, cmd, ostree_out, ostree_err
             )
 
-    onstderr(b"PROGRESS 3/5 Prune\n")
+    onstderr(b"PROGRESS 3/5 Pruning ostree\n")
     prune(branch, onstdout=onstdout, onstderr=onstderr)
-    onstderr(b"PROGRESS 4/5 Deploy\n")
+    onstderr(b"PROGRESS 4/5 Deploying ostree\n")
     deploy(branch, "/", onstdout=onstdout, onstderr=onstderr)
-    onstderr(b"PROGRESS 5/5 Bootloader\n")
+    onstderr(b"PROGRESS 5/5 Updating bootloader\n")
     cmd = shlex.join(
         [
             "/usr/bin/grub-mkconfig",
