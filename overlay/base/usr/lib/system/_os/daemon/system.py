@@ -207,25 +207,27 @@ class Object(dbus.service.Object):
     def _emit_progress(self) -> None:
         percent: float = 0
         current = self._upgrade_current - 1
+        build_scale = 0.5  # How much of the bar should the build step be?
+        total = self._upgrade_total * (1 + build_scale)
+        if current:
+            current += total * build_scale
+
         if self._upgrade_dkms_total > 0:
             step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
             print(f"STEP Progress: {step_percent:.2%}")
             dkms_percent = (self._upgrade_dkms_current - 1) / self._upgrade_dkms_total
             print(f"DKMS Progress: {dkms_percent:.2%}")
-            percent = current + (
-                (dkms_percent + self._upgrade_step_current) / self._upgrade_step_total
-            )
+            current += (
+                dkms_percent + self._upgrade_step_current
+            ) / self._upgrade_step_total
 
         elif self._upgrade_step_total > 0:
             step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
             print(f"STEP Progress: {step_percent:.2%}")
-            percent = current + step_percent
+            current += step_percent
 
-        else:
-            percent = current
-
-        percent /= self._upgrade_total
-        self._upgrade_progress = int(percent * 100)
+        percent = current / total
+        self._upgrade_progress = round(percent * 100)
         self.progress(self._upgrade_progress)
         print(f"Progress: {percent:.2%}")
 
