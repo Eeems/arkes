@@ -71,6 +71,58 @@ def commit(
     os.unlink(_skipList)
 
 
+def commit_export(
+    branch: str = "system",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    from .podman import export_stream
+    from .ostree import ostree_cmd
+
+    with export_stream(
+        setup="""
+        rm -f /etc
+        rm -rf /var/*
+        find / -xdev \\
+          \\( \\
+            -path /dev \\
+            -o -path /proc \\
+            -o -path /sys \\
+            -o -path /run \\
+            -o -path /tmp \\
+          \\) -prune -o -print0 \\
+        | xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
+        """,
+        workingDir=SYSTEM_PATH,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    ) as stdout:
+        cmd = ostree_cmd(
+            "commit",
+            "--generate-composefs-metadata",
+            "--generate-sizes",
+            f"--branch={OS_NAME}/{branch}",
+            f"--subject={datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}",
+            "--tree=tar=-",
+            "--tar-pathname-filter=^,./",
+            "--tar-autocreate-parents",
+        )
+        env = os.environ.copy()
+        env["SOURCE_DATE_EPOCH"] = "0"
+        ostree_proc = subprocess.Popen(cmd, stdin=stdout, env=env)
+        ostree_out, ostree_err = ostree_proc.communicate()
+        if ostree_out is not None:  # pyright: ignore[reportUnnecessaryComparison]
+            onstdout(ostree_out)
+
+        if ostree_err is not None:  # pyright: ignore[reportUnnecessaryComparison]
+            onstderr(ostree_err)
+
+        if ostree_proc.returncode:
+            raise subprocess.CalledProcessError(
+                ostree_proc.returncode, cmd, ostree_out, ostree_err
+            )
+
+
 def deploy(
     branch: str = "system",
     sysroot: str = "/",

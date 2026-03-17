@@ -8,14 +8,20 @@ import traceback
 from typing import Callable
 from typing import cast
 
+from .. import SYSTEM_PATH
+
 from ..podman import build
 from ..podman import pull
 from ..system import baseImage
 from ..system import checkupdates
-from ..system import upgrade
+from ..system import update_bootloader
+from ..system import system_kernelCommandLine
 from ..dbus import groups_for_sender
 from ..console import bytes_to_stdout
 from ..console import bytes_to_stderr
+from ..ostree import commit_export
+from ..ostree import prune
+from ..ostree import deploy
 
 
 class Object(dbus.service.Object):
@@ -108,7 +114,35 @@ class Object(dbus.service.Object):
     def _upgrade(self):
         self.notify_all("Starting system upgrade", "upgrade")
         try:
-            upgrade(
+            self.upgrade_stderr(b"PROGRESS 1/5 Building system:latest\n")
+            if not os.path.exists("/ostree"):
+                self.upgrade_stderr(b"OSTree repo missing")
+                self.upgrade_status("error")
+                self.notify_all("System upgrade failed", "upgrade")
+                return
+
+            if not os.path.exists(SYSTEM_PATH):
+                os.makedirs(SYSTEM_PATH, exist_ok=True)
+
+            build(
+                buildArgs={"KARGS": system_kernelCommandLine()},
+                onstdout=self.upgrade_stdout,
+                onstderr=self.upgrade_stderr,
+            )
+            self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")
+            commit_export(
+                onstdout=self.upgrade_stdout,
+                onstderr=self.upgrade_stderr,
+            )
+            self.upgrade_stderr(b"PROGRESS 3/5 Pruning ostree\n")
+            prune(onstdout=self.upgrade_stdout, onstderr=self.upgrade_stderr)
+            self.upgrade_stderr(b"PROGRESS 4/5 Deploying ostree\n")
+            deploy(
+                onstdout=self.upgrade_stdout,
+                onstderr=self.upgrade_stderr,
+            )
+            self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
+            update_bootloader(
                 onstdout=self.upgrade_stdout,
                 onstderr=self.upgrade_stderr,
             )
@@ -304,8 +338,6 @@ class Object(dbus.service.Object):
     def _build(self):
         self.notify_all("Building system image", "build")
         try:
-            from ..system import system_kernelCommandLine
-
             build(
                 buildArgs={"KARGS": system_kernelCommandLine()},
                 onstdout=self.build_stdout,
