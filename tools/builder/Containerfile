@@ -92,7 +92,7 @@ RUN apt-get update \
     wheel \
     dbus-python \
     podman \
-    progressbar \
+    progressbar2 \
     # Cleanup
     && pip cache purge \
     && apt-get autoremove -y \

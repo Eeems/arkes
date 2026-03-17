@@ -147,7 +147,7 @@ def command(args: Namespace) -> None:
                         "PyGObject",
                         "xattr",
                         "podman",
-                        "progressbar",
+                        "progressbar2",
                     ]
                 ),
             ]
