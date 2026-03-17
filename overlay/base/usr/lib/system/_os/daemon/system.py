@@ -319,7 +319,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         out_signature="s",
     )
-    def status(self) -> str:
+    def get_upgrade_status(self) -> str:
         return self._upgrade_status
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
@@ -476,14 +476,14 @@ class Object(dbus.service.Object):
             self._upgrade_parse(stderr)
 
         else:
-            self.upgrade_stdout(stderr)
+            self.upgrade_stderr(stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.build",
         in_signature="",
         out_signature="s",
     )
-    def build_status_method(self) -> str:
+    def get_build_status(self) -> str:
         return self._build_status
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]

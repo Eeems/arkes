@@ -54,7 +54,7 @@ def checkupdates(
 def pull(
     onstdout: Callable[[str], None] = print,
     onstderr: Callable[[str], None] = print_stderr,
-):
+) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -67,7 +67,7 @@ def pull(
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
     def on_status(status: str):
-        print(f"Status: {status}")
+        onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
@@ -90,7 +90,7 @@ def upgrade(
     onstdout: Callable[[str], None] = print,
     onstderr: Callable[[str], None] = print_stderr,
     onprogress: Callable[[int], None] = lambda _: None,
-):
+) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -133,14 +133,14 @@ def upgrade_status() -> str:
         ),
         "system.upgrade",
     )
-    return cast(Callable[[], str], interface.status)()
+    return cast(Callable[[], str], interface.get_upgrade_status)()
 
 
 def build(
     onstdout: Callable[[str], None] = print,
     onstderr: Callable[[str], None] = print_stderr,
     onprogress: Callable[[int], None] = lambda _: None,
-):
+) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     interface = dbus.Interface(
@@ -183,7 +183,7 @@ def build_status() -> str:
         ),
         "system.build",
     )
-    return cast(Callable[[], str], interface.status)()
+    return cast(Callable[[], str], interface.get_build_status)()
 
 
 def groups_for_sender(obj: dbus.service.Object, sender: str) -> set[str]:
