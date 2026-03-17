@@ -210,21 +210,18 @@ class Object(dbus.service.Object):
         build_scale = 0.5  # How much of the bar should the build step be?
         total = self._upgrade_total * (1 + build_scale)
         if current:
-            current += total * build_scale
+            current += self._upgrade_total * build_scale
 
         if self._upgrade_dkms_total > 0:
-            step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
-            print(f"STEP Progress: {step_percent:.2%}")
             dkms_percent = (self._upgrade_dkms_current - 1) / self._upgrade_dkms_total
-            print(f"DKMS Progress: {dkms_percent:.2%}")
-            current += (
+            step_percent = (
                 dkms_percent + self._upgrade_step_current
             ) / self._upgrade_step_total
+            current = total * build_scale * step_percent
 
         elif self._upgrade_step_total > 0:
             step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
-            print(f"STEP Progress: {step_percent:.2%}")
-            current += step_percent
+            current = total * build_scale * step_percent
 
         percent = current / total
         self._upgrade_progress = round(percent * 100)
