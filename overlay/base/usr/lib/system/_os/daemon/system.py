@@ -138,6 +138,7 @@ class Object(dbus.service.Object):
             self.build(lambda: None, onerror, sender)
             while self._build_status == "pending":
                 _ = self._upgrade_event.wait()
+                self._upgrade_event.clear()
 
             if self._build_status == "error":
                 return
