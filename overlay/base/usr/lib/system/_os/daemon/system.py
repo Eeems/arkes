@@ -29,10 +29,10 @@ class Object(dbus.service.Object):
         self._pull_status: str = ""
         self._checkupdates_status: str = ""
         self._upgrade_progress: int = 0
-        self._upgrade_step: int = 0
-        self._upgrade_step_total: int = 5
-        self._upgrade_sub_current: int = 0
-        self._upgrade_sub_total: int = 0
+        self._upgrade_current: int = 0
+        self._upgrade_total: int = 5
+        self._upgrade_step_current: int = 0
+        self._upgrade_step_total: int = 0
         self._upgrade_dkms_current: int = 0
         self._upgrade_dkms_total: int = 0
         self._upgrade_thread: threading.Thread | None = None
@@ -149,15 +149,15 @@ class Object(dbus.service.Object):
                 )
                 return
 
-            self._upgrade_step = step
-            self._upgrade_step_total = total
-            self._upgrade_sub_current = 0
-            self._upgrade_sub_total = 0
+            self._upgrade_current = step
+            self._upgrade_total = total
+            self._upgrade_step_current = 0
+            self._upgrade_step_total = 0
             self._upgrade_dkms_current = 0
             self._upgrade_dkms_total = 0
             self._emit_progress()
 
-        elif line.startswith(b"STEP ") and self._upgrade_step == 1:
+        elif line.startswith(b"STEP ") and self._upgrade_current == 1:
             parts = line[5:].split(b"/", 1)
             if len(parts) != 2:
                 self.upgrade_stderr(
@@ -174,13 +174,13 @@ class Object(dbus.service.Object):
                 self.upgrade_stderr(f"Failed to parse STEP: {line!r}\n\t{e}\n".encode())
                 return
 
-            self._upgrade_sub_current = current
-            self._upgrade_sub_total = total
+            self._upgrade_step_current = current
+            self._upgrade_step_total = total
             self._upgrade_dkms_current = 0
             self._upgrade_dkms_total = 0
             self._emit_progress()
 
-        elif line.startswith(b"[dkms] (") and self._upgrade_step == 1:
+        elif line.startswith(b"[dkms] (") and self._upgrade_current == 1:
             parts = line.split(b"(", 1)
             parts = parts[1].split(b"/", 1)
             if len(parts) != 2:
@@ -206,27 +206,26 @@ class Object(dbus.service.Object):
 
     def _emit_progress(self) -> None:
         percent: float = 0
-        step_portion = 100 / self._upgrade_step_total
-        if self._upgrade_step == 1:
-            if self._upgrade_sub_total > 0:
-                percent = (
-                    self._upgrade_sub_current / self._upgrade_sub_total * step_portion
-                )
+        current = self._upgrade_current - 1
+        if self._upgrade_dkms_total > 0:
+            step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
+            print(f"STEP Progress: {step_percent:.2%}")
+            dkms_percent = (self._upgrade_dkms_current - 1) / self._upgrade_dkms_total
+            print(f"DKMS Progress: {dkms_percent:.2%}")
+            percent = current + (
+                (dkms_percent + self._upgrade_step_current) / self._upgrade_step_total
+            )
 
-            elif self._upgrade_dkms_total > 0:
-                percent = (
-                    (
-                        (self._upgrade_dkms_current / self._upgrade_dkms_total)
-                        + self._upgrade_sub_current
-                    )
-                    / self._upgrade_sub_total
-                    * step_portion
-                )
+        elif self._upgrade_step_total > 0:
+            step_percent = (self._upgrade_step_current - 1) / self._upgrade_step_total
+            print(f"STEP Progress: {step_percent:.2%}")
+            percent = current + step_percent
 
         else:
-            percent = (self._upgrade_step - 1) * step_portion
+            percent = current
 
-        self._upgrade_progress = int(percent)
+        percent /= self._upgrade_total
+        self._upgrade_progress = int(percent * 100)
         self.progress(self._upgrade_progress)
         print(f"Progress: {percent:.2%}")
 
