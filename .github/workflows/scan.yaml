@@ -111,7 +111,7 @@ jobs:
           key: trivy-${{ hashFiles('make.py') }}
 
       - name: Pacman cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: pacman-scan-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
