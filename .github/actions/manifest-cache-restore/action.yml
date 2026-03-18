@@ -14,7 +14,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       if: inputs.artifact == 'false'
       with:
         path: ${{ inputs.path }}
@@ -23,7 +23,7 @@ runs:
     - name: Download artifact
       id: download
       if: inputs.artifact == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.key }}
         path: ${{ runner.temp }}/_manifest

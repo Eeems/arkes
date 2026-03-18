@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Remove untagged containers older than 1 week
         run: |
@@ -79,7 +79,7 @@ jobs:
         -v /:/run/host
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup container
         uses: ./.github/actions/setup-container

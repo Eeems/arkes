@@ -30,13 +30,13 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
 
-    - uses: actions/cache/save@v4
+    - uses: actions/cache/save@v5
       if: inputs.artifact == 'false'
       with:
         path: ${{ inputs.path }}
         key: ${{ inputs.key }}
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       if: inputs.artifact == 'true'
       with:
         path: ${{ inputs.path }}

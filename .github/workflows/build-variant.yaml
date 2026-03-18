@@ -71,7 +71,7 @@ jobs:
         --volume=/:/run/host
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup container
         uses: ./.github/actions/setup-container
@@ -115,7 +115,7 @@ jobs:
           digest: ${{ inputs.digest }}
 
       - name: Pacman cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: pacman-build-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
