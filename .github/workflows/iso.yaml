@@ -58,7 +58,7 @@ jobs:
         --volume=/:/run/host
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup container
         uses: ./.github/actions/setup-container
@@ -94,7 +94,7 @@ jobs:
           artifact: true
 
       - name: Pacman cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: pacman-iso-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
           path: /var/cache/pacman
@@ -117,7 +117,7 @@ jobs:
           key: pacman-iso-${{ inputs.variant }}-${{ github.head_ref || github.ref_name }}
 
       - name: Upload iso
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso

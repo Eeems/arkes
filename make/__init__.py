@@ -11,8 +11,15 @@ import threading
 
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
+
 from time import sleep, time
-from typing import IO, Any, Generator, TextIO, cast
+
+from typing import IO
+from typing import Any
+from typing import TextIO
+from typing import cast
+
+from collections.abc import Generator
 from collections.abc import Iterable
 from collections.abc import Callable
 
@@ -52,7 +59,7 @@ image_exists = cast(Callable[[str, bool, bool], bool], _os.podman.image_exists) 
 image_tags = cast(Callable[[str, bool], list[str]], _os.podman.image_tags)  # pyright:ignore [reportUnknownMemberType]
 hex_to_base62 = cast(Callable[[str], str], _os.podman.hex_to_base62)  # pyright:ignore [reportUnknownMemberType]
 escape_label = cast(Callable[[str], str], _os.podman.escape_label)  # pyright: ignore[reportUnknownMemberType]
-image_digest = cast(Callable[[str, bool], str], _os.podman.image_digest)  # pyright:ignore [reportUnknownMemberType]
+image_digest = cast(Callable[[str, bool, bool], str], _os.podman.image_digest)  # pyright:ignore [reportUnknownMemberType]
 image_qualified_name = cast(Callable[[str], str], _os.podman.image_qualified_name)  # pyright:ignore [reportUnknownMemberType]
 base_images = cast(
     Callable[[str, dict[str, str] | None], Iterable[str]],
@@ -171,7 +178,7 @@ def progress_bar[T](
     print(end="\n", file=out, flush=True)
 
 
-_executor = ThreadPoolExecutor(max_workers=5)
+_executor = ThreadPoolExecutor(max_workers=max(os.cpu_count() or 1, 15))
 _image_sizes: dict[str, Future[int]] = {}
 _image_sizes_lock = threading.Lock()
 
@@ -229,18 +236,22 @@ if not os.path.exists(DIGEST_CACHE_PATH):
 def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
     e: Exception | None = None
     for attempt in range(10):
-        assert image_exists(image, True, skip_manifest), (
-            f"{image} does not exist on remote the server"
-        )
         try:
-            digest = image_digest(image, True)
+            assert image_exists(image, True, True), (
+                f"{image} does not exist on the remote server"
+            )
+            digest = image_digest(image, True, skip_manifest)
             return digest
 
         except Exception as ex:
             e = ex
-            if isinstance(e, subprocess.CalledProcessError) and e.returncode == 2:
-                # Exit early, image cannot be found
-                break
+            if isinstance(e, subprocess.CalledProcessError):
+                if e.returncode == 2:
+                    # Exit early, image cannot be found
+                    break
+
+            if isinstance(e, AssertionError):
+                raise
 
             sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 
@@ -271,14 +282,31 @@ def _image_digests_write_cache(image: str, digest: str):
             return
 
         _image_digests[image] = digest
-        with open(DIGEST_CACHE_PATH, "w+") as f:
-            _ = f.seek(0)
-            json.dump(
-                {k: v for k, v in _image_digests.items() if isinstance(v, str)},
-                f,
-            )
-            _ = f.truncate()
-            _ = f.flush()
+        tries = 0
+        while True:
+            try:
+                with open(DIGEST_CACHE_PATH, "w") as f:
+                    with _image_digests_lock:
+                        json.dump(
+                            {
+                                k: v
+                                for k, v in _image_digests.items()
+                                if isinstance(v, str)
+                            },
+                            f,
+                        )
+
+                    _ = f.truncate()
+                    _ = f.flush()
+
+                break
+
+            except PermissionError:
+                tries += 1
+                if tries >= 5:
+                    raise
+
+                sleep(0.1)
 
 
 def image_digest_cached(image: str, skip_manifest: bool = False) -> str:

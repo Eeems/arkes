@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Clean cancellation notifications
         uses: ./.github/actions/clean-cancelled-notifications
         with:
@@ -101,14 +101,14 @@ jobs:
         --volume=/:/run/host
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Cache venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .venv
           key: venv-${{ needs.builder.outputs.unique_tag }}-${{ hashFiles('make/check.py') }}
       - name: Cache go
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/go/pkg/mod

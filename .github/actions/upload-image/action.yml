@@ -50,7 +50,7 @@ runs:
         zstd: ${{ inputs.name }}.tar.zstd
 
     - name: Upload image
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ inputs.name }}
         path: ${{ fromJson(steps.export.outputs.outputs).path }}
