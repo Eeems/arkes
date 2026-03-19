@@ -3,7 +3,6 @@ import sys
 from argparse import ArgumentParser
 from argparse import Namespace
 from typing import Any
-from typing import Callable
 from typing import cast
 
 from ..dbus import build
@@ -33,8 +32,8 @@ def command(args: Namespace) -> None:
     quiet = cast(bool, args.quiet)
     if cast(bool, args.noProgress) or not sys.stdin.isatty():
         build(
-            onstdout=noop if quiet else cast(Callable[[str], None], print),
-            onstderr=noop if quiet else cast(Callable[[str], None], print_stderr),
+            onstdout=noop if quiet else lambda x: print(x, end=""),
+            onstderr=noop if quiet else lambda x: print_stderr(x, end=""),
         )
         return
 

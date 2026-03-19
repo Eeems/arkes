@@ -119,11 +119,9 @@ def noop(_: str) -> None:
 def command(args: Namespace) -> None:
     quiet = cast(bool, args.quiet)
     if not cast(bool, args.noPull) and upgrade_status() != "pending":
-        onstdout: Callable[[str], None] = (
-            noop if quiet else cast(Callable[[str], None], print)
-        )
+        onstdout: Callable[[str], None] = noop if quiet else lambda x: print(x, end="")
         onstderr: Callable[[str], None] = (
-            noop if quiet else cast(Callable[[str], None], print_stderr)
+            noop if quiet else lambda x: print_stderr(x, end="")
         )
         onstderr("Checking for updates...")
 
