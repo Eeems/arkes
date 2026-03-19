@@ -9,10 +9,19 @@ import tempfile
 import json
 import threading
 
+from multiprocessing import cpu_count
+
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
+
 from time import sleep, time
-from typing import IO, Any, Generator, TextIO, cast
+
+from typing import IO
+from typing import Any
+from typing import TextIO
+from typing import cast
+
+from collections.abc import Generator
 from collections.abc import Iterable
 from collections.abc import Callable
 
@@ -171,7 +180,7 @@ def progress_bar[T](
     print(end="\n", file=out, flush=True)
 
 
-_executor = ThreadPoolExecutor(max_workers=50)
+_executor = ThreadPoolExecutor(max_workers=cpu_count())
 _image_sizes: dict[str, Future[int]] = {}
 _image_sizes_lock = threading.Lock()
 
@@ -238,9 +247,10 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
 
         except Exception as ex:
             e = ex
-            if isinstance(e, subprocess.CalledProcessError) and e.returncode == 2:
-                # Exit early, image cannot be found
-                break
+            if isinstance(e, subprocess.CalledProcessError):
+                if e.returncode == 2:
+                    # Exit early, image cannot be found
+                    break
 
             sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 

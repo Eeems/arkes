@@ -4,13 +4,18 @@ import tempfile
 from datetime import datetime
 from datetime import UTC
 from datetime import timedelta
+
 from argparse import ArgumentParser
 from argparse import Namespace
+
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+
 from typing import Any
 from typing import cast
+
+from multiprocessing import cpu_count
 
 from . import image_tags
 from . import hex_to_base62
@@ -111,7 +116,7 @@ def command(args: Namespace) -> None:
 
         return tag, future
 
-    with ThreadPoolExecutor(max_workers=50) as exc:
+    with ThreadPoolExecutor(max_workers=cpu_count()) as exc:
         for future in progress_bar(
             as_completed([exc.submit(_digest_worker, x) for x in digest_worker_queue]),
             count=len(digest_worker_queue),
