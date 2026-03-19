@@ -214,11 +214,11 @@ def checkupdates(image: str | None = None) -> list[str]:
         if " " not in change:
             continue
 
-        fromv, tov = change.split(" ", 1)
+        fromv, tov = change.split(" -> ", 1)
         version_changes[pkg] = fromv, tov
 
-    removals: dict[str, tuple[str, str]] = {}
-    additions: dict[str, tuple[str, str]] = {}
+    removals: dict[str, str] = {}
+    additions: dict[str, str] = {}
     remote_packages = remote_labels.get("packages", "")
     remote_pkgs: dict[str, str] = {}
     for line in remote_packages.splitlines():
@@ -238,7 +238,7 @@ def checkupdates(image: str | None = None) -> list[str]:
             continue
 
         if pkg not in remote_pkgs:
-            removals[pkg] = local_pkgs[pkg], "-"
+            removals[pkg] = local_pkgs[pkg]
 
         elif remote_pkgs[pkg] != local_pkgs[pkg]:
             version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
@@ -247,7 +247,7 @@ def checkupdates(image: str | None = None) -> list[str]:
         if pkg in version_changes or pkg in local_pkgs:
             continue
 
-        additions[pkg] = "-", remote_pkgs[pkg]
+        additions[pkg] = remote_pkgs[pkg]
 
     user_pkgs = {
         k: v
@@ -326,7 +326,7 @@ def checkupdates(image: str | None = None) -> list[str]:
                 name, version = line.split(" ", 1)
                 if name not in deployment_packages:
                     if name not in additions:
-                        additions[name] = "-", version
+                        additions[name] = version
 
                 elif (
                     name not in version_changes and deployment_packages[name] != version
@@ -340,16 +340,14 @@ def checkupdates(image: str | None = None) -> list[str]:
             if packages_path is not None:
                 os.unlink(packages_path)
 
-    return list(
-        dict.fromkeys(
-            updates
-            + [
-                f"{k} {' -> '.join(version_changes[k])}"
-                for k in sorted(version_changes)
-            ]
-            + [f"{k} {' -> '.join(additions[k])}" for k in sorted(additions)]
-            + [f"{k} {' -> '.join(removals[k])}" for k in sorted(removals)]
-        )
+    return (
+        updates
+        + [
+            f"{k} {' -> '.join(version_changes[k])}"
+            for k in sorted(version_changes.keys())
+        ]
+        + [f"{k} - -> {additions[k]}" for k in sorted(additions.keys())]
+        + [f"{k} {removals[k]} -> -" for k in sorted(removals.keys())]
     )
 
 
