@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 
 from datetime import datetime
@@ -41,7 +42,7 @@ def register(parser: ArgumentParser) -> None:
     )
 
 
-def _assertkind(tag: str, expected_kind: str):
+def _assertkind(tag: str, expected_kind: str) -> None:
     kind, _, _ = _classify_tag(tag)
     assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
 
@@ -57,7 +58,11 @@ def command(args: Namespace) -> None:
     print("Getting latest manifest...")
     _ = _latest_manifest()
     print("Getting manifest labels...")
-    manifest = image_labels(f"{REPO}:_manifest", True)
+    try:
+        manifest = image_labels(f"{REPO}:_manifest", True)
+
+    except subprocess.CalledProcessError:
+        manifest = {}
 
     config = parse_all_config()
     print("Getting all tags...")

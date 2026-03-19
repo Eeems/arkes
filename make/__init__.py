@@ -9,8 +9,6 @@ import tempfile
 import json
 import threading
 
-from multiprocessing import cpu_count
-
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 
@@ -180,7 +178,7 @@ def progress_bar[T](
     print(end="\n", file=out, flush=True)
 
 
-_executor = ThreadPoolExecutor(max_workers=max(cpu_count(), 15))
+_executor = ThreadPoolExecutor(max_workers=max(os.cpu_count() or 1, 15))
 _image_sizes: dict[str, Future[int]] = {}
 _image_sizes_lock = threading.Lock()
 
