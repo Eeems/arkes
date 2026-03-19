@@ -355,7 +355,7 @@ def _image_digest_remote(image: str) -> str:
     )
 
 
-_last_manifest_pull = 0
+_last_manifest_pull: float = 0
 
 
 def _latest_manifest() -> bool:
