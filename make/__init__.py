@@ -238,10 +238,10 @@ if not os.path.exists(DIGEST_CACHE_PATH):
 def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
     e: Exception | None = None
     for attempt in range(10):
-        assert image_exists(image, True, True), (
-            f"{image} does not exist on remote the server"
-        )
         try:
+            assert image_exists(image, True, True), (
+                f"{image} does not exist on remote the server"
+            )
             digest = image_digest(image, True, skip_manifest)
             return digest
 
