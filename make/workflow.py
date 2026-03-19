@@ -240,7 +240,7 @@ def command(args: Namespace) -> None:
         indent(
             [
                 "notifications:",
-                "  if: github.repository == 'Eeems/arkes'",
+                "  if: github.repository == 'Eeems/arkes' && github.actor != 'dependabot[bot]'",
                 "  name: Clear notifications",
                 "  runs-on: ubuntu-latest",
                 "  steps:",
