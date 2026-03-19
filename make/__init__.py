@@ -252,6 +252,9 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
                     # Exit early, image cannot be found
                     break
 
+            if isinstance(e, AssertionError):
+                raise
+
             sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 
     assert e is not None
@@ -285,10 +288,16 @@ def _image_digests_write_cache(image: str, digest: str):
         while True:
             try:
                 with open(DIGEST_CACHE_PATH, "w") as f:
-                    json.dump(
-                        {k: v for k, v in _image_digests.items() if isinstance(v, str)},
-                        f,
-                    )
+                    with _image_digests_lock:
+                        json.dump(
+                            {
+                                k: v
+                                for k, v in _image_digests.items()
+                                if isinstance(v, str)
+                            },
+                            f,
+                        )
+
                     _ = f.truncate()
                     _ = f.flush()
 
