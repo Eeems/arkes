@@ -116,7 +116,7 @@ def command(args: Namespace) -> None:
 
         return tag, future
 
-    with ThreadPoolExecutor(max_workers=cpu_count()) as exc:
+    with ThreadPoolExecutor(max_workers=max(cpu_count(), 15)) as exc:
         for future in progress_bar(
             as_completed([exc.submit(_digest_worker, x) for x in digest_worker_queue]),
             count=len(digest_worker_queue),

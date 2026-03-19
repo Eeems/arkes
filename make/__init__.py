@@ -180,7 +180,7 @@ def progress_bar[T](
     print(end="\n", file=out, flush=True)
 
 
-_executor = ThreadPoolExecutor(max_workers=cpu_count())
+_executor = ThreadPoolExecutor(max_workers=max(cpu_count(), 15))
 _image_sizes: dict[str, Future[int]] = {}
 _image_sizes_lock = threading.Lock()
 
