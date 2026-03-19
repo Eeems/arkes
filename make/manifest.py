@@ -3,6 +3,7 @@ import tempfile
 
 from datetime import datetime
 from datetime import UTC
+from datetime import timedelta
 from argparse import ArgumentParser
 from argparse import Namespace
 from concurrent.futures import Future
@@ -38,24 +39,36 @@ def register(parser: ArgumentParser) -> None:
     )
 
 
+def _assertkind(tag: str, expected_kind: str):
+    kind, _, _ = _classify_tag(tag)
+    assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
+
+
 def command(args: Namespace) -> None:
+    _assertkind("_manifest", "manifest")
+    _assertkind("_x", "other")
+    _assertkind("root!", "other")
+    _assertkind("rootfs", "variant")
+    _assertkind("rootfs_2025.11.18", "version")
+    _assertkind("rootfs_2025.11.18.0", "build")
+
     config = parse_all_config()
     print("Getting all tags...")
     all_tags = image_tags(REPO, True)
     assert all_tags, "No tags found"
     digest_info: dict[str, tuple[list[str], str]] = {}
-    digest_worker_queue: list[tuple[str, str]] = []
+    digest_worker_queue: list[tuple[str, bool]] = []
     valid_variants = ["rootfs", *config["variants"].keys()]
     for tag in progress_bar(
         all_tags,
         prefix="Classifying tags:" + " " * 9,
     ):
-        kind, a, b = _classify_tag(tag)
+        kind, a, version = _classify_tag(tag)
         if kind in ("other", "manifest"):
             continue
 
         if kind not in ("build", "version", "variant"):
-            digest_worker_queue.append((kind, tag))
+            digest_worker_queue.append((tag, False))
             continue
 
         assert a
@@ -71,19 +84,32 @@ def command(args: Namespace) -> None:
         ]:
             continue
 
-        digest_worker_queue.append((kind, tag))
+        skip = True
+        if kind in ("version", "build"):
+            assert version is not None
+            if kind == "build":
+                version = version.rsplit(".", 1)[0]
+
+            tag_date = datetime.strptime(version, "%Y.%m.%d")
+            age = datetime.now(UTC).date() - tag_date.date()
+            skip = age > timedelta(days=3)
+
+        digest_worker_queue.append((tag, skip))
 
     assert digest_worker_queue, "No tags found"
 
-    def _digest_worker(data: tuple[str, str]) -> tuple[str, str, Future[str] | str]:
-        image = f"{REPO}:{data[1]}"
-        future = _image_digest_cached(image, skip_manifest=True)
+    def _digest_worker(
+        data: tuple[str, bool],
+    ) -> tuple[str, Future[str] | str]:
+        tag, skip = data
+        image = f"{REPO}:{tag}"
+        future = _image_digest_cached(image, skip_manifest=skip)
         if isinstance(future, Future):
             future.add_done_callback(
                 lambda x: _image_digests_write_cache(image, x.result())
             )
 
-        return *data, future
+        return tag, future
 
     with ThreadPoolExecutor(max_workers=50) as exc:
         for future in progress_bar(
@@ -91,7 +117,7 @@ def command(args: Namespace) -> None:
             count=len(digest_worker_queue),
             prefix="Getting tag digests:" + " " * 6,
         ):
-            kind, tag, digest = future.result()
+            tag, digest = future.result()
             if isinstance(digest, Future):
                 digest = digest.result()
 
@@ -174,8 +200,9 @@ def _classify_tag(tag: str) -> tuple[str, str | None, str | None]:
             build_num = rest[last_dot + 1 :]
             if build_num.isdigit():
                 version_part = rest[:last_dot]
-                full_version = f"{version_part}.{build_num}"
-                return "build", variant, full_version
+                if version_part.count(".") >= 2:
+                    full_version = f"{version_part}.{build_num}"
+                    return "build", variant, full_version
 
     if rest and all(c.isalnum() or c in ".-" for c in rest):
         return "version", variant, rest

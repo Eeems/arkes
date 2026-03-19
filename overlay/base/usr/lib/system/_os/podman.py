@@ -355,19 +355,27 @@ def _image_digest_remote(image: str) -> str:
     )
 
 
+_last_manifest_pull = 0
+
+
 def _latest_manifest() -> bool:
+    global _last_manifest_pull
+    if time() - _last_manifest_pull < 30:
+        return True
+
     try:
         get_client().images.pull(  # pyright: ignore[reportUnknownMemberType, reportUnusedCallResult]
             REPO,
             "_manifest",
         )
+        _last_manifest_pull = time()
         return True
 
     except APIError:
         return False
 
 
-def image_digest(image: str, remote: bool = True) -> str:
+def image_digest(image: str, remote: bool = True, skip_manifest: bool = False) -> str:
     image = image_qualified_name(image)
     if not remote:
         return (
@@ -379,11 +387,18 @@ def image_digest(image: str, remote: bool = True) -> str:
         )
 
     registry, repo, tag, _ = image_name_parts(image)
-    if tag and registry == REGISTRY and repo == IMAGE and _latest_manifest():
-        return image_labels(f"{REPO}:_manifest", False).get(
-            f"arkes.manifest.tag.{tag}",
-            _image_digest_remote(image),
+    if (
+        not skip_manifest
+        and tag
+        and registry == REGISTRY
+        and repo == IMAGE
+        and _latest_manifest()
+    ):
+        digest = image_labels(f"{REPO}:_manifest", False).get(
+            f"arkes.manifest.tag.{tag}", None
         )
+        if digest is not None:
+            return digest
 
     return _image_digest_remote(image)
 

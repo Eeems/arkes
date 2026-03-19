@@ -52,7 +52,7 @@ image_exists = cast(Callable[[str, bool, bool], bool], _os.podman.image_exists) 
 image_tags = cast(Callable[[str, bool], list[str]], _os.podman.image_tags)  # pyright:ignore [reportUnknownMemberType]
 hex_to_base62 = cast(Callable[[str], str], _os.podman.hex_to_base62)  # pyright:ignore [reportUnknownMemberType]
 escape_label = cast(Callable[[str], str], _os.podman.escape_label)  # pyright: ignore[reportUnknownMemberType]
-image_digest = cast(Callable[[str, bool], str], _os.podman.image_digest)  # pyright:ignore [reportUnknownMemberType]
+image_digest = cast(Callable[[str, bool, bool], str], _os.podman.image_digest)  # pyright:ignore [reportUnknownMemberType]
 image_qualified_name = cast(Callable[[str], str], _os.podman.image_qualified_name)  # pyright:ignore [reportUnknownMemberType]
 base_images = cast(
     Callable[[str, dict[str, str] | None], Iterable[str]],
@@ -171,7 +171,7 @@ def progress_bar[T](
     print(end="\n", file=out, flush=True)
 
 
-_executor = ThreadPoolExecutor(max_workers=5)
+_executor = ThreadPoolExecutor(max_workers=50)
 _image_sizes: dict[str, Future[int]] = {}
 _image_sizes_lock = threading.Lock()
 
@@ -229,11 +229,11 @@ if not os.path.exists(DIGEST_CACHE_PATH):
 def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
     e: Exception | None = None
     for attempt in range(10):
-        assert image_exists(image, True, skip_manifest), (
+        assert image_exists(image, True, True), (
             f"{image} does not exist on remote the server"
         )
         try:
-            digest = image_digest(image, True)
+            digest = image_digest(image, True, skip_manifest)
             return digest
 
         except Exception as ex:
@@ -271,14 +271,25 @@ def _image_digests_write_cache(image: str, digest: str):
             return
 
         _image_digests[image] = digest
-        with open(DIGEST_CACHE_PATH, "w+") as f:
-            _ = f.seek(0)
-            json.dump(
-                {k: v for k, v in _image_digests.items() if isinstance(v, str)},
-                f,
-            )
-            _ = f.truncate()
-            _ = f.flush()
+        tries = 0
+        while True:
+            try:
+                with open(DIGEST_CACHE_PATH, "w") as f:
+                    json.dump(
+                        {k: v for k, v in _image_digests.items() if isinstance(v, str)},
+                        f,
+                    )
+                    _ = f.truncate()
+                    _ = f.flush()
+
+                break
+
+            except PermissionError:
+                tries += 1
+                if tries >= 5:
+                    raise
+
+                sleep(0.1)
 
 
 def image_digest_cached(image: str, skip_manifest: bool = False) -> str:
