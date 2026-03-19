@@ -238,7 +238,7 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
     for attempt in range(10):
         try:
             assert image_exists(image, True, True), (
-                f"{image} does not exist on remote the server"
+                f"{image} does not exist on the remote server"
             )
             digest = image_digest(image, True, skip_manifest)
             return digest
