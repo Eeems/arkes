@@ -8,28 +8,25 @@ from datetime import timedelta
 from argparse import ArgumentParser
 from argparse import Namespace
 
-from concurrent.futures import Future
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import as_completed
-
 from typing import Any
+from typing import Callable
 from typing import cast
 
-from multiprocessing import cpu_count
-
-from . import image_tags
+from . import image_labels, image_tags
 from . import hex_to_base62
 from . import progress_bar
 from . import podman
 from . import chronic
 from . import podman_cmd
 from . import escape_label
-from . import _image_digest_cached  # pyright: ignore[reportPrivateUsage]
-from . import _image_digests_write_cache  # pyright: ignore[reportPrivateUsage]
+from . import image_digest_cached
 from . import REPO
+from . import _os  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
 
 from .config import parse_all_config
 
+
+_latest_manifest = cast(Callable[[], bool], _os.podman._latest_manifest)  # pyright:ignore [reportUnknownMemberType]
 
 kwds: dict[str, str] = {
     "help": "Generate the manifest image",
@@ -56,6 +53,11 @@ def command(args: Namespace) -> None:
     _assertkind("rootfs", "variant")
     _assertkind("rootfs_2025.11.18", "version")
     _assertkind("rootfs_2025.11.18.0", "build")
+
+    print("Getting latest manifest...")
+    _ = _latest_manifest()
+    print("Getting manifest labels...")
+    manifest = image_labels(f"{REPO}:_manifest", True)
 
     config = parse_all_config()
     print("Getting all tags...")
@@ -103,34 +105,22 @@ def command(args: Namespace) -> None:
 
     assert digest_worker_queue, "No tags found"
 
-    def _digest_worker(
-        data: tuple[str, bool],
-    ) -> tuple[str, Future[str] | str]:
-        tag, skip = data
-        image = f"{REPO}:{tag}"
-        future = _image_digest_cached(image, skip_manifest=skip)
-        if isinstance(future, Future):
-            future.add_done_callback(
-                lambda x: _image_digests_write_cache(image, x.result())
-            )
+    for tag, skip in progress_bar(
+        digest_worker_queue,
+        prefix="Getting digests..." + " " * 8,
+    ):
+        digest = None
+        if not skip:
+            digest = manifest.get(f"arkes.manifest.tag.{tag}", None)
 
-        return tag, future
+        if digest is None:
+            digest = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
 
-    with ThreadPoolExecutor(max_workers=max(cpu_count(), 15)) as exc:
-        for future in progress_bar(
-            as_completed([exc.submit(_digest_worker, x) for x in digest_worker_queue]),
-            count=len(digest_worker_queue),
-            prefix="Getting tag digests:" + " " * 6,
-        ):
-            tag, digest = future.result()
-            if isinstance(digest, Future):
-                digest = digest.result()
+        b62 = hex_to_base62(digest)
+        if b62 not in digest_info:
+            digest_info[b62] = ([], digest)
 
-            b62 = hex_to_base62(digest)
-            if b62 not in digest_info:
-                digest_info[b62] = ([], digest)
-
-            digest_info[b62] = (digest_info[b62][0] + [tag], digest)
+        digest_info[b62] = (digest_info[b62][0] + [tag], digest)
 
     labels: dict[str, str] = {}
     for b62, (tags, digest) in progress_bar(
