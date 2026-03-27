@@ -57,7 +57,7 @@ RUN /usr/lib/system/package_layer \
   python-numpy \
   pipewire-audio \
   pipewire-pulse \
-  swww \
+  awww \
   hyprlock \
   hypridle \
   gamescope \
@@ -92,6 +92,12 @@ RUN /usr/lib/system/package_layer \
   libwireplumber-4.0-compat \
   wego \
   prelockd
+
+RUN <<EOT
+  set -e
+  ln -s /usr/bin/awww /usr/bin/swww
+  ln -s /usr/bin/awww-daemon /usr/bin/swww-daemon
+RUN
 
 RUN --mount=target=/mnt,from=pwvucontrol,src=/ <<EOT
   set -e
