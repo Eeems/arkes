@@ -95,9 +95,10 @@ RUN /usr/lib/system/package_layer \
 
 RUN <<EOT
   set -e
+  echo "[system] Symlinking awww -> swww"
   ln -s /usr/bin/awww /usr/bin/swww
   ln -s /usr/bin/awww-daemon /usr/bin/swww-daemon
-RUN
+EOT
 
 RUN --mount=target=/mnt,from=pwvucontrol,src=/ <<EOT
   set -e
