@@ -141,6 +141,8 @@ class Object(dbus.service.Object):
                 self._upgrade_event.clear()
 
             if self._build_status == "error":
+                self.upgrade_status("error")
+                self.notify_all("System upgrade failed", "upgrade")
                 return
 
             self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")

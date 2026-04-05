@@ -143,11 +143,11 @@ def execute_pipe(
         else:
             p.stdin.close()
 
-    stdout, stderr = p.communicate()
-    for line in stdout.splitlines(True):
+    # Drain remaining buffered data from file objects
+    for line in p.stdout.readlines():
         onstdout(line)
 
-    for line in stderr.splitlines(True):
+    for line in p.stderr.readlines():
         onstderr(line)
 
     return p.returncode
