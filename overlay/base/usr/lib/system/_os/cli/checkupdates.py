@@ -1,15 +1,23 @@
 import sys
 import traceback
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
-
-from ..dbus import checkupdates
-from ..dbus import pull
-from ..system import _execute  # pyright:ignore [reportPrivateUsage]
-from ..system import baseImage
+from ..dbus import (
+    checkupdates,
+    pull,
+    pull_available,
+)
+from ..system import (
+    _execute,  # pyright:ignore [reportPrivateUsage]
+    baseImage,
+)
 
 kwds = {"help": "Checks for updates to the system"}
 
@@ -33,9 +41,10 @@ def command(args: Namespace) -> None:
         print("Not currently online", file=sys.stderr)
         sys.exit(1)
 
+    force = cast(bool, args.force)
     updates: list[str] = []
     try:
-        updates = checkupdates(cast(bool, args.force))
+        updates = checkupdates(force)
 
     except BaseException:
         traceback.print_exc()
@@ -46,14 +55,17 @@ def command(args: Namespace) -> None:
 
     print("\n".join(updates))
     if cast(bool, args.download):
-        image = baseImage()
-        try:
-            if [x for x in updates if x.startswith(f"{image} ")]:
+        if (
+            [x for x in updates if x.startswith(f"{baseImage()} ")]
+            and force
+            or pull_available()
+        ):
+            try:
                 pull()
 
-        except BaseException:
-            traceback.print_exc()
-            sys.exit(1)
+            except BaseException:
+                traceback.print_exc()
+                sys.exit(1)
 
     sys.exit(2)
 

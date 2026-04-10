@@ -1,27 +1,36 @@
-import dbus  # pyright:ignore [reportMissingTypeStubs]
-import dbus.service  # pyright:ignore [reportMissingTypeStubs]
 import os
 import subprocess
 import threading
+import time
 import traceback
-
-from typing import Callable
+from collections.abc import Callable
 from typing import cast
 
-from .. import SYSTEM_PATH
+import dbus  # pyright:ignore [reportMissingTypeStubs]
+import dbus.service  # pyright:ignore [reportMissingTypeStubs]
 
-from ..podman import build
-from ..podman import pull
-from ..system import baseImage
-from ..system import checkupdates
-from ..system import update_bootloader
-from ..system import system_kernelCommandLine
+from .. import SYSTEM_PATH
+from ..console import (
+    bytes_to_stderr,
+    bytes_to_stdout,
+)
 from ..dbus import groups_for_sender
-from ..console import bytes_to_stdout
-from ..console import bytes_to_stderr
-from ..ostree import commit_export
-from ..ostree import prune
-from ..ostree import deploy
+from ..ostree import (
+    commit_export,
+    deploy,
+    prune,
+)
+from ..podman import (
+    build,
+    image_digest,
+    pull,
+)
+from ..system import (
+    baseImage,
+    checkupdates,
+    system_kernelCommandLine,
+    update_bootloader,
+)
 
 
 class Object(dbus.service.Object):
@@ -31,6 +40,7 @@ class Object(dbus.service.Object):
             object_path="/system",
         )
         self._updates: list[str] = []
+        self._updates_ttl: float = time.time()
         self._notification: dict[str, str] = {}
         self._upgrade_status: str = ""
         self._build_status: str = ""
@@ -523,6 +533,7 @@ class Object(dbus.service.Object):
     def _checkupdates(self):
         try:
             self._updates = checkupdates()
+            self._updates_ttl = time.time() + 60 * 5  # recheck in 5 minutes
             if not self._updates:
                 self.checkupdates_status("none")
 
@@ -574,6 +585,9 @@ class Object(dbus.service.Object):
         out_signature="as",
     )
     def updates(self) -> list[str]:
+        if time.time() >= self._updates_ttl:
+            return []
+
         return self._updates
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
@@ -660,3 +674,12 @@ class Object(dbus.service.Object):
     )
     def pull_stderr(self, stderr: bytes):
         bytes_to_stderr(b"[pull:2] " + stderr)
+
+    @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
+        dbus_interface="system.pull",
+        in_signature="",
+        out_signature="b",
+    )
+    def pull_available(self) -> bool:
+        image = baseImage()
+        return image_digest(image, remote=False) != image_digest(image, remote=True)
