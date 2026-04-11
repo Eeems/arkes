@@ -82,10 +82,8 @@ def command(args: Namespace) -> None:
     digest_info: dict[str, tuple[list[str], str]] = {}
     digest_worker_queue: list[tuple[str, bool]] = []
     valid_variants = ["rootfs", *config["variants"].keys()]
-    for tag in progress_bar(
-        all_tags,
-        prefix="Classifying tags:" + " " * 9,
-    ):
+    print("Classifying tags...")
+    for tag in all_tags:
         kind, a, version = _classify_tag(tag)
         if kind in ("other", "manifest"):
             continue
@@ -123,10 +121,8 @@ def command(args: Namespace) -> None:
 
     digest_queue: dict[Future[str], str] = {}
     digests: list[tuple[str, str]] = []
-    for tag, skip in progress_bar(
-        digest_worker_queue,
-        prefix="Getting digests..." + " " * 8,
-    ):
+    print("Queuing digest requests...")
+    for tag, skip in digest_worker_queue:
         digest = None
         if not skip:
             digest = manifest.get(f"arkes.manifest.tag.{tag}", None)
@@ -155,20 +151,18 @@ def command(args: Namespace) -> None:
         digest_info[b62] = (digest_info[b62][0] + [tag], digest)
 
     labels: dict[str, str] = {}
-    for b62, (tags, digest) in progress_bar(
-        digest_info.items(), prefix="Generating tag labels:" + " " * 4
-    ):
+    print("Generating tag labels...")
+    for b62, (tags, digest) in digest_info.items():
         for tag in tags:
             labels[f"tag.{tag}"] = digest
 
     labels["timestamp"] = datetime.now(tz=UTC).replace(microsecond=0).isoformat() + "Z"
+    print("Generating Containerfile...")
     with tempfile.TemporaryDirectory() as tmpdir:
         containerfile = os.path.join(tmpdir, "Containerfile")
         with open(containerfile, "w") as f:
             _ = f.write("FROM scratch\nLABEL \\")
-            for k, v in progress_bar(
-                labels.items(), prefix="Generating Containerfile: "
-            ):
+            for k, v in labels.items():
                 _ = f.write(f'\n  arkes.manifest.{k}="{escape_label(v)}" \\')
 
             _ = f.write('\n  arkes.manifest.version="1"\n')
