@@ -299,6 +299,8 @@ def _image_digests_write_cache(image: str, digest: str) -> None:
                                 k: v.result()
                                 for k, v in _image_digests.items()
                                 if v.done()
+                                and not v.cancelled()
+                                and v.exception() is None
                             },
                             f,
                             sort_keys=True,

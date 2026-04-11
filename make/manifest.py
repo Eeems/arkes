@@ -152,7 +152,7 @@ def command(args: Namespace) -> None:
 
     labels: dict[str, str] = {}
     print("Generating tag labels...")
-    for b62, (tags, digest) in digest_info.items():
+    for tags, digest in digest_info.values():
         for tag in tags:
             labels[f"tag.{tag}"] = digest
 
