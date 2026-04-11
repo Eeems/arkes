@@ -65,8 +65,14 @@ Templates create variant combinations using `-` separator:
 - Use Ruff for formatting/linting, basedpyright for type checking.
 - Type hints required on all function signatures and variables.
 - Import order: standard library → third-party → local imports.
-- Imports should not be merged, always have one import per line.
-- `import` lines should always come before `from X import Y` lines and be separated by a blank line
+- Imports should always be alphabetically sorted within it's group.
+- Imports should always be merged, but each thing being imported should be on it's own line followed by a comma. e.g.:
+  ```python
+  from typing import (
+    Callable,
+    cast,
+  )
+  ```
 - Package `from .X import Y` lines should always come after `from X import Y` lines and be separated by a blank line
 - Use `cast()` for type assertions when needed.
 - Every `make/*.py` command must have exactly `register()` and `command()` functions.

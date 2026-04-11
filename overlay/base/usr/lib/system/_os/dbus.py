@@ -1,13 +1,17 @@
-import dbus  # pyright:ignore [reportMissingTypeStubs]
-import dbus.service  # pyright:ignore [reportMissingTypeStubs]
 import grp
 import pwd
-
-from dbus.mainloop.glib import DBusGMainLoop  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType]
-from gi.repository import GLib  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType,reportAttributeAccessIssue]
-
-from typing import Callable
+from collections.abc import Callable
 from typing import cast
+
+import dbus  # pyright:ignore [reportMissingTypeStubs]
+import dbus.service  # pyright:ignore [reportMissingTypeStubs]
+from dbus.mainloop.glib import (  # pyright: ignore[reportMissingTypeStubs]
+    DBusGMainLoop,  # pyright:ignore [reportUnknownVariableType]
+)
+from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
+    GLib,  # pyright:ignore [reportUnknownVariableType,reportAttributeAccessIssue]
+)
+
 from .console import print_stderr
 
 
@@ -84,6 +88,19 @@ def pull(
     loop.run()  # pyright:ignore [reportUnknownMemberType]
     if getattr(on_status, "status") == "error":
         raise Exception("Base image pull failed")
+
+
+def pull_available() -> bool:
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    interface = dbus.Interface(
+        bus.get_object(  # pyright:ignore [reportUnknownMemberType]
+            "os.system",
+            "/system",
+        ),
+        "system.pull",
+    )
+    return cast(Callable[[], bool], interface.pull_available)()
 
 
 def upgrade(
