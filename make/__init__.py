@@ -227,7 +227,9 @@ if os.path.exists(DIGEST_CACHE_PATH):
             for image, digest in cast(dict[str, str], data).items():
                 assert isinstance(image, str)
                 assert isinstance(digest, str)
-                _image_digests[image] = _executor.submit(lambda x: x, digest)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+                future: Future[str] = Future()
+                future.set_result(digest)
+                _image_digests[image] = future
 
         except Exception as e:
             print(f"Failed to load digest cache: {e}", file=sys.stderr)
@@ -284,7 +286,9 @@ def _image_digests_write_cache(image: str, digest: str) -> None:
     global _image_digests
     with _image_digests_write_lock:
         image = image_qualified_name(image)
-        _image_digests[image] = _executor.submit(lambda x: x, digest)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+        future: Future[str] = Future()
+        future.set_result(digest)
+        _image_digests[image] = future
         tries = 0
         while True:
             try:
@@ -297,6 +301,7 @@ def _image_digests_write_cache(image: str, digest: str) -> None:
                                 if v.done()
                             },
                             f,
+                            sort_keys=True,
                         )
 
                     _ = f.truncate()
