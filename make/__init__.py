@@ -292,9 +292,9 @@ def _image_digests_write_cache(image: str, digest: str) -> None:
                     with _image_digests_lock:
                         json.dump(
                             {
-                                k: v
+                                k: v.result()
                                 for k, v in _image_digests.items()
-                                if isinstance(v, str)
+                                if v.done()
                             },
                             f,
                         )
