@@ -66,7 +66,7 @@ base-slim
 A slightly smaller version of the base image.
 
 base-rolling
-~~~~~~~~~
+~~~~~~~~~~~~
 
 The base image, but changed to use the normal rolling release of Arch Linux. If you use this variant, you will need to make sure your containerfile has a step that runs `pacman -Syu --needed --noconfirm` before installing any other packages. You will also want to adjust your pacman mirrorlist as the one that ships with the image was automatically generated based on where the image was built.
 
