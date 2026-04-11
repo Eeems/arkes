@@ -82,6 +82,7 @@ def command(args: Namespace) -> None:
             continue
 
         if kind not in ("build", "version", "variant"):
+            # this should never happen, but just in case we add a new kind of tag
             digest_worker_queue.append((tag, False))
             continue
 
