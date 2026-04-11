@@ -72,17 +72,23 @@ def command(args: Namespace) -> None:
     has_updates = False
     # TODO only do mirrorlist check against rootfs, and be smarter about missed days
     if current != new:
-        for repo in ("core", "extra", "multilib"):
+        found_count = 0
+        repos = ("core", "extra", "multilib")
+        for repo in repos:
             # TODO make arch dynamic instead of hardcoded when more than x86_64 is added
             url = f"{m.group(1)}/{new}/{repo}/os/x86_64/{repo}.db"
             res = requests.head(url, timeout=20)
             if res.status_code == 200:
-                print(f"mirrorlist {current} -> {new}")
-                has_updates = True
+                found_count += 1
 
             elif res.status_code != 404:
                 print(res.reason)
                 sys.exit(1)
+
+        # Only update if all repos are available, we could be checking mid-rsync
+        if found_count == len(repos):
+            print(f"mirrorlist {current} -> {new}")
+            has_updates = True
 
     new_hash = hash(target)
     current_hash = image_hash(image) if exists else ""
