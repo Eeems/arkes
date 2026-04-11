@@ -26,6 +26,7 @@ All variants are extensions of the base variant:
        atomic [label="atomic"];
        atomic_nvidia [label="atomic-nvidia"];
        base [label="base"];
+       base_rolling [label="base-rolling"];
        base_slim [label="base-slim"];
        cosmic [label="cosmic"];
        eeems [label="eeems"];
@@ -38,6 +39,7 @@ All variants are extensions of the base variant:
        base -> atomic;
        atomic -> atomic_nvidia;
        rootfs -> base;
+       base -> base_rolling;
        base -> base_slim;
        base -> cosmic;
        atomic -> eeems;
@@ -62,6 +64,11 @@ base-slim
 ~~~~~~~~~
 
 A slightly smaller version of the base image.
+
+base-rolling
+~~~~~~~~~
+
+The base image, but changed to use the normal rolling release of Arch Linux. If you use this variant, you will need to make sure your containerfile has a step that runs `pacman -Syu --needed --noconfirm` before installing any other packages. You will also want to adjust your pacman mirrorlist as the one that ships with the image was automatically generated based on where the image was built.
 
 atomic
 ~~~~~~~
