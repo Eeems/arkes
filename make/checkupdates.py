@@ -1,24 +1,23 @@
-from datetime import datetime
 import re
-import sys
-import requests
 import subprocess
+import sys
+from argparse import ArgumentParser, Namespace
+from datetime import datetime
+from typing import Any, cast
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+import requests
 
-from . import is_root
-from . import image_qualified_name
-from . import image_exists
-from . import in_system_output
-from . import image_hash
-from . import in_system
-from . import REPO
-
-from .pull import pull
+from . import (
+    REPO,
+    image_exists,
+    image_hash,
+    image_qualified_name,
+    in_system,
+    in_system_output,
+    is_root,
+)
 from .hash import hash
+from .pull import pull
 
 kwds: dict[str, str] = {
     "help": "Check to see if a variant has updates and needs to be rebuilt",
@@ -73,15 +72,23 @@ def command(args: Namespace) -> None:
     has_updates = False
     # TODO only do mirrorlist check against rootfs, and be smarter about missed days
     if current != new:
-        url = f"{m.group(1)}/{new}/"
-        res = requests.head(url)
-        if res.status_code == 200:
+        found_count = 0
+        repos = ("core", "extra", "multilib")
+        for repo in repos:
+            # TODO make arch dynamic instead of hardcoded when more than x86_64 is added
+            url = f"{m.group(1)}/{new}/{repo}/os/x86_64/{repo}.db"
+            res = requests.head(url, timeout=20)
+            if res.status_code == 200:
+                found_count += 1
+
+            elif res.status_code != 404:
+                print(res.reason)
+                sys.exit(1)
+
+        # Only update if all repos are available, we could be checking mid-rsync
+        if found_count == len(repos):
             print(f"mirrorlist {current} -> {new}")
             has_updates = True
-
-        elif res.status_code != 404:
-            print(res.reason)
-            sys.exit(1)
 
     new_hash = hash(target)
     current_hash = image_hash(image) if exists else ""

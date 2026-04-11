@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+echo "[system] Removing" "$@"
+chronic pacman -Rns --noconfirm "$@"
+/usr/lib/system/remove_unused_packages

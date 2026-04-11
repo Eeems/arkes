@@ -4,18 +4,32 @@ set -e
 /usr/lib/system/initialize_pacman
 packages=()
 aur_packages=()
-aur=false
+rm_packages=()
+type=packages
 for var in "$@"; do
   case "$var" in
   --aur)
-    aur=true
+    type=aur
+    ;;
+  --rm)
+    type=rm
     ;;
   *)
-    if $aur; then
-      aur_packages+=("$var")
-    else
+    case "$type" in
+    packages)
       packages+=("$var")
-    fi
+      ;;
+    aur)
+      aur_packages+=("$var")
+      ;;
+    rm)
+      rm_packages+=("$var")
+      ;;
+    *)
+      echo "Unknown package type: $type"
+      exit 1
+      ;;
+    esac
     ;;
   esac
 done
@@ -25,5 +39,8 @@ if [ ${#packages[@]} -gt 0 ]; then
 fi
 if [ ${#aur_packages[@]} -gt 0 ]; then
   /usr/lib/system/install_aur_packages "${aur_packages[@]}"
+fi
+if [ ${#rm_packages[@]} -gt 0 ]; then
+  /usr/lib/system/remove_packages "${rm_packages[@]}"
 fi
 /usr/lib/system/remove_pacman_files
