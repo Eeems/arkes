@@ -1,7 +1,8 @@
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import Any, cast
 
 kwds: dict[str, str] = {
     "help": "What does this do?",

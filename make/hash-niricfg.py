@@ -1,12 +1,15 @@
 import os
 import string
-
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from glob import glob
 from hashlib import sha256
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
 kwds: dict[str, str] = {
     "help": "Get the hash for the niricfg tool's builder",

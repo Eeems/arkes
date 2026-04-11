@@ -1,17 +1,23 @@
-import sys
-import heapq
 import difflib
+import heapq
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any, cast
-
-
-from . import IMAGE
-from . import BUILDER
-
-from .config import parse_all_config
-from .config import Config
+from . import (
+    BUILDER,
+    IMAGE,
+)
+from .config import (
+    Config,
+    parse_all_config,
+)
 
 type Graph = dict[str, dict[str, str | list[str] | None | bool]]
 type Indegree = dict[str, int]

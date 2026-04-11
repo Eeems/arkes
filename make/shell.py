@@ -1,14 +1,20 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    Protocol,
+    cast,
+)
+
 import _os.console  # pyright: ignore[reportMissingImports]
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-from typing import Protocol
-
-from . import image_exists
-from . import podman_cmd
+from . import (
+    image_exists,
+    podman_cmd,
+)
 from .pull import pull
 
 

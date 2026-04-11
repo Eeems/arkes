@@ -1,14 +1,19 @@
-import sys
 import os
 import shlex
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from . import _execute  # pyright: ignore[reportPrivateUsage]
-from . import _osDir  # pyright: ignore[reportPrivateUsage]
+from . import (
+    _execute,  # pyright: ignore[reportPrivateUsage]
+    _osDir,  # pyright: ignore[reportPrivateUsage]
+)
 
 kwds: dict[str, str] = {
     "help": "Run an os command from the development files",

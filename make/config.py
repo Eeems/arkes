@@ -1,12 +1,14 @@
 import json
 import os
-
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from glob import iglob
-
+from typing import (
+    Any,
+    cast,
+)
 
 kwds: dict[str, str] = {
     "help": "Output the JSON representation of the build config",
