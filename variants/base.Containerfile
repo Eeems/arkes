@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # x-name=Base
 # x-depends=rootfs
-# x-templates=slim
+# x-templates=slim,rolling
 ARG HASH
 
 FROM arkes:rootfs

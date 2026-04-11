@@ -1,37 +1,47 @@
 # pyright: reportImportCycles=false
 import atexit
+import json
 import os
 import shlex
 import shutil
 import string
-import tarfile
 import subprocess
-import json
-import podman as _podman
-
-from podman.errors import APIError
-from time import time
-from hashlib import sha256
-from glob import iglob
-from typing import IO, Any, cast
-from typing import Callable
-from collections.abc import Generator, Iterable
+import tarfile
+from collections.abc import (
+    Callable,
+    Generator,
+    Iterable,
+)
 from contextlib import contextmanager
+from glob import iglob
+from hashlib import sha256
+from time import time
+from typing import (
+    IO,
+    Any,
+    cast,
+)
 
-from . import OS_NAME
-from . import SYSTEM_PATH
-from . import REGISTRY
-from . import IMAGE
-from . import REPO
+import podman as _podman
+from podman.errors import APIError
 
-from .system import is_root
-from .system import execute
-from .system import _execute  # pyright:ignore [reportPrivateUsage]
+from . import (
+    IMAGE,
+    OS_NAME,
+    REGISTRY,
+    REPO,
+    SYSTEM_PATH,
+)
+from .console import (
+    bytes_to_stderr,
+    bytes_to_stdout,
+)
 from .ostree import ostree
-
-from .console import bytes_to_stdout
-from .console import bytes_to_stderr
-
+from .system import (
+    _execute,  # pyright:ignore [reportPrivateUsage]
+    execute,
+    is_root,
+)
 
 client: _podman.PodmanClient | None = None
 
@@ -472,7 +482,10 @@ def build(
             [f"{k}={v}" for k, v in _buildArgs.items()] + _extraSteps
         ).encode("utf-8")
         _buildArgs["VERSION_ID"] = context_hash(extra)
-        _buildArgs["PACKAGES"] = image_labels(base_image).get("packages", "")
+        _buildArgs["PACKAGES"] = image_labels(base_image, remote=False).get(
+            "packages", ""
+        )
+
         with open(containerfile, "w") as f, open(systemfile, "r") as i:
             _ = f.write(i.read())
             _ = f.write("\n".join(_extraSteps + [CONTAINER_POST_STEPS.strip()]))

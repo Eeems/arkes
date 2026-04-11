@@ -128,6 +128,7 @@ jobs:
       - atomic
       - atomic-nvidia
       - base
+      - base-rolling
       - base-slim
       - cosmic
       - eeems
@@ -211,6 +212,22 @@ jobs:
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
+
+  base-rolling:
+    name: Build eeems/arkes:base-rolling image
+    needs:
+      - builder
+      - base
+    uses: ./.github/workflows/build-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base-rolling
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+      updates: ${{ fromJson(needs['base'].outputs.updates) }}
+      artifact: base
+      digest: ${{ needs['base'].outputs.digest }}
 
   base-slim:
     name: Build eeems/arkes:base-slim image
@@ -395,6 +412,22 @@ jobs:
       digest: ${{ needs['atomic-nvidia'].outputs.digest }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
+  scan_base-rolling:
+    name: Scan image for base-rolling
+    if: github.event_name != 'pull_request' || fromJson(needs['base-rolling'].outputs.updates)
+    needs:
+      - builder
+      - base-rolling
+    uses: ./.github/workflows/scan.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base-rolling
+      push: ${{ github.event_name != 'pull_request' }}
+      artifact: ${{ fromJson(needs['base-rolling'].outputs.updates) && 'base-rolling' || '' }}
+      digest: ${{ needs['base-rolling'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
   scan_base-slim:
     name: Scan image for base-slim
     if: github.event_name != 'pull_request' || fromJson(needs['base-slim'].outputs.updates)
@@ -556,6 +589,22 @@ jobs:
       artifact: atomic-nvidia
       digest: ${{ needs['atomic-nvidia'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates) }}
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  iso_base-rolling:
+    name: Generate iso for base-rolling
+    needs:
+      - builder
+      - base-rolling
+    uses: ./.github/workflows/iso.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base-rolling
+      artifact: base-rolling
+      digest: ${{ needs['base-rolling'].outputs.digest }}
+      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-rolling'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
