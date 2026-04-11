@@ -2,7 +2,10 @@ from argparse import (
     ArgumentParser,
     Namespace,
 )
-from typing import Any, cast
+from typing import (
+    Any,
+    cast,
+)
 
 kwds: dict[str, str] = {
     "help": "What does this do?",
