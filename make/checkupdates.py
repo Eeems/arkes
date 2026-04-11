@@ -1,8 +1,12 @@
 import re
 import subprocess
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from datetime import datetime
+from platform import uname
 from typing import Any, cast
 
 import requests
@@ -16,6 +20,7 @@ from . import (
     in_system_output,
     is_root,
 )
+from .build import repos
 from .hash import hash
 from .pull import pull
 
@@ -31,6 +36,7 @@ def register(parser: ArgumentParser) -> None:
         metavar="VARIANT",
         help="Which variant to check",
     )
+    _ = parser.add_argument("--arch", default=None)
 
 
 def command(args: Namespace) -> None:
@@ -41,6 +47,7 @@ def command(args: Namespace) -> None:
     target = cast(str, args.target)
     image = image_qualified_name(f"{REPO}:{target}")
     exists = image_exists(image, True, False)
+    arch = cast(str | None, args.arch) or uname().machine
     if exists and not image_exists(image, False, False):
         try:
             pull(image)
@@ -73,8 +80,7 @@ def command(args: Namespace) -> None:
     # TODO only do mirrorlist check against rootfs, and be smarter about missed days
     if current != new:
         found_count = 0
-        repos = ("core", "extra", "multilib")
-        for repo in repos:
+        for repo in repos(arch):
             # TODO make arch dynamic instead of hardcoded when more than x86_64 is added
             url = f"{m.group(1)}/{new}/{repo}/os/x86_64/{repo}.db"
             res = requests.head(url, timeout=20)
@@ -86,7 +92,7 @@ def command(args: Namespace) -> None:
                 sys.exit(1)
 
         # Only update if all repos are available, we could be checking mid-rsync
-        if found_count == len(repos):
+        if found_count == len(repos(arch)):
             print(f"mirrorlist {current} -> {new}")
             has_updates = True
 

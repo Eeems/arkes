@@ -598,11 +598,13 @@ def escape_label(value: str) -> str:
 
 def pull(
     image: str,
+    arch: str | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ):
     podman(
         "pull",
+        *([f"--arch={arch}"] if arch is not None else []),
         image_qualified_name(image),
         onstdout=onstdout,
         onstderr=onstderr,

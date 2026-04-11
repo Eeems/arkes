@@ -2,9 +2,11 @@
 ARG ARCHIVE_YEAR=2026
 ARG ARCHIVE_MONTH=04
 ARG ARCHIVE_DAY=10
-ARG PACSTRAP_TAG=20260104.0.477168
 ARG GOLANG_VERSION=1.25.5
+ARG PACSTRAP=${PACSTRAP:-docker.io/library/archlinux:base-devel-20260104.0.477168}
 ARG HASH VERSION_ID
+ARG MIRRORS
+ARG MIRRORLIST
 
 FROM golang:${GOLANG_VERSION}-alpine as dockerfile2llbjson
 
@@ -14,29 +16,40 @@ RUN go mod download
 COPY tools/dockerfile2llbjson/main.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /app/dockerfile2llbjson .
 
-FROM docker.io/library/archlinux:base-devel-${PACSTRAP_TAG} AS pacstrap
+FROM ${PACSTRAP} AS pacstrap
 
 ARG \
   ARCHIVE_YEAR \
   ARCHIVE_MONTH \
-  ARCHIVE_DAY
+  ARCHIVE_DAY \
+  MIRRORS
 
-RUN \
-  echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
-  && echo "Server = https://umea.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" >> /etc/pacman.d/mirrorlist
-RUN for repo in core extra multilib; do \
-  echo "[repo] $repo" \
-  && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf \
-  && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; \
-  done \
-  && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
+RUN truncate -s 0 /etc/pacman.d/mirrorlist \
+  && for mirror in ${MIRRORS:?}; do \
+  echo "[mirror] $mirror" \
+  && echo "Server = ${mirror}" >> /etc/pacman.d/mirrorlist; \
+  done
+
 RUN pacman-key --init \
-  && pacman -Sy --needed --noconfirm archlinux-keyring moreutils
+  && pacman --disable-sandbox -Syu --needed --noconfirm \
+  archlinux-keyring \
+  moreutils \
+  base-devel
+
 RUN mkdir /rootfs
+
 WORKDIR /rootfs
-RUN mkdir -m 0755 -p var/{cache/pacman/pkg,lib/pacman,log} dev run etc \
-  && mkdir -m 1777 tmp \
-  && mkdir -m 0555 sys proc
+
+RUN <<EOT
+  set -e
+  mkdir -m 0755 -p \
+    var/{cache/pacman/pkg,lib/pacman,log} \
+    dev \
+    run \
+    etc
+  mkdir -m 1777 tmp
+  mkdir -m 0555 sys proc
+EOT
 RUN chronic fakeroot pacman -r . -Sy --noconfirm base mkinitcpio moreutils
 
 COPY overlay/rootfs /overlay
@@ -73,7 +86,8 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
   PACSTRAP_TAG \
-  HASH
+  HASH \
+  MIRRORLIST
 
 LABEL \
   os-release.NAME="Arkēs" \
@@ -88,12 +102,7 @@ LABEL \
   org.opencontainers.image.ref.name="rootfs" \
   org.opencontainers.image.description="Atomic and immutable Linux distribution as a container." \
   hash="${HASH}" \
-  mirrorlist="[ \
-  \"https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch\", \
-  \"https://america.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch\", \
-  \"https://asia.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch\", \
-  \"https://europe.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch\" \
-  ]"
+  mirrorlist="${MIRRORLIST}"
 
 WORKDIR /
 
