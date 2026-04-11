@@ -1,31 +1,42 @@
 import os
 import subprocess
 import tempfile
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import (
+    Callable,
+    Generator,
+)
+from concurrent.futures import (
+    Future,
+    as_completed,
+)
+from datetime import (
+    UTC,
+    datetime,
+    timedelta,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from datetime import datetime
-from datetime import UTC
-from datetime import timedelta
-
-from argparse import ArgumentParser
-from argparse import Namespace
-
-from typing import Any
-from typing import Callable
-from typing import cast
-
-from . import image_labels, image_tags
-from . import hex_to_base62
-from . import progress_bar
-from . import podman
-from . import chronic
-from . import podman_cmd
-from . import escape_label
-from . import image_digest_cached
-from . import REPO
-from . import _os  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
-
+from . import (
+    REPO,
+    _os,  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
+    chronic,
+    escape_label,
+    hex_to_base62,
+    image_digest_cached,
+    image_labels,
+    image_tags,
+    podman,
+    podman_cmd,
+    progress_bar,
+)
 from .config import parse_all_config
-
 
 _latest_manifest = cast(Callable[[], bool], _os.podman._latest_manifest)  # pyright:ignore [reportUnknownMemberType]
 
@@ -110,6 +121,8 @@ def command(args: Namespace) -> None:
 
     assert digest_worker_queue, "No tags found"
 
+    digest_queue: dict[Future[str], str] = {}
+    digests: list[tuple[str, str]] = []
     for tag, skip in progress_bar(
         digest_worker_queue,
         prefix="Getting digests..." + " " * 8,
@@ -118,9 +131,23 @@ def command(args: Namespace) -> None:
         if not skip:
             digest = manifest.get(f"arkes.manifest.tag.{tag}", None)
 
-        if digest is None:
-            digest = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
+        if digest is not None:
+            digests.append((tag, digest))
+            continue
 
+        future = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
+        digest_queue[future] = tag
+
+    def completed() -> Generator[tuple[str, str]]:
+        yield from digests
+        for future in as_completed(digest_queue.keys()):
+            yield digest_queue[future], future.result()
+
+    for tag, digest in progress_bar(
+        completed(),
+        prefix="Encoding digests..." + " " * 7,
+        count=len(digest_worker_queue),
+    ):
         b62 = hex_to_base62(digest)
         if b62 not in digest_info:
             digest_info[b62] = ([], digest)

@@ -1,27 +1,32 @@
 #!/usr/bin/env python
+import atexit
+import json
+import os
+import shutil
 import signal
 import subprocess
 import sys
-import shutil
-import os
-import atexit
 import tempfile
-import json
 import threading
-
-from concurrent.futures import Future
-from concurrent.futures import ThreadPoolExecutor
-
-from time import sleep, time
-
-from typing import IO
-from typing import Any
-from typing import TextIO
-from typing import cast
-
-from collections.abc import Generator
-from collections.abc import Iterable
-from collections.abc import Callable
+from collections.abc import (
+    Callable,
+    Generator,
+    Iterable,
+)
+from concurrent.futures import (
+    Future,
+    ThreadPoolExecutor,
+)
+from time import (
+    sleep,
+    time,
+)
+from typing import (
+    IO,
+    Any,
+    TextIO,
+    cast,
+)
 
 _osDir = tempfile.mkdtemp()
 os.makedirs(os.path.join(_osDir, "lib/system"))
@@ -211,18 +216,18 @@ def image_size_cached(image: str) -> int:
 
 
 DIGEST_CACHE_PATH = os.path.join(os.environ.get("TMPDIR", "/tmp"), "manifest_cache")
-_image_digests: dict[str, Future[str] | str] = {}
+_image_digests: dict[str, Future[str]] = {}
 _image_digests_lock = threading.Lock()
 _image_digests_write_lock = threading.Lock()
 if os.path.exists(DIGEST_CACHE_PATH):
-    with open(DIGEST_CACHE_PATH, "r") as f:
+    with open(DIGEST_CACHE_PATH) as f:
         try:
             data = json.load(f)  # pyright: ignore[reportAny]
             assert isinstance(data, dict)
             for image, digest in cast(dict[str, str], data).items():
                 assert isinstance(image, str)
                 assert isinstance(digest, str)
-                _image_digests[image] = digest
+                _image_digests[image] = _executor.submit(lambda x: x, digest)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
 
         except Exception as e:
             print(f"Failed to load digest cache: {e}", file=sys.stderr)
@@ -241,6 +246,7 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
                 f"{image} does not exist on the remote server"
             )
             digest = image_digest(image, True, skip_manifest)
+            _image_digests_write_cache(image, digest)
             return digest
 
         except Exception as ex:
@@ -259,7 +265,7 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
     raise e
 
 
-def _image_digest_cached(image: str, skip_manifest: bool = False) -> Future[str] | str:
+def image_digest_cached(image: str, skip_manifest: bool = False) -> Future[str]:
     global _image_digests
     image = image_qualified_name(image)
     future = _image_digests.get(image, None)
@@ -274,14 +280,11 @@ def _image_digest_cached(image: str, skip_manifest: bool = False) -> Future[str]
     return future
 
 
-def _image_digests_write_cache(image: str, digest: str):
+def _image_digests_write_cache(image: str, digest: str) -> None:
     global _image_digests
     with _image_digests_write_lock:
         image = image_qualified_name(image)
-        if isinstance(_image_digests.get(image), str):
-            return
-
-        _image_digests[image] = digest
+        _image_digests[image] = _executor.submit(lambda x: x, digest)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
         tries = 0
         while True:
             try:
@@ -307,14 +310,3 @@ def _image_digests_write_cache(image: str, digest: str):
                     raise
 
                 sleep(0.1)
-
-
-def image_digest_cached(image: str, skip_manifest: bool = False) -> str:
-    global _image_digests
-    future = _image_digest_cached(image, skip_manifest=skip_manifest)
-    if not isinstance(future, Future):
-        return future
-
-    digest = future.result()
-    _image_digests_write_cache(image, digest)
-    return digest
