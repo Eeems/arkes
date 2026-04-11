@@ -91,7 +91,13 @@ RUN /usr/lib/system/package_layer \
   distroshelf \
   libwireplumber-4.0-compat \
   wego \
-  prelockd
+  prelockd \
+  --rm \
+  distroshelf-debug \
+  libwireplumber-4.0-compat-debug \
+  overskride-debug \
+  syshud-debug \
+  wego-debug
 
 RUN <<EOT
   set -e
