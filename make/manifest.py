@@ -1,31 +1,41 @@
 import os
 import subprocess
 import tempfile
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import (
+    Callable,
+    Generator,
+)
+from concurrent.futures import (
+    Future,
+    as_completed,
+)
+from datetime import (
+    UTC,
+    datetime,
+    timedelta,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from datetime import datetime
-from datetime import UTC
-from datetime import timedelta
-
-from argparse import ArgumentParser
-from argparse import Namespace
-
-from typing import Any
-from typing import Callable
-from typing import cast
-
-from . import image_labels, image_tags
-from . import hex_to_base62
-from . import progress_bar
-from . import podman
-from . import chronic
-from . import podman_cmd
-from . import escape_label
-from . import image_digest_cached
-from . import REPO
-from . import _os  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
-
+from . import (
+    REPO,
+    _os,  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
+    chronic,
+    escape_label,
+    image_digest_cached,
+    image_labels,
+    image_tags,
+    podman,
+    podman_cmd,
+    progress_bar,
+)
 from .config import parse_all_config
-
 
 _latest_manifest = cast(Callable[[], bool], _os.podman._latest_manifest)  # pyright:ignore [reportUnknownMemberType]
 
@@ -40,11 +50,6 @@ def register(parser: ArgumentParser) -> None:
         action="store_true",
         help="Push the manifest after it builds",
     )
-
-
-def _assertkind(tag: str, expected_kind: str) -> None:
-    kind, _, _ = _classify_tag(tag)
-    assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
 
 
 def command(args: Namespace) -> None:
@@ -68,18 +73,16 @@ def command(args: Namespace) -> None:
     print("Getting all tags...")
     all_tags = image_tags(REPO, True)
     assert all_tags, "No tags found"
-    digest_info: dict[str, tuple[list[str], str]] = {}
     digest_worker_queue: list[tuple[str, bool]] = []
     valid_variants = ["rootfs", *config["variants"].keys()]
-    for tag in progress_bar(
-        all_tags,
-        prefix="Classifying tags:" + " " * 9,
-    ):
+    print("Classifying tags...")
+    for tag in all_tags:
         kind, a, version = _classify_tag(tag)
         if kind in ("other", "manifest"):
             continue
 
         if kind not in ("build", "version", "variant"):
+            # this should never happen, but just in case we add a new kind of tag
             digest_worker_queue.append((tag, False))
             continue
 
@@ -110,38 +113,36 @@ def command(args: Namespace) -> None:
 
     assert digest_worker_queue, "No tags found"
 
-    for tag, skip in progress_bar(
-        digest_worker_queue,
-        prefix="Getting digests..." + " " * 8,
-    ):
+    digest_queue: dict[Future[str], str] = {}
+    digests: list[tuple[str, str]] = []
+    print("Queuing digest requests...")
+    for tag, skip in digest_worker_queue:
         digest = None
         if not skip:
             digest = manifest.get(f"arkes.manifest.tag.{tag}", None)
 
-        if digest is None:
-            digest = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
+        if digest is not None:
+            digests.append((tag, digest))
+            continue
 
-        b62 = hex_to_base62(digest)
-        if b62 not in digest_info:
-            digest_info[b62] = ([], digest)
-
-        digest_info[b62] = (digest_info[b62][0] + [tag], digest)
+        future = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
+        digest_queue[future] = tag
 
     labels: dict[str, str] = {}
-    for b62, (tags, digest) in progress_bar(
-        digest_info.items(), prefix="Generating tag labels:" + " " * 4
+    for tag, digest in progress_bar(
+        _as_completed_digests(digests, digest_queue),
+        prefix="Encoding digests... ",
+        count=len(digest_worker_queue),
     ):
-        for tag in tags:
-            labels[f"tag.{tag}"] = digest
+        labels[f"tag.{tag}"] = digest
 
     labels["timestamp"] = datetime.now(tz=UTC).replace(microsecond=0).isoformat() + "Z"
+    print("Generating Containerfile...")
     with tempfile.TemporaryDirectory() as tmpdir:
         containerfile = os.path.join(tmpdir, "Containerfile")
         with open(containerfile, "w") as f:
             _ = f.write("FROM scratch\nLABEL \\")
-            for k, v in progress_bar(
-                labels.items(), prefix="Generating Containerfile: "
-            ):
+            for k, v in labels.items():
                 _ = f.write(f'\n  arkes.manifest.{k}="{escape_label(v)}" \\')
 
             _ = f.write('\n  arkes.manifest.version="1"\n')
@@ -170,6 +171,19 @@ def command(args: Namespace) -> None:
             raise
         if cast(bool, args.push):
             podman("push", image)
+
+
+def _assertkind(tag: str, expected_kind: str) -> None:
+    kind, _, _ = _classify_tag(tag)
+    assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
+
+
+def _as_completed_digests(
+    digests: list[tuple[str, str]], digest_queue: dict[Future[str], str]
+) -> Generator[tuple[str, str]]:
+    yield from digests
+    for future in as_completed(digest_queue.keys()):
+        yield digest_queue[future], future.result()
 
 
 def _classify_tag(tag: str) -> tuple[str, str | None, str | None]:
