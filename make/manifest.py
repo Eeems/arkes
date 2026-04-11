@@ -141,7 +141,7 @@ def command(args: Namespace) -> None:
 
     for tag, digest in progress_bar(
         completed(),
-        prefix="Encoding digests..." + " " * 7,
+        prefix="Encoding digests... ",
         count=len(digest_worker_queue),
     ):
         b62 = hex_to_base62(digest)
