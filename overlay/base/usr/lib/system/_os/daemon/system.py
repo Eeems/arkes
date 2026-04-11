@@ -23,6 +23,7 @@ from ..ostree import (
 from ..podman import (
     build,
     image_digest,
+    image_exists,
     pull,
 )
 from ..system import (
@@ -682,4 +683,6 @@ class Object(dbus.service.Object):
     )
     def pull_available(self) -> bool:
         image = baseImage()
-        return image_digest(image, remote=False) != image_digest(image, remote=True)
+        return not image_exists(image, remote=False) or (
+            image_digest(image, remote=False) != image_digest(image, remote=True)
+        )
