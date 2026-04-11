@@ -13,7 +13,15 @@ import _os.podman  # noqa: E402 #pyright:ignore [reportMissingImports]
 
 from . import REPO, is_root
 
-pull = cast(Callable[[str], None], _os.podman.pull)  # pyright:ignore [reportUnknownMemberType]
+_pull = cast(Callable[[str, str | None], None], _os.podman.pull)  # pyright:ignore [reportUnknownMemberType]
+
+
+def pull(
+    image: str,
+    arch: str | None = None,
+) -> None:
+    _pull(image, arch)
+
 
 kwds: dict[str, str] = {
     "help": "Pull one or more tags from the remote repository",
@@ -29,6 +37,7 @@ def register(parser: ArgumentParser) -> None:
         metavar="TAG",
         help="Tag to pull",
     )
+    _ = parser.add_argument("--arch", default=None)
 
 
 def command(args: Namespace) -> None:
@@ -37,7 +46,7 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     for target in cast(list[str], args.target):
-        pull(f"{REPO}:{target}")
+        pull(f"{REPO}:{target}", cast(str | None, args.arch))
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from datetime import (
     UTC,
     datetime,
 )
+from platform import uname
 from typing import (
     Any,
     cast,
@@ -27,6 +29,7 @@ from .config import parse_config
 from .hash import hash
 from .pull import pull
 from .push import push
+from .rootfs import get_build_args
 
 kwds: dict[str, str] = {
     "help": "Build a variant",
@@ -53,6 +56,7 @@ def register(parser: ArgumentParser) -> None:
         metavar="VARIANT",
         help="Variant to build",
     )
+    _ = parser.add_argument("--arch", default=None)
 
 
 def command(args: Namespace) -> None:
@@ -61,12 +65,15 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     for target in cast(list[str], args.target):
-        build(target, cast(bool, args.cache))
+        build(target, cast(bool, args.cache), cast(str | None, args.arch))
         if cast(bool, args.push):
             push(target)
 
 
-def build(target: str, cache: bool = True) -> None:
+def build(target: str, cache: bool = True, arch: str | None = None) -> None:
+    if arch is None:
+        arch = uname().machine
+
     now = datetime.now(UTC)
     build_args: dict[str, str] = {}
     containerfile = f"variants/{target}.Containerfile"
@@ -78,10 +85,20 @@ def build(target: str, cache: bool = True) -> None:
         containerfile = f"templates/{template}.Containerfile"
         build_args["BASE_VARIANT_ID"] = f"{base_variant}"
 
+    build_args["PACSTRAP"] = pacstrap(arch)
+    config = get_build_args()
+    mirrorlist = mirrors(
+        arch,
+        config["ARCHIVE_YEAR"],
+        config["ARCHIVE_MONTH"],
+        config["ARCHIVE_DAY"],
+    )
+    build_args["MIRRORS"] = " ".join(mirrorlist)
+    build_args["MIRRORLIST"] = json.dumps(mirrorlist)
     for base_image in base_images(containerfile, build_args):
         print(f"Base image {base_image}")
         if not image_exists(base_image, False, False):
-            pull(base_image)
+            pull(base_image, arch)
 
     build_tag = f"localhost/build:{target}"
     if target == "rootfs":
@@ -116,7 +133,7 @@ def build(target: str, cache: bool = True) -> None:
         build_args["VARIANT_ID"] = f"{labels['os-release.VARIANT_ID']}-{template}"
         build_args["VERSION_ID"] = f"{labels['os-release.VERSION_ID']}"
         if not image_exists(f"{REPO}:{base_variant}", False, False):
-            pull(f"{REPO}:{base_variant}")
+            pull(f"{REPO}:{base_variant}", arch)
 
     else:
         image = f"{REPO}:rootfs"
@@ -130,7 +147,6 @@ def build(target: str, cache: bool = True) -> None:
             f"{now.strftime('%H%M%S')}{int(now.microsecond / 10000)}"
         )
 
-    build_args["MIRRORLIST"] = f"{labels['mirrorlist']}"
     build_args["VERSION"] = f"{labels['os-release.VERSION']}"
     build_args["NAME"] = f"{labels['os-release.NAME']}"
     build_args["PRETTY_NAME"] = f"{labels['os-release.PRETTY_NAME']}"
@@ -151,6 +167,16 @@ def build(target: str, cache: bool = True) -> None:
         .strip()
     )
     build_args["BUILD_TAG"] = build_tag
+    match arch:
+        case "x86_64":
+            platform = "amd64"
+
+        case "aarch64":
+            platform = "arm64"
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
+
     podman(
         "build",
         f"--tag={REPO}:{target}",
@@ -160,9 +186,51 @@ def build(target: str, cache: bool = True) -> None:
         "--file=variant.Containerfile",
         "--format=oci",
         "--timestamp=1735689640",
+        f"--platform linux/{platform}",
         ".",
     )
     podman("rmi", build_tag)
+
+
+def mirrors(arch: str, year: str, month: str, day: str) -> list[str]:
+    match arch:
+        case "x86_64":
+            return [
+                f"https://archive.archlinux.org/repos/{year}/{month}/{day}/$repo/os/$arch",
+                f"https://umea.archive.pkgbuild.com/repos/{year}/{month}/{day}/$repo/os/$arch",
+            ]
+
+        case "aarch64":
+            return [
+                f"https://pkgmirror.sametimetomorrow.net/$arch/repos/{year}/{month}/{day}/$repo",
+            ]
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
+
+
+def repos(arch: str) -> tuple[str, ...]:
+    match arch:
+        case "x86_64":
+            return "core", "extra", "multilib"
+
+        case "aarch64":
+            return "core", "extra", "alarm"
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
+
+
+def pacstrap(arch: str) -> str:
+    match arch:
+        case "x86_64":
+            return "docker.io/library/archlinux:base-devel-20260104.0.477168"
+
+        case "aarch64":
+            return "danhunsaker/archlinuxarm:20260405"
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
 
 
 if __name__ == "__main__":

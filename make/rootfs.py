@@ -10,7 +10,6 @@ from typing import (
 )
 
 from . import is_root
-from .build import build
 from .push import push
 
 kwds: dict[str, str] = {
@@ -23,12 +22,14 @@ def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("--year", default=now.year)
     _ = parser.add_argument("--month", default=now.strftime("%m"))
     _ = parser.add_argument("--day", default=now.strftime("%d"))
-    _ = parser.add_argument("--tag", default=None)
     _ = parser.add_argument("--no-build", action="store_true", dest="noBuild")
     _ = parser.add_argument("--push", action="store_true")
+    _ = parser.add_argument("--arch", default=None)
 
 
 def command(args: Namespace) -> None:
+    from .build import build  # noqa: PLC0415
+
     noBuild = cast(bool, args.noBuild)
     doPush = cast(bool, args.push)
     if noBuild and doPush:
@@ -43,22 +44,10 @@ def command(args: Namespace) -> None:
     with open(containerfile, "r") as f:
         lines = f.readlines()
 
-    config = {
-        x[0]: x[1]
-        for x in [
-            x.rstrip().split(" ", 1)[1].split("=", 1)
-            for x in lines
-            if x.startswith("ARG ARCHIVE_YEAR=")
-            or x.startswith("ARG ARCHIVE_MONTH=")
-            or x.startswith("ARG ARCHIVE_DAY=")
-            or x.startswith("ARG PACSTRAP_TAG=")
-        ]
-    }
-
+    config = get_build_args()
     year = cast(str | None, args.year) or config["ARCHIVE_YEAR"]
     month = cast(str | None, args.month) or config["ARCHIVE_MONTH"]
     day = cast(str | None, args.day) or config["ARCHIVE_DAY"]
-    tag = cast(str | None, args.tag) or config["PACSTRAP_TAG"]
 
     with open(containerfile, "w") as f:
         for line in lines:
@@ -71,17 +60,30 @@ def command(args: Namespace) -> None:
             elif line.startswith("ARG ARCHIVE_DAY="):
                 line = f"ARG ARCHIVE_DAY={day}\n"
 
-            elif line.startswith("ARG PACSTRAP_TAG="):
-                line = f"ARG PACSTRAP_TAG={tag}\n"
-
             _ = f.write(line)
 
     if noBuild:
         return
 
-    build("rootfs")
+    build("rootfs", arch=cast(str | None, args.arch))
     if doPush:
         push("rootfs")
+
+
+def get_build_args() -> dict[str, str]:
+    with open("rootfs.Containerfile", "r") as f:
+        lines = f.readlines()
+
+    return {
+        x[0]: x[1]
+        for x in [
+            x.rstrip().split(" ", 1)[1].split("=", 1)
+            for x in lines
+            if x.startswith("ARG ARCHIVE_YEAR=")
+            or x.startswith("ARG ARCHIVE_MONTH=")
+            or x.startswith("ARG ARCHIVE_DAY=")
+        ]
+    }
 
 
 if __name__ == "__main__":
