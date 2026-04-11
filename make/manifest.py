@@ -28,7 +28,6 @@ from . import (
     _os,  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
     chronic,
     escape_label,
-    hex_to_base62,
     image_digest_cached,
     image_labels,
     image_tags,
@@ -53,11 +52,6 @@ def register(parser: ArgumentParser) -> None:
     )
 
 
-def _assertkind(tag: str, expected_kind: str) -> None:
-    kind, _, _ = _classify_tag(tag)
-    assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
-
-
 def command(args: Namespace) -> None:
     _assertkind("_manifest", "manifest")
     _assertkind("_x", "other")
@@ -79,7 +73,6 @@ def command(args: Namespace) -> None:
     print("Getting all tags...")
     all_tags = image_tags(REPO, True)
     assert all_tags, "No tags found"
-    digest_info: dict[str, tuple[list[str], str]] = {}
     digest_worker_queue: list[tuple[str, bool]] = []
     valid_variants = ["rootfs", *config["variants"].keys()]
     print("Classifying tags...")
@@ -134,27 +127,13 @@ def command(args: Namespace) -> None:
         future = image_digest_cached(f"{REPO}:{tag}", skip_manifest=skip)
         digest_queue[future] = tag
 
-    def completed() -> Generator[tuple[str, str]]:
-        yield from digests
-        for future in as_completed(digest_queue.keys()):
-            yield digest_queue[future], future.result()
-
+    labels: dict[str, str] = {}
     for tag, digest in progress_bar(
-        completed(),
+        _as_completed_digests(digests, digest_queue),
         prefix="Encoding digests... ",
         count=len(digest_worker_queue),
     ):
-        b62 = hex_to_base62(digest)
-        if b62 not in digest_info:
-            digest_info[b62] = ([], digest)
-
-        digest_info[b62] = (digest_info[b62][0] + [tag], digest)
-
-    labels: dict[str, str] = {}
-    print("Generating tag labels...")
-    for tags, digest in digest_info.values():
-        for tag in tags:
-            labels[f"tag.{tag}"] = digest
+        labels[f"tag.{tag}"] = digest
 
     labels["timestamp"] = datetime.now(tz=UTC).replace(microsecond=0).isoformat() + "Z"
     print("Generating Containerfile...")
@@ -191,6 +170,19 @@ def command(args: Namespace) -> None:
             raise
         if cast(bool, args.push):
             podman("push", image)
+
+
+def _assertkind(tag: str, expected_kind: str) -> None:
+    kind, _, _ = _classify_tag(tag)
+    assert kind == expected_kind, f"{kind} != {expected_kind}: {tag}"
+
+
+def _as_completed_digests(
+    digests: list[tuple[str, str]], digest_queue: dict[Future[str], str]
+) -> Generator[tuple[str, str]]:
+    yield from digests
+    for future in as_completed(digest_queue.keys()):
+        yield digest_queue[future], future.result()
 
 
 def _classify_tag(tag: str) -> tuple[str, str | None, str | None]:
