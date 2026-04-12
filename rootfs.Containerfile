@@ -45,6 +45,7 @@ COPY --from=dockerfile2llbjson /app/dockerfile2llbjson /overlay/usr/bin/dockerfi
 RUN rm usr/share/libalpm/hooks/60-mkinitcpio-remove.hook \
   && rm usr/share/libalpm/hooks/90-mkinitcpio-install.hook \
   && cp -a {/,}etc/pacman.d/mirrorlist \
+  && cp -a /etc/pacman.d/*.repo.conf etc/pacman.d/ \
   && rm -rf home && ln -s var/home home \
   && rm -rf mnt && ln -s var/mnt mnt \
   && rm -rf root && ln -s var/roothome root \
