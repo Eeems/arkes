@@ -122,7 +122,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         *[] if cache else ["--no-cache"],
         "--force-rm",
         "--cap-add=SYS_ADMIN",
-        "--pull=never",
+        "--pull=missing",
         "--volume=/var/cache/pacman:/var/cache/pacman",
         f"--file={containerfile}",
         "--format=oci",
@@ -230,7 +230,7 @@ def pacstrap(arch: str) -> str:
             return "docker.io/library/archlinux:base-devel-20260104.0.477168"
 
         case "aarch64":
-            return "danhunsaker/archlinuxarm:20260405"
+            return "docker.io/danhunsaker/archlinuxarm:20260405"
 
         case _:
             raise NotImplementedError(f"{arch} is not supported yet")
