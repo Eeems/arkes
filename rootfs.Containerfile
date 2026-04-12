@@ -21,9 +21,18 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY
 
+COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
+COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
+
 RUN \
   echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
   && echo "Server = https://umea.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" >> /etc/pacman.d/mirrorlist
+RUN for repo in core extra multilib; do \
+  echo "[repo] $repo" \
+  && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf \
+  && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; \
+  done \
+  && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 RUN pacman-key --init \
   && pacman -Sy --needed --noconfirm archlinux-keyring moreutils
 RUN mkdir /rootfs
@@ -39,6 +48,7 @@ COPY --from=dockerfile2llbjson /app/dockerfile2llbjson /overlay/usr/bin/dockerfi
 RUN rm usr/share/libalpm/hooks/60-mkinitcpio-remove.hook \
   && rm usr/share/libalpm/hooks/90-mkinitcpio-install.hook \
   && cp -a {/,}etc/pacman.d/mirrorlist \
+  && cp -a /etc/pacman.d/*.repo.conf etc/pacman.d/ \
   && rm -rf home && ln -s var/home home \
   && rm -rf mnt && ln -s var/mnt mnt \
   && rm -rf root && ln -s var/roothome root \
