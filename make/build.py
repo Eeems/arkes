@@ -94,6 +94,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         config["ARCHIVE_DAY"],
     )
     build_args["MIRRORS"] = " ".join(mirrorlist)
+    build_args["REPOS"] = " ".join(repos(arch))
     build_args["MIRRORLIST"] = json.dumps(mirrorlist)
     for base_image in base_images(containerfile, build_args):
         print(f"Base image {base_image}")
@@ -103,6 +104,16 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
     build_tag = f"localhost/build:{target}"
     if target == "rootfs":
         build_args["HASH"] = hash(target)
+
+    match arch:
+        case "x86_64":
+            platform = "amd64"
+
+        case "aarch64":
+            platform = "arm64"
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
 
     podman(
         "build",
@@ -116,6 +127,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         f"--file={containerfile}",
         "--format=oci",
         "--timestamp=1735689640",
+        f"--platform=linux/{platform}",
         ".",
     )
     if target == "rootfs":
@@ -167,15 +179,6 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         .strip()
     )
     build_args["BUILD_TAG"] = build_tag
-    match arch:
-        case "x86_64":
-            platform = "amd64"
-
-        case "aarch64":
-            platform = "arm64"
-
-        case _:
-            raise NotImplementedError(f"{arch} is not supported yet")
 
     podman(
         "build",
@@ -186,7 +189,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         "--file=variant.Containerfile",
         "--format=oci",
         "--timestamp=1735689640",
-        f"--platform linux/{platform}",
+        f"--platform=linux/{platform}",
         ".",
     )
     podman("rmi", build_tag)
@@ -215,7 +218,7 @@ def repos(arch: str) -> tuple[str, ...]:
             return "core", "extra", "multilib"
 
         case "aarch64":
-            return "core", "extra", "alarm"
+            return "core", "extra", "alarm", "aur"
 
         case _:
             raise NotImplementedError(f"{arch} is not supported yet")
