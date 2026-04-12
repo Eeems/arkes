@@ -5,10 +5,8 @@ grep -E '[[:space:]]/etc(/|$)' /proc/mounts | awk '{print $2}' | sort -r | xargs
 mv /etc /usr
 ln -s /usr/etc /etc
 echo "[system] Configuring pacman"
-sed -i \
-  -e 's|^#\(DBPath\s*=\s*\).*|\1/usr/lib/pacman|g' \
-  -e 's|^#\(IgnoreGroup\s*=\s*\).*|\1modified|g' \
-  /usr/etc/pacman.conf
+echo "DBPath = /usr/lib/pacman" >/etc/pacman.d/ostree.config.conf
+echo "IgnoreGroup = modified" >>/etc/pacman.d/ostree.config.conf
 mv /var/lib/pacman /usr/lib
 echo "[system] Setting up ostree"
 mkdir /sysroot
