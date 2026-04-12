@@ -1,10 +1,16 @@
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from . import podman
-from . import BUILDER
+from . import (
+    BUILDER,
+    podman,
+)
 
 kwds: dict[str, str] = {
     "help": "Build the niricfg tool builder",

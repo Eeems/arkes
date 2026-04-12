@@ -1,13 +1,18 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from . import is_root
-from . import in_system
-from . import REPO
+from . import (
+    REPO,
+    in_system,
+    is_root,
+)
 
 kwds: dict[str, str] = {
     "help": "Build an ISO for a variant",

@@ -1,12 +1,15 @@
-import sys
 import difflib
-
-from argparse import ArgumentParser
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from collections.abc import Iterable
-from argparse import Namespace
 from pathlib import Path
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
 from .config import parse_all_config
 

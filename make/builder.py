@@ -1,14 +1,16 @@
 import os
 import shutil
 import subprocess
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from . import BUILDER
-from . import podman
+from . import BUILDER, podman
 
 kwds: dict[str, str] = {
     "help": f"Build the {BUILDER} image",
@@ -20,7 +22,7 @@ def register(_: ArgumentParser) -> None:
 
 
 def command(_: Namespace) -> None:
-    args = []
+    args: list[str] = []
     if shutil.which("niri") is not None:
         gomodcache = subprocess.check_output(["go", "env", "GOMODCACHE"])
         if gomodcache and os.path.exists(gomodcache):

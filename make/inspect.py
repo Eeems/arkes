@@ -1,11 +1,15 @@
 import json
-import _os  # pyright: ignore[reportMissingImports]
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-from typing import Callable
+import _os  # pyright: ignore[reportMissingImports]
 
 from . import REPO
 

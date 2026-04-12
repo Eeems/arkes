@@ -1,10 +1,14 @@
-from argparse import ArgumentParser
-from argparse import Namespace
 import os
 import shutil
 import sys
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
 kwds: dict[str, str] = {
     "help": "Adds a new command using __template__.py",

@@ -1,8 +1,12 @@
-from argparse import ArgumentParser
-from argparse import Namespace
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from re import sub as re_sub
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
 kwds: dict[str, str] = {
     "help": "What does this do?",

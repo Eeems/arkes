@@ -1,9 +1,15 @@
 import re
 import subprocess
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from datetime import datetime
-from typing import Any, cast
+from typing import (
+    Any,
+    cast,
+)
 
 import requests
 
