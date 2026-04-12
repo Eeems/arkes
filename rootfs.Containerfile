@@ -24,6 +24,12 @@ ARG \
 RUN \
   echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
   && echo "Server = https://umea.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" >> /etc/pacman.d/mirrorlist
+RUN for repo in core extra multilib; do \
+  echo "[repo] $repo" \
+  && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf \
+  && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; \
+  done \
+  && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 RUN pacman-key --init \
   && pacman -Sy --needed --noconfirm archlinux-keyring moreutils
 RUN mkdir /rootfs
