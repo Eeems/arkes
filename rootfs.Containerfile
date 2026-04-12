@@ -5,11 +5,12 @@ ARG ARCHIVE_DAY=10
 ARG GOLANG_VERSION=1.25.5
 ARG PACSTRAP=${PACSTRAP:-docker.io/library/archlinux:base-devel-20260104.0.477168}
 ARG HASH VERSION_ID
-ARG MIRRORS
 ARG MIRRORLIST
+ARG MIRRORS
+ARG REPOS
 
 FROM golang:${GOLANG_VERSION}-alpine as dockerfile2llbjson
-
+USER root
 WORKDIR /app
 COPY tools/dockerfile2llbjson/go.mod tools/dockerfile2llbjson/go.sum ./
 RUN go mod download
@@ -22,13 +23,16 @@ ARG \
   ARCHIVE_YEAR \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
-  MIRRORS
+  MIRRORS \
+  REPOS
+
+COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
+COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
 
 RUN truncate -s 0 /etc/pacman.d/mirrorlist \
-  && for mirror in ${MIRRORS:?}; do \
-  echo "[mirror] $mirror" \
-  && echo "Server = ${mirror}" >> /etc/pacman.d/mirrorlist; \
-  done
+  && for mirror in ${MIRRORS:?}; do echo "[mirror] $mirror" && echo "Server = ${mirror}" >> /etc/pacman.d/mirrorlist; done \
+  && for repo in ${REPOS:?}; do echo "[repo] $repo" && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; done \
+  && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 
 COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
 COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
