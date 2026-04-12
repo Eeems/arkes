@@ -21,6 +21,9 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY
 
+COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
+COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
+
 RUN \
   echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
   && echo "Server = https://umea.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" >> /etc/pacman.d/mirrorlist
