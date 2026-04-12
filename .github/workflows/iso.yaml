@@ -123,6 +123,7 @@ jobs:
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
       - name: Remove old release
+        if: inputs.push
         shell: bash
         run: |
           set -e
@@ -135,9 +136,17 @@ jobs:
           echo "> New ISO is being uploaded." >> /tmp/body.txt
           echo "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->" >> /tmp/body.txt
 
-          gh release edit "variant/${{ inputs.variant }}" \
-            --draft=false \
-            --notes-file /tmp/body.txt
+          if gh release view "variant/${{ inputs.variant }}" 1>/dev/null 2>/dev/null; then
+            gh release edit "variant/${{ inputs.variant }}" \
+              --draft=false \
+              --notes-file /tmp/body.txt
+          else
+            gh release create "variant/${{ inputs.variant }}" \
+              --draft=false \
+              --latest=false \
+              --prerelease \
+              --notes-file /tmp/body.txt
+          fi
 
           gh release view "variant/${{ inputs.variant }}" \
             --json assets \
