@@ -604,7 +604,7 @@ def pull(
 ):
     podman(
         "pull",
-        *([f"--arch={arch}"] if arch is not None else []),
+        *([f"--platform=linux/{arch}"] if arch is not None else []),
         image_qualified_name(image),
         onstdout=onstdout,
         onstderr=onstderr,

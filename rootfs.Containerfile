@@ -35,6 +35,7 @@ RUN truncate -s 0 /etc/pacman.d/mirrorlist \
   && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 
 RUN pacman-key --init \
+  && sed -i 's/DownloadUser = alpm/#DownloadUser = alpm/' /etc/pacman.conf \
   && pacman --disable-sandbox -Syu --needed --noconfirm \
   archlinux-keyring \
   moreutils \
