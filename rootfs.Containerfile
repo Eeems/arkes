@@ -4,6 +4,7 @@ ARG ARCHIVE_MONTH=04
 ARG ARCHIVE_DAY=10
 ARG GOLANG_VERSION=1.25.5
 ARG PACSTRAP=${PACSTRAP:-docker.io/library/archlinux:base-devel-20260104.0.477168}
+ARG PACSTRAP_PLATFORM=${PACSTRAP_PLATFORM:-linux/amd64}
 ARG HASH VERSION_ID
 ARG MIRRORLIST
 ARG MIRRORS
@@ -17,7 +18,7 @@ RUN go mod download
 COPY tools/dockerfile2llbjson/main.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /app/dockerfile2llbjson .
 
-FROM ${PACSTRAP} AS pacstrap
+FROM --platform=${PACSTRAP_PLATFORM} ${PACSTRAP} AS pacstrap
 
 ARG \
   ARCHIVE_YEAR \
@@ -55,7 +56,10 @@ RUN <<EOT
   mkdir -m 1777 tmp
   mkdir -m 0555 sys proc
 EOT
-RUN chronic fakeroot pacman -r . -Sy --noconfirm base mkinitcpio moreutils
+RUN chronic fakeroot pacman -r . -Sy --noconfirm \
+  base \
+  mkinitcpio \
+  moreutils
 
 COPY overlay/rootfs /overlay
 COPY --from=dockerfile2llbjson /app/dockerfile2llbjson /overlay/usr/bin/dockerfile2llbjson
@@ -90,7 +94,6 @@ ARG \
   ARCHIVE_YEAR \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
-  PACSTRAP_TAG \
   HASH \
   MIRRORLIST
 

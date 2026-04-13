@@ -85,7 +85,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         containerfile = f"templates/{template}.Containerfile"
         build_args["BASE_VARIANT_ID"] = f"{base_variant}"
 
-    build_args["PACSTRAP"] = pacstrap(arch)
+    build_args["PACSTRAP"], build_args["PACSTRAP_PLATFORM"] = pacstrap(arch)
     config = get_build_args()
     mirrorlist = mirrors(
         arch,
@@ -122,7 +122,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         *[] if cache else ["--no-cache"],
         "--force-rm",
         "--cap-add=SYS_ADMIN",
-        "--pull=missing",
+        "--pull=never",
         "--volume=/var/cache/pacman:/var/cache/pacman",
         f"--file={containerfile}",
         "--format=oci",
@@ -224,13 +224,16 @@ def repos(arch: str) -> tuple[str, ...]:
             raise NotImplementedError(f"{arch} is not supported yet")
 
 
-def pacstrap(arch: str) -> str:
+def pacstrap(arch: str) -> tuple[str, str]:
     match arch:
         case "x86_64":
-            return "docker.io/library/archlinux:base-devel-20260104.0.477168"
+            return (
+                "docker.io/library/archlinux:base-devel-20260104.0.477168",
+                "linux/amd64",
+            )
 
         case "aarch64":
-            return "docker.io/danhunsaker/archlinuxarm:20260405"
+            return "docker.io/danhunsaker/archlinuxarm:20260405", "linux/amd64"
 
         case _:
             raise NotImplementedError(f"{arch} is not supported yet")
