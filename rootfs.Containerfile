@@ -34,18 +34,6 @@ RUN truncate -s 0 /etc/pacman.d/mirrorlist \
   && for repo in ${REPOS:?}; do echo "[repo] $repo" && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; done \
   && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 
-COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
-COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
-
-RUN \
-  echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
-  && echo "Server = https://umea.archive.pkgbuild.com/repos/${ARCHIVE_YEAR}/${ARCHIVE_MONTH}/${ARCHIVE_DAY}/\$repo/os/\$arch" >> /etc/pacman.d/mirrorlist
-RUN for repo in core extra multilib; do \
-  echo "[repo] $repo" \
-  && echo "[$repo]" > /etc/pacman.d/"$repo".repo.conf \
-  && echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.d/"$repo".repo.conf; \
-  done \
-  && sed -i '/\[options\]/aInclude=/etc/pacman.d/base.config.conf' /etc/pacman.conf
 RUN pacman-key --init \
   && sed -i 's/DownloadUser = alpm/#DownloadUser = alpm/' /etc/pacman.conf \
   && pacman --disable-sandbox -Syu --needed --noconfirm \
