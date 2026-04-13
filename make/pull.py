@@ -1,14 +1,17 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import (
+    Any,
+    cast,
+)
+
 import _os.podman  # noqa: E402 #pyright:ignore [reportMissingImports]
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import Callable
-from typing import cast
-
-from . import is_root
-from . import REPO
+from . import REPO, is_root
 
 pull = cast(Callable[[str], None], _os.podman.pull)  # pyright:ignore [reportUnknownMemberType]
 

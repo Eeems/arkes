@@ -1,11 +1,10 @@
-import os
-import sys
 import argparse
 import importlib
-
+import os
+import sys
+from collections.abc import Callable
 from glob import iglob
 from typing import cast
-from typing import Callable
 
 
 def cli(argv: list[str]) -> None:

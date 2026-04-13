@@ -1,16 +1,20 @@
 import os
-
-from hashlib import sha256
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from glob import iglob
+from hashlib import sha256
+from typing import (
+    Any,
+    cast,
+)
 
-from . import image_labels
-from . import image_exists
-from . import REPO
-
+from . import (
+    REPO,
+    image_exists,
+    image_labels,
+)
 from .config import parse_config
 
 kwds: dict[str, str] = {

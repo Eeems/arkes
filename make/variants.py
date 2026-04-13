@@ -1,10 +1,16 @@
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from .config import parse_all_config
-from .config import Config
+from .config import (
+    Config,
+    parse_all_config,
+)
 
 kwds: dict[str, str] = {
     "help": "Lists all configured variants",

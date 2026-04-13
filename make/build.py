@@ -1,26 +1,32 @@
+import os
 import subprocess
 import sys
-import os
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from datetime import (
+    UTC,
+    datetime,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from datetime import datetime
-from datetime import UTC
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from . import is_root
-from . import podman_cmd
-from . import image_exists
-from . import base_images
-from . import image_labels
-from . import podman
-from . import REPO
-
+from . import (
+    REPO,
+    base_images,
+    image_exists,
+    image_labels,
+    is_root,
+    podman,
+    podman_cmd,
+)
+from .config import parse_config
+from .hash import hash
 from .pull import pull
 from .push import push
-from .hash import hash
-from .config import parse_config
 
 kwds: dict[str, str] = {
     "help": "Build a variant",
@@ -60,7 +66,7 @@ def command(args: Namespace) -> None:
             push(target)
 
 
-def build(target: str, cache: bool = True):
+def build(target: str, cache: bool = True) -> None:
     now = datetime.now(UTC)
     build_args: dict[str, str] = {}
     containerfile = f"variants/{target}.Containerfile"

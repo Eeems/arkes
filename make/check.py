@@ -1,23 +1,28 @@
-import shlex
 import json
 import os
-import sys
+import shlex
 import shutil
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from . import image_qualified_name
-from . import bytes_to_stderr
-from . import bytes_to_stdout
-from . import execute_pipe
-from . import chronic
-from . import _execute  # pyright: ignore[reportPrivateUsage]
-from . import _osDir  # pyright: ignore[reportPrivateUsage]
-from . import REPO
-from . import IMAGE
+from . import (
+    IMAGE,
+    REPO,
+    _execute,  # pyright: ignore[reportPrivateUsage]
+    _osDir,  # pyright: ignore[reportPrivateUsage]
+    bytes_to_stderr,
+    bytes_to_stdout,
+    chronic,
+    execute_pipe,
+    image_qualified_name,
+)
 
 kwds: dict[str, str] = {
     "help": "Check the codebase and ensure it follows standards",
@@ -97,12 +102,12 @@ def command(args: Namespace) -> None:
         )
         gofmt_failed = False
 
-        def _onstderr(data: bytes):
+        def _onstderr(data: bytes) -> None:
             nonlocal gofmt_failed
             gofmt_failed = True
             bytes_to_stderr(data)
 
-        def _onstdout(data: bytes):
+        def _onstdout(data: bytes) -> None:
             nonlocal gofmt_failed
             gofmt_failed = True
             bytes_to_stdout(data)

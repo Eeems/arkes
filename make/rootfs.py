@@ -1,13 +1,15 @@
 import sys
-
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from datetime import datetime
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
 from . import is_root
-
 from .build import build
 from .push import push
 
