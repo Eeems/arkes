@@ -61,9 +61,9 @@ RUN <<EOT
     linux \
     linux-headers
   rm /usr/bin/su
-  ln -s /usr/bin/su{-rs,}
-  ln -s /usr/bin/sudo{-rs,}
-  ln -s /usr/bin/visudo{-rs,}
+  ln /usr/bin/su{-rs,}
+  ln /usr/bin/sudo{-rs,}
+  ln /usr/bin/visudo{-rs,}
   chmod u+s /usr/bin/new{u,g}idmap
   rm /etc/containers/storage.conf
   rm /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook

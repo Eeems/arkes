@@ -19,6 +19,7 @@ from typing import (
 from . import (
     REPO,
     base_images,
+    execute,
     image_exists,
     image_labels,
     is_root,
@@ -70,9 +71,24 @@ def command(args: Namespace) -> None:
             push(target)
 
 
+binfmt_fix = """
+for x in /usr/lib/binfmt.d/*.conf; do
+  sed 's/\\(:[^C:]*\\)$/\\1C/' "$x" | sudo tee /etc/binfmt.d/$(basename $x) > /dev/null
+done
+"""
+
+
 def build(target: str, cache: bool = True, arch: str | None = None) -> None:
+    machine = uname().machine
     if arch is None:
-        arch = uname().machine
+        arch = machine
+
+    if arch != machine and not os.path.exists(f"/etc/binfmt.d/qemu-{arch}-static.conf"):
+        print(
+            "Creating binfmt.d configuration that allows setuid to be properly handled in qemu-static"
+        )
+        execute("bash", "c", binfmt_fix)
+        execute("systemctl", "restart", "systemd-binfmt")
 
     now = datetime.now(UTC)
     build_args: dict[str, str] = {}
@@ -86,6 +102,7 @@ def build(target: str, cache: bool = True, arch: str | None = None) -> None:
         build_args["BASE_VARIANT_ID"] = f"{base_variant}"
 
     build_args["PACSTRAP"], build_args["PACSTRAP_PLATFORM"] = pacstrap(arch)
+    build_args["PACKAGES"] = " ".join(packages(arch))
     config = get_build_args()
     mirrorlist = mirrors(
         arch,
@@ -234,6 +251,24 @@ def pacstrap(arch: str) -> tuple[str, str]:
 
         case "aarch64":
             return "docker.io/danhunsaker/archlinuxarm:20260405", "linux/amd64"
+
+        case _:
+            raise NotImplementedError(f"{arch} is not supported yet")
+
+
+def packages(arch: str) -> list[str]:
+    match arch:
+        case "x86_64":
+            return [
+                "base",
+                "moreutils",
+                "mkinitcpio",
+            ]
+
+        case "aarch64":
+            return packages("x86_64") + [
+                "archlinuxarm-keyring",
+            ]
 
         case _:
             raise NotImplementedError(f"{arch} is not supported yet")

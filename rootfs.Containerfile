@@ -9,6 +9,7 @@ ARG HASH VERSION_ID
 ARG MIRRORLIST
 ARG MIRRORS
 ARG REPOS
+ARG PACKAGES
 
 FROM golang:${GOLANG_VERSION}-alpine as dockerfile2llbjson
 USER root
@@ -25,7 +26,8 @@ ARG \
   ARCHIVE_MONTH \
   ARCHIVE_DAY \
   MIRRORS \
-  REPOS
+  REPOS \
+  PACKAGES
 
 COPY overlay/rootfs/etc/pacman.d/base.config.conf /etc/pacman.d/base.config.conf
 COPY overlay/rootfs/etc/pacman.conf /etc/pacman.conf
@@ -38,9 +40,9 @@ RUN truncate -s 0 /etc/pacman.d/mirrorlist \
 RUN pacman-key --init \
   && sed -i 's/DownloadUser = alpm/#DownloadUser = alpm/' /etc/pacman.conf \
   && pacman --disable-sandbox -Syu --needed --noconfirm \
-  archlinux-keyring \
+  base-devel \
   moreutils \
-  base-devel
+  archlinux-keyring
 
 RUN mkdir /rootfs
 
@@ -59,7 +61,8 @@ EOT
 RUN chronic fakeroot pacman -r . -Sy --noconfirm \
   base \
   mkinitcpio \
-  moreutils
+  moreutils \
+  ${PACKAGES}
 
 COPY overlay/rootfs /overlay
 COPY --from=dockerfile2llbjson /app/dockerfile2llbjson /overlay/usr/bin/dockerfile2llbjson
