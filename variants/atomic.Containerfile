@@ -63,6 +63,7 @@ RUN /usr/lib/system/package_layer \
   gamescope \
   vulkan-swrast \
   ttf-roboto-mono-nerd \
+  ttf-dejavu-nerd \
   noto-fonts-emoji \
   noto-fonts-cjk \
   adw-gtk-theme \
