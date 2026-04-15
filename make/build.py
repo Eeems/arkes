@@ -137,7 +137,10 @@ def build(target: str, cache: bool = True) -> None:
         [
             x.split(" = ", 1)[1]
             for x in in_system_output(
-                "cat", "/etc/pacman.d/mirrorlist", entrypoint="", target=image
+                "cat",
+                "/etc/pacman.d/mirrorlist",
+                entrypoint="",
+                target=build_tag,
             )
             .decode("utf-8")
             .splitlines()
