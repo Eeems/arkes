@@ -437,7 +437,12 @@ ARG PACKAGES
 RUN <<EOT
   set -e
   echo "[system] Generating font cache"
-  fc-cache -f
+  if command -v fc-cache >/dev/null; then
+    fc-cache -sf
+  fi
+  if command -v fc-cache-32 >/dev/null; then
+    fc-cache-32 -sf
+  fi
   /usr/lib/system/install_microcode
   SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel
   /usr/lib/system/prepare_fs
