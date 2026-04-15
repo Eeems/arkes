@@ -18,10 +18,7 @@ RUN <<EOT
     htop \
     fastfetch \
     bluez \
-    broadcom-wl-dkms \
     linux-firmware \
-    linux-zen \
-    linux-zen-headers \
     networkmanager \
     fuse-overlayfs \
     podman \
@@ -55,11 +52,18 @@ RUN <<EOT
     python-dbus \
     distrobox \
     xdelta3 \
-    dkms
+    dkms \
+    --arch=x86_64 \
+    broadcom-wl-dkms \
+    linux-zen \
+    linux-zen-headers \
+    --arch=aarch64 \
+    linux \
+    linux-headers
   rm /usr/bin/su
-  ln -s /usr/bin/su{-rs,}
-  ln -s /usr/bin/sudo{-rs,}
-  ln -s /usr/bin/visudo{-rs,}
+  ln /usr/bin/su{-rs,}
+  ln /usr/bin/sudo{-rs,}
+  ln /usr/bin/visudo{-rs,}
   chmod u+s /usr/bin/new{u,g}idmap
   rm /etc/containers/storage.conf
   rm /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook

@@ -1,46 +1,71 @@
 #!/bin/bash
 set -e
 
-/usr/lib/system/initialize_pacman
-packages=()
-aur_packages=()
-rm_packages=()
-type=packages
-for var in "$@"; do
-  case "$var" in
-  --aur)
-    type=aur
-    ;;
-  --rm)
-    type=rm
-    ;;
-  *)
-    case "$type" in
-    packages)
-      packages+=("$var")
-      ;;
-    aur)
-      aur_packages+=("$var")
-      ;;
-    rm)
-      rm_packages+=("$var")
-      ;;
+machine=$(uname -m)
+allowed=("$machine")
+install_packages=()
+install_aur_packages=()
+remove_packages=()
+type=install
+
+for arg in "$@"; do
+    case "$arg" in
+    --help | -h)
+        echo "Usage: $0 [--arch=arch1,arch2] [--install package...] [--rm package...] [--aur package...]"
+        echo "  --arch architecture that packages should be installed on, uses uname -m output to determine."
+        echo "         any further install/aur/rm packages listed will only be actioned if the current machine"
+        echo "         is is in the list"
+        echo "  --install start collecting package names to install, this is the default state"
+        echo "  --aur start collecting package names to install from the aur"
+        echo "  --rm start collecting package names to remove"
+        exit
+        ;;
+    --aur)
+        type=aur
+        ;;
+    --rm)
+        type=rm
+        ;;
+    --install)
+        type=install
+        ;;
+    --arch=*)
+        IFS=',' read -ra allowed <<<"${arg#*=}"
+        ;;
     *)
-      echo "Unknown package type: $type"
-      exit 1
-      ;;
+        # skip if current architecture is not in allowed list
+        case " ${allowed[*]} " in
+        *" $machine "*) ;;
+        *) continue ;;
+        esac
+
+        case "$type" in
+        aur)
+            install_aur_packages+=("$arg")
+            ;;
+        rm)
+            remove_packages+=("$arg")
+            ;;
+        install)
+            install_packages+=("$arg")
+            ;;
+        esac
+        ;;
     esac
-    ;;
-  esac
 done
 
-if [ ${#packages[@]} -gt 0 ]; then
-  /usr/lib/system/install_packages "${packages[@]}"
+/usr/lib/system/initialize_pacman
+
+if [[ ${#install_packages[@]} -gt 0 ]]; then
+    /usr/lib/system/install_packages "${install_packages[@]}"
 fi
-if [ ${#aur_packages[@]} -gt 0 ]; then
-  /usr/lib/system/install_aur_packages "${aur_packages[@]}"
+
+if [[ ${#install_aur_packages[@]} -gt 0 ]]; then
+    /usr/lib/system/install_aur_packages "${install_aur_packages[@]}"
 fi
-if [ ${#rm_packages[@]} -gt 0 ]; then
-  /usr/lib/system/remove_packages "${rm_packages[@]}"
+
+if [[ ${#remove_packages[@]} -gt 0 ]]; then
+    /usr/lib/system/remove_packages "${remove_packages[@]}"
 fi
+
 /usr/lib/system/remove_pacman_files
