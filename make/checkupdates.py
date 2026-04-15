@@ -1,3 +1,5 @@
+import json
+import os
 import re
 import subprocess
 import sys
@@ -17,9 +19,9 @@ from . import (
     REPO,
     image_exists,
     image_hash,
+    image_labels,
     image_qualified_name,
     in_system,
-    in_system_output,
     is_root,
 )
 from .hash import hash
@@ -45,6 +47,14 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     target = cast(str, args.target)
+    containerfile = f"variants/{target}.Containerfile"
+    if target == "rootfs":
+        containerfile = "rootfs.Containerfile"
+
+    elif "-" in target and not os.path.exists(containerfile):
+        _, template = target.rsplit("-", 1)
+        containerfile = f"templates/{template}.Containerfile"
+
     image = image_qualified_name(f"{REPO}:{target}")
     exists = image_exists(image, True, False)
     if exists and not image_exists(image, False, False):
@@ -55,47 +65,44 @@ def command(args: Namespace) -> None:
             pass
 
     if exists:
-        mirror = [
-            x.split(" = ", 1)[1]
-            for x in in_system_output(
-                "cat",
-                "/etc/pacman.d/mirrorlist",
-                entrypoint="",
-                target=image,
-            )
-            .decode("utf-8")
-            .splitlines()
-            if " = " in x
-        ][0]
+        mirrors = cast(
+            list[str],
+            json.loads(image_labels(image, False).get("mirrorlist", "[]")),
+        )
 
     else:
-        mirror = "https://archive.archlinux.org/repos/2025/11/06/$repo/os/$arch"
+        mirrors = ["https://archive.archlinux.org/repos/2025/11/06/$repo/os/$arch"]
 
-    m = re.match(r"^(.+)\/(\d{4}\/\d{2}\/\d{2})\/\$repo\/os\/\$arch$", mirror)
-    assert m
-    current = m.group(2)
-    now = datetime.now()
-    new = f"{now.year}/{now.strftime('%m')}/{now.strftime('%d')}"
+    m = None
+    for mirror in mirrors:
+        m = re.match(r"^(.+)\/(\d{4}\/\d{2}\/\d{2})\/\$repo\/os\/\$arch$", mirror)
+        if m:
+            break
+
     has_updates = False
-    # TODO only do mirrorlist check against rootfs, and be smarter about missed days
-    if current != new:
-        found_count = 0
-        repos = ("core", "extra", "multilib")
-        for repo in repos:
-            # TODO make arch dynamic instead of hardcoded when more than x86_64 is added
-            url = f"{m.group(1)}/{new}/{repo}/os/x86_64/{repo}.db"
-            res = requests.head(url, timeout=20)
-            if res.status_code == 200:
-                found_count += 1
+    if m:
+        current = m.group(2)
+        now = datetime.now()
+        new = f"{now.year}/{now.strftime('%m')}/{now.strftime('%d')}"
+        # TODO only do mirrorlist check against rootfs, and be smarter about missed days
+        if current != new:
+            found_count = 0
+            repos = ("core", "extra", "multilib")
+            for repo in repos:
+                # TODO make arch dynamic instead of hardcoded when more than x86_64 is added
+                url = f"{m.group(1)}/{new}/{repo}/os/x86_64/{repo}.db"
+                res = requests.head(url, timeout=20)
+                if res.status_code == 200:
+                    found_count += 1
 
-            elif res.status_code != 404:
-                print(res.reason)
-                sys.exit(1)
+                elif res.status_code != 404:
+                    print(res.reason)
+                    sys.exit(1)
 
-        # Only update if all repos are available, we could be checking mid-rsync
-        if found_count == len(repos):
-            print(f"mirrorlist {current} -> {new}")
-            has_updates = True
+            # Only update if all repos are available, we could be checking mid-rsync
+            if found_count == len(repos):
+                print(f"mirrorlist {current} -> {new}")
+                has_updates = True
 
     new_hash = hash(target)
     current_hash = image_hash(image) if exists else ""

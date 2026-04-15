@@ -4,20 +4,12 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-
 from glob import iglob
 from select import select
-
-from typing import BinaryIO
-from typing import Callable
-from typing import cast
-from typing import TextIO
-
+from typing import BinaryIO, Callable, TextIO, cast
 
 from . import SYSTEM_PATH
-
-from .console import bytes_to_stdout
-from .console import bytes_to_stderr
+from .console import bytes_to_stderr, bytes_to_stdout
 
 
 def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:
@@ -162,10 +154,8 @@ def system_kernelCommandLine() -> str:
 
 
 def checkupdates(image: str | None = None) -> list[str]:
-    from .podman import system_hash
-    from .podman import context_hash
-    from .podman import image_labels
     from .ostree import current_deployment
+    from .podman import context_hash, image_labels, system_hash
 
     if image is None:
         image = baseImage()
@@ -233,21 +223,21 @@ def checkupdates(image: str | None = None) -> list[str]:
     deployment_packages = deployment.packages
     local_pkgs = image_packages or deployment_packages
 
-    for pkg in local_pkgs.keys():
+    for pkg, value in local_pkgs.items():
         if pkg in version_changes:
             continue
 
         if pkg not in remote_pkgs:
-            removals[pkg] = local_pkgs[pkg]
+            removals[pkg] = value
 
-        elif remote_pkgs[pkg] != local_pkgs[pkg]:
-            version_changes[pkg] = local_pkgs[pkg], remote_pkgs[pkg]
+        elif remote_pkgs[pkg] != value:
+            version_changes[pkg] = value, remote_pkgs[pkg]
 
-    for pkg in remote_pkgs.keys():
+    for pkg, value in remote_pkgs.items():
         if pkg in version_changes or pkg in local_pkgs:
             continue
 
-        additions[pkg] = remote_pkgs[pkg]
+        additions[pkg] = value
 
     user_pkgs = {
         k: v
@@ -256,7 +246,9 @@ def checkupdates(image: str | None = None) -> list[str]:
     }
     mirrorlist_str = remote_labels.get("mirrorlist", "")
     if mirrorlist_str and user_pkgs:
-        mirrorlist_urls = cast(list[str], json.loads(mirrorlist_str))
+        mirrorlist_urls = (
+            cast(list[str], json.loads(mirrorlist_str)) if mirrorlist_str else []
+        )
         mirrorlist_content = "\n".join(f"Server = {url}" for url in mirrorlist_urls)
         mirrorlist_path: str | None = None
         packages_path: str | None = None
@@ -319,8 +311,8 @@ def checkupdates(image: str | None = None) -> list[str]:
                     "-ec",
                     "\n".join(packages_script),
                     binds=[
-                        f"{mirrorlist_path}:/etc/pacman.d/mirrorlist",
                         f"{packages_path}:/tmp/packages",
+                        f"{mirrorlist_path}:/etc/pacman.d/mirrorlist",
                     ],
                 )
                 .strip()
@@ -369,8 +361,7 @@ def in_nspawn_system_cmd(
     home: str = "ro",
     var: str = "ro",
 ) -> list[str]:
-    from .ostree import Deployment
-    from .ostree import current_deployment
+    from .ostree import Deployment, current_deployment
 
     _ostree_root = ""
     if os.path.exists("/ostree") and os.path.isdir("/ostree"):

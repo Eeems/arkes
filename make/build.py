@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from . import (
     base_images,
     image_exists,
     image_labels,
+    in_system_output,
     is_root,
     podman,
     podman_cmd,
@@ -110,6 +112,7 @@ def build(target: str, cache: bool = True) -> None:
     if "-" in target and not os.path.exists(f"variants/{target}.Containerfile"):
         base_variant, template = target.rsplit("-", 1)
         containerfile = f"templates/{template}.Containerfile"
+        _, config = parse_config(containerfile)
         image = f"{REPO}:{base_variant}"
         labels = image_labels(image, not image_exists(image, False, False))
         build_args["VARIANT"] = f"{labels['os-release.VARIANT']} ({template})"
@@ -130,7 +133,17 @@ def build(target: str, cache: bool = True) -> None:
             f"{now.strftime('%H%M%S')}{int(now.microsecond / 10000)}"
         )
 
-    build_args["MIRRORLIST"] = f"{labels['mirrorlist']}"
+    build_args["MIRRORLIST"] = json.dumps(
+        [
+            x.split(" = ", 1)[1]
+            for x in in_system_output(
+                "cat", "/etc/pacman.d/mirrorlist", entrypoint="", target=image
+            )
+            .decode("utf-8")
+            .splitlines()
+            if "Server = " in x
+        ]
+    )
     build_args["VERSION"] = f"{labels['os-release.VERSION']}"
     build_args["NAME"] = f"{labels['os-release.NAME']}"
     build_args["PRETTY_NAME"] = f"{labels['os-release.PRETTY_NAME']}"

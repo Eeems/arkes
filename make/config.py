@@ -39,7 +39,7 @@ def _get_config_data(
     data = [x[len(prefix) :] for x in lines if x.startswith(prefix)]
     assert len(data) < 2
     if not data:
-        return None if not multiple else []
+        return [] if multiple else None
 
     data = data[0]
     if not multiple:
@@ -63,13 +63,9 @@ def parse_config(containerfile: str) -> tuple[str, ConfigItem]:
     if name is not None:
         config["name"] = name
 
-    templates = cast(
-        str | None, _get_config_data(lines, "# x-templates=", multiple=True)
+    config["templates"] = cast(
+        list[str], _get_config_data(lines, "# x-templates=", multiple=True)
     )
-    if templates is not None:
-        config["templates"] = templates
-
-    # TODO get x-clean for templates
     config["clean"] = bool(_get_config_data(lines, "# x-clean", multiple=True))
     return filename[:-14], config
 
