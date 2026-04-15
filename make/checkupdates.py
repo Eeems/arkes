@@ -65,6 +65,7 @@ def command(args: Namespace) -> None:
             )
             .decode("utf-8")
             .splitlines()
+            if " = " in x
         ][0]
 
     else:
