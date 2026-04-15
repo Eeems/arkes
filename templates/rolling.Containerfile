@@ -6,6 +6,7 @@ FROM arkes:${BASE_VARIANT_ID} AS build
 RUN mkdir -p /var/roothome/.cache \
   && /usr/lib/system/initialize_pacman \
   && /usr/lib/system/install_packages reflector \
+  && echo "[system] Updating mirrors" \
   && reflector --latest 5 --sort rate --save /etc/pacman.d/mirrorlist \
   && /usr/lib/system/remove_packages reflector \
   && /usr/lib/system/remove_unused_packages \
