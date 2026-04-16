@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+if command -v fc-cache >/dev/null; then
+  echo "[system] Generating font cache"
+  fc-cache -sf
+fi
+if command -v fc-cache-32 >/dev/null; then
+  echo "[system] Generating 32-bit font cache"
+  fc-cache-32 -sf
+fi

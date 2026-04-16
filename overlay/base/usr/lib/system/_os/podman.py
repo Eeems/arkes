@@ -434,26 +434,17 @@ CONTAINER_POST_STEPS = r"""
 ARG KARGS
 ARG PACKAGES
 
-RUN <<EOT
-  set -e
-  if command -v fc-cache >/dev/null; then
-    echo "[system] Generating font cache"
-    fc-cache -sfv
-  fi
-  if command -v fc-cache-32 >/dev/null; then
-    echo "[system] Generating 32-bit font cache"
-    fc-cache-32 -sfv
-  fi
-  /usr/lib/system/install_microcode
-  SOURCE_DATE_EPOCH=0 /usr/lib/system/build_kernel
-  /usr/lib/system/prepare_fs
-  echo "[system] Writing packages.txt"
-  echo "${PACKAGES}" > /usr/lib/system/packages.txt
-EOT
+RUN \
+  SOURCE_DATE_EPOCH=0 \
+  PACKAGES="${PACKAGES}" \
+  KARGS="${KARGS} \"
+  /usr/lib/system/post_build
 
 ARG VERSION_ID
 
-RUN /usr/lib/system/set_build_id
+RUN \
+  VERSION_ID=${VERSION_ID} \
+  /usr/lib/system/set_build_id
 """
 
 

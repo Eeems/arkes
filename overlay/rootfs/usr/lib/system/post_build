@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+find /usr/lib/system/post_build.d/ -type l,f |
+  sort |
+  while read -r step; do
+    if [ ! -x "$step" ]; then
+      continue
+    fi
+    SOURCE_DATE_EPOCH=0 \
+      KARGS="${KARGS}" \
+      PACKAGES="${PACKAGES}" \
+      "$step"
+  done

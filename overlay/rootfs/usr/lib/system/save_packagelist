@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+echo "[system] Writing packages.txt"
+echo "${PACKAGES:?}" > /usr/lib/system/packages.txt
