@@ -236,7 +236,7 @@ jobs:
 
       - name: Auto commit any updates
         if: github.repository == 'Eeems/arkes' && inputs.push && inputs.variant == 'rootfs'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: |
             Automated rootfs update
