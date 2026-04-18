@@ -78,12 +78,13 @@ def hash_parts(target: str) -> list[tuple[str, str, str]]:
         parts.append(("file", containerfile, _hash(f.read())))
 
     for file in sorted(iglob(f"overlay/{target}/**", recursive=True)):
+        perms = f"{os.stat(file)}".encode()
         if os.path.isdir(file):
-            parts.append(("dir", file, _hash(file.encode("utf-8"))))
+            parts.append(("dir", file, _hash(perms + file.encode("utf-8"))))
 
         else:
             with open(file, "rb") as f:
-                parts.append(("file", file, _hash(f.read())))
+                parts.append(("file", file, _hash(perms + f.read())))
 
     for file in sorted(
         [
@@ -94,8 +95,10 @@ def hash_parts(target: str) -> list[tuple[str, str, str]]:
             "__init__.py",
         ]
     ):
-        with open(f"make/{file}", "rb") as f:
-            parts.append(("file", f"make/{file}", _hash(f.read())))
+        file = f"make/{file}"
+        perms = f"{os.stat(file)}".encode()
+        with open(file, "rb") as f:
+            parts.append(("file", f"make/{file}", _hash(perms + f.read())))
 
     return parts
 
@@ -118,12 +121,14 @@ def hash(target: str) -> str:
         m.update(f.read())
 
     for file in sorted(iglob(f"overlay/{target}/**", recursive=True)):
+        m.update(f"{os.stat(file)}".encode())
         if os.path.isdir(file):
             m.update(file.encode("utf-8"))
 
         else:
             with open(file, "rb") as f:
                 m.update(f.read())
+
 
     for file in sorted(
         [
@@ -134,7 +139,9 @@ def hash(target: str) -> str:
             "__init__.py",
         ]
     ):
-        with open(f"make/{file}", "rb") as f:
+        file = f"make/{file}"
+        m.update(f"{os.stat(file)}".encode())
+        with open(file, "rb") as f:
             m.update(f.read())
 
     return m.hexdigest()

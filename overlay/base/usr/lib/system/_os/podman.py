@@ -183,6 +183,7 @@ def in_system_cmd(
 def context_hash(extra: bytes | None = None) -> str:
     m = sha256()
     for file in sorted(iglob("/etc/system/**", recursive=True)):
+        m.update(f"{os.stat(file)}".encode())
         if os.path.isdir(file):
             m.update(file.encode("utf-8"))
 
