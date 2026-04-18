@@ -437,7 +437,7 @@ ARG PACKAGES
 RUN \
   SOURCE_DATE_EPOCH=0 \
   PACKAGES="${PACKAGES}" \
-  KARGS="${KARGS} \"
+  KARGS="${KARGS}" \
   /usr/lib/system/post_build
 
 ARG VERSION_ID
