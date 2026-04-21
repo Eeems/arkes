@@ -67,6 +67,7 @@ def parse_config(containerfile: str) -> tuple[str, ConfigItem]:
         list[str], _get_config_data(lines, "# x-templates=", multiple=True)
     )
     config["clean"] = bool(_get_config_data(lines, "# x-clean", multiple=True))
+    config["iso"] = not bool(_get_config_data(lines, "# x-no-iso", multiple=True))
     return filename[:-14], config
 
 

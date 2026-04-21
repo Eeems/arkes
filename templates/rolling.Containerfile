@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.4
+# x-no-iso
 ARG BASE_VARIANT_ID
 
 FROM arkes:${BASE_VARIANT_ID} AS build

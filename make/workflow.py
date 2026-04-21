@@ -1,5 +1,6 @@
 import difflib
 import heapq
+import os
 import sys
 from argparse import (
     ArgumentParser,
@@ -17,6 +18,7 @@ from . import (
 from .config import (
     Config,
     parse_all_config,
+    parse_config,
 )
 
 type Graph = dict[str, dict[str, str | list[str] | None | bool]]
@@ -43,6 +45,7 @@ def command(args: Namespace) -> None:
             "rootfs": {
                 "depends": "check",
                 "cleanup": False,
+                "iso": True,
             }
         }
         indegree: Indegree = {"rootfs": 0}
@@ -55,10 +58,24 @@ def command(args: Namespace) -> None:
             graph[variant] = {
                 "depends": data.get("depends", None) or "rootfs",
                 "cleanup": cast(bool, data.get("clean", False)),
+                "iso": cast(bool, data.get("iso", False)),
             }
             indegree[variant] = 0
             for template in cast(list[str], data["templates"]):
                 full_id = f"{variant}-{template}"
+                clean = cast(bool, data.get("clean", False))
+                iso = cast(bool, data.get("iso", False))
+                for template_name in template.split("-"):
+                    template_path = f"templates/{template_name}.Containerfile"
+                    if not os.path.exists(template_path):
+                        continue
+
+                    _, template_data = parse_config(
+                        f"templates/{template_name}.Containerfile"
+                    )
+                    clean = clean or cast(bool, template_data.get("clean", False))
+                    iso = cast(bool, template_data.get("iso", True))
+
                 # TODO get clean for template
                 graph[full_id] = {
                     "depends": (
@@ -66,7 +83,8 @@ def command(args: Namespace) -> None:
                         if "-" in template
                         else variant
                     ),
-                    "cleanup": cast(bool, data.get("clean", False)),
+                    "cleanup": clean,
+                    "iso": iso,
                 }
                 indegree[full_id] = 0
 
@@ -169,6 +187,10 @@ def command(args: Namespace) -> None:
         )
 
     def render_iso(job_id: str) -> list[str]:
+        d = graph[job_id]
+        if not d["iso"]:
+            return []
+
         return indent(
             [
                 f"iso_{job_id}:",
