@@ -12,6 +12,7 @@ from typing import (
 
 from . import (
     REPO,
+    file_hash,
     image_exists,
     image_labels,
 )
@@ -121,14 +122,7 @@ def hash(target: str) -> str:
         m.update(f.read())
 
     for file in sorted(iglob(f"overlay/{target}/**", recursive=True)):
-        m.update(f"{os.stat(file)}".encode())
-        if os.path.isdir(file):
-            m.update(file.encode("utf-8"))
-
-        else:
-            with open(file, "rb") as f:
-                m.update(f.read())
-
+        m.update(file_hash(file).encode("utf-8"))
 
     for file in sorted(
         [
@@ -139,10 +133,7 @@ def hash(target: str) -> str:
             "__init__.py",
         ]
     ):
-        file = f"make/{file}"
-        m.update(f"{os.stat(file)}".encode())
-        with open(file, "rb") as f:
-            m.update(f.read())
+        m.update(file_hash(f"make/{file}").encode("utf-8"))
 
     return m.hexdigest()
 

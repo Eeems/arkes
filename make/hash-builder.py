@@ -1,4 +1,3 @@
-import os
 import string
 from argparse import (
     ArgumentParser,
@@ -10,6 +9,8 @@ from typing import (
     Any,
     cast,
 )
+
+from . import file_hash
 
 kwds: dict[str, str] = {
     "help": "Get the hash for the builder tool",
@@ -27,7 +28,7 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     m = sha256()
-    for path in sorted(
+    for file in sorted(
         [
             ".github/workflows/tool-builder.yaml",
             "make/builder.py",
@@ -36,12 +37,7 @@ def command(args: Namespace) -> None:
             *glob("tools/dockerfile2llbjson/**", recursive=True),
         ]
     ):
-        if os.path.isdir(path):
-            m.update(path.encode("utf-8"))
-            continue
-
-        with open(path, "rb") as f:
-            m.update(f.read())
+        m.update(file_hash(file).encode("utf-8"))
 
     print(hex_to_base62(m.hexdigest()), end="\n" if cast(bool, args.newline) else "")
 
