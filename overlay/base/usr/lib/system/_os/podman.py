@@ -23,7 +23,6 @@ from typing import (
 )
 
 import podman as _podman
-import xattr  # pyright:ignore [reportMissingTypeStubs]
 from podman.errors import APIError
 
 from . import (
@@ -41,6 +40,7 @@ from .ostree import ostree
 from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
     execute,
+    file_hash,
     is_root,
 )
 
@@ -179,22 +179,6 @@ def in_system_cmd(
         target,
         *args,
     )
-
-
-def file_hash(file: str) -> str:
-    m = sha256()
-    st = os.stat(file)
-    m.update(f"{st.st_mode, st.st_uid, st.st_gid}".encode())
-    xattrList = cast(Callable[[str], list[bytes]], getattr(xattr, "list"))
-    m.update(b"\n".join(xattrList(file)))
-    if os.path.isdir(file):
-        m.update(file.encode("utf-8"))
-
-    else:
-        with open(file, "rb") as f:
-            m.update(f.read())
-
-    return m.hexdigest()
 
 
 def context_hash(extra: bytes | None = None) -> str:

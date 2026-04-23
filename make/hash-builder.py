@@ -10,7 +10,28 @@ from typing import (
     cast,
 )
 
-from . import file_hash
+if __name__ == "__main__":
+    import os
+    import sys
+    from collections.abc import Callable
+
+    here = os.path.dirname(__file__)
+    sys.path.insert(
+        0,
+        os.path.join(
+            os.path.dirname(here),
+            "overlay/base/usr/lib/system",
+        ),
+    )
+    if here in sys.path:
+        sys.path.remove(here)
+
+    import _os.system  # pyright: ignore[reportMissingImports]
+
+    file_hash = cast(Callable[[str], str], _os.system.file_hash)  # pyright:ignore [reportUnknownMemberType]
+
+else:
+    from . import file_hash
 
 kwds: dict[str, str] = {
     "help": "Get the hash for the builder tool",

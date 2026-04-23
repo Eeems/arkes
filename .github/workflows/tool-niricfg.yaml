@@ -29,6 +29,7 @@ jobs:
       - name: Generate tags
         id: meta
         run: |
+          pip install pyxattr progressbar
           IMAGE_NAME=ghcr.io/eeems/arkes-builder
           HASH="$(python ./make/hash-niricfg.py --no-newline)"
           echo "tags=${IMAGE_NAME}:niricfg,${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT

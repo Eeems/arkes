@@ -4,12 +4,36 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from glob import iglob
+from hashlib import sha256
 from select import select
-from typing import BinaryIO, Callable, TextIO, cast
+from typing import (
+    BinaryIO,
+    TextIO,
+    cast,
+)
+
+import xattr  # pyright: ignore[reportMissingTypeStubs]
 
 from . import SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
+
+
+def file_hash(file: str) -> str:
+    m = sha256()
+    st = os.stat(file)
+    m.update(f"{st.st_mode, st.st_uid, st.st_gid}".encode())
+    xattrList = cast(Callable[[str], list[bytes]], getattr(xattr, "list"))
+    m.update(b"\n".join(xattrList(file)))
+    if os.path.isdir(file):
+        m.update(file.encode("utf-8"))
+
+    else:
+        with open(file, "rb") as f:
+            m.update(f.read())
+
+    return m.hexdigest()
 
 
 def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:

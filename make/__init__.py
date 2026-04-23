@@ -66,7 +66,7 @@ hex_to_base62 = cast(Callable[[str], str], _os.podman.hex_to_base62)  # pyright:
 escape_label = cast(Callable[[str], str], _os.podman.escape_label)  # pyright: ignore[reportUnknownMemberType]
 image_digest = cast(Callable[[str, bool, bool], str], _os.podman.image_digest)  # pyright:ignore [reportUnknownMemberType]
 image_qualified_name = cast(Callable[[str], str], _os.podman.image_qualified_name)  # pyright:ignore [reportUnknownMemberType]
-file_hash = cast(Callable[[str], str], _os.podman.file_hash)  # pyright:ignore [reportUnknownMemberType]
+file_hash = cast(Callable[[str], str], _os.system.file_hash)  # pyright:ignore [reportUnknownMemberType]
 base_images = cast(
     Callable[[str, dict[str, str] | None], Iterable[str]],
     _os.podman.base_images,  # pyright:ignore [reportUnknownMemberType]
