@@ -93,6 +93,7 @@ RUN apt-get update \
     dbus-python \
     podman \
     progressbar2 \
+    pyxattr \
     # Cleanup
     && pip cache purge \
     && apt-get autoremove -y \
