@@ -12,9 +12,11 @@ from typing import (
 
 from . import (
     REPO,
-    file_hash,
     image_exists,
     image_labels,
+)
+from . import (
+    file_hash as _file_hash,
 )
 from .config import parse_config
 
@@ -47,10 +49,8 @@ def command(args: Namespace) -> None:
         print("\n  ".join([f"{t.ljust(5)} {n}: {h}" for t, n, h in hash_parts(target)]))
 
 
-def _hash(value: bytes) -> str:
-    m = sha256()
-    m.update(value)
-    return m.hexdigest()[:9]
+def file_hash(file: str) -> str:
+    return _file_hash(file)[:9]
 
 
 def hash_parts(target: str) -> list[tuple[str, str, str]]:
@@ -75,17 +75,9 @@ def hash_parts(target: str) -> list[tuple[str, str, str]]:
         labels = image_labels(image, not image_exists(image, False, False))
         parts.append(("image", image, labels["hash"][:9]))
 
-    with open(containerfile, "rb") as f:
-        parts.append(("file", containerfile, _hash(f.read())))
-
+    parts.append(("file", containerfile, file_hash(containerfile)))
     for file in sorted(iglob(f"overlay/{target}/**", recursive=True)):
-        perms = f"{os.stat(file)}".encode()
-        if os.path.isdir(file):
-            parts.append(("dir", file, _hash(perms + file.encode("utf-8"))))
-
-        else:
-            with open(file, "rb") as f:
-                parts.append(("file", file, _hash(perms + f.read())))
+        parts.append(("dir" if os.path.isdir(file) else "file", file, file_hash(file)))
 
     for file in sorted(
         [
@@ -96,10 +88,8 @@ def hash_parts(target: str) -> list[tuple[str, str, str]]:
             "__init__.py",
         ]
     ):
-        file = f"make/{file}"
-        perms = f"{os.stat(file)}".encode()
-        with open(file, "rb") as f:
-            parts.append(("file", f"make/{file}", _hash(perms + f.read())))
+        file = f"make/{file}"  # noqa: PLW2901
+        parts.append(("file", file, file_hash(file)))
 
     return parts
 
