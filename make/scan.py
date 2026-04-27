@@ -37,7 +37,7 @@ def command(args: Namespace) -> None:
     volumes: list[str] = ["./.trivy:/trivy"]
     in_ci = "CI" in os.environ
     if in_ci:
-        volumes.append("./markdown.tpl:/template")
+        volumes.append("./markdown.tpl:/template.tpl")
 
     ret = in_system(
         "-c",
@@ -79,7 +79,7 @@ def command(args: Namespace) -> None:
             > /trivy/report.sarif
             trivy convert \
                 --format template \
-                --template "@/template" \
+                --template "@/template.tpl" \
                 /trivy/report.json \
             > /trivy/report.md
             trivy convert \
