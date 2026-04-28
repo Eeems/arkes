@@ -1,14 +1,13 @@
 import os
-import progressbar
 import pty
 import select
 import subprocess
 import sys
 import termios
 import tty
-import time
-
 from typing import override
+
+import progressbar
 
 
 def bytes_to_stdout(line: bytes):
@@ -91,21 +90,5 @@ def shell(*args: str) -> int:
 class AlwaysUpdateProgressBar(progressbar.ProgressBar):
     # Patched to always update
     @override
-    def update(self, value: int | None = None):  # pyright: ignore[reportIncompatibleMethodOverride]
-        if value is not None and value is not progressbar.UnknownLength:
-            if not 0 <= value <= self.maxval:  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-                raise ValueError("Value out of range")
-
-            self.currval = value  # pyright: ignore[reportAttributeAccessIssue, reportUnannotatedClassAttribute]
-
-        # The following line was removed
-        # if not self._need_update(): return
-        if self.start_time is None:
-            raise RuntimeError('You must call "start" before calling "update"')
-
-        now = time.time()
-        self.seconds_elapsed = now - self.start_time  # pyright: ignore[reportOperatorIssue, reportUnannotatedClassAttribute]
-        self.next_update = self.currval + self.update_interval  # pyright: ignore[reportAttributeAccessIssue, reportUnannotatedClassAttribute, reportUnknownMemberType]
-        _ = self.fd.write(self._format_line() + "\r")
-        self.fd.flush()
-        self.last_update_time = now  # pyright: ignore[reportUnannotatedClassAttribute]
+    def update(self, value: int | None = None, force: bool = False):  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().update(value, force=True)
