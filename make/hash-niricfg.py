@@ -23,8 +23,9 @@ if __name__ == "__main__":
             "overlay/base/usr/lib/system",
         ),
     )
-    if here in sys.path:
-        sys.path.remove(here)
+    for path in sys.path.copy():
+        if os.path.abspath(path) == os.path.abspath(here):
+            sys.path.remove(path)
 
     if "make" in sys.path:
         sys.path.remove("make")
