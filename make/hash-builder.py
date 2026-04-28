@@ -26,7 +26,8 @@ if __name__ == "__main__":
     if here in sys.path:
         sys.path.remove(here)
 
-    print(sys.path)
+    if "make" in sys.path:
+        sys.path.remove("make")
 
     import _os.system  # pyright: ignore[reportMissingImports]
 

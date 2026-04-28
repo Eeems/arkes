@@ -26,6 +26,9 @@ if __name__ == "__main__":
     if here in sys.path:
         sys.path.remove(here)
 
+    if "make" in sys.path:
+        sys.path.remove("make")
+
     import _os.system  # pyright: ignore[reportMissingImports]
 
     file_hash = cast(Callable[[str], str], _os.system.file_hash)  # pyright:ignore [reportUnknownMemberType]
