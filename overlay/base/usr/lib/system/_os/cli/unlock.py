@@ -1,12 +1,17 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
-
-from ..system import is_root
-from ..system import execute
+from ..system import (
+    execute,
+    is_root,
+)
 
 kwds = {"help": "Make the current deploy mutable"}
 

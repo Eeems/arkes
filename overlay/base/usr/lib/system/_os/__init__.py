@@ -3,11 +3,9 @@ import argparse
 import importlib
 import os
 import sys
-
+from collections.abc import Callable
 from glob import iglob
-from typing import Callable
 from typing import cast
-
 
 OS_NAME = "arkes"
 REGISTRY = "ghcr.io"
@@ -17,7 +15,7 @@ SYSTEM_PATH = "/var/lib/system"
 ROOTFS_PATH = os.path.join(SYSTEM_PATH, "rootfs")
 
 
-def cli(argv: list[str]):
+def cli(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="os", description="Manage your operating system", add_help=True
     )

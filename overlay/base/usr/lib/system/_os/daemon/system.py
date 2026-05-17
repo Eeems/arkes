@@ -35,7 +35,7 @@ from ..system import (
 
 
 class Object(dbus.service.Object):
-    def __init__(self, bus_name: dbus.service.BusName):
+    def __init__(self, bus_name: dbus.service.BusName) -> None:
         super().__init__(  # pyright:ignore [reportUnknownMemberType]
             bus_name=bus_name,
             object_path="/system",
@@ -60,7 +60,7 @@ class Object(dbus.service.Object):
         self._pull_thread: threading.Thread | None = None
         self._checkupdates_thread: threading.Thread | None = None
 
-    def notify_all(self, msg: str, action: str):
+    def notify_all(self, msg: str, action: str) -> None:
         for path in os.scandir("/run/user"):
             if not path.is_dir():
                 continue
@@ -106,7 +106,7 @@ class Object(dbus.service.Object):
         success: Callable[[], None],
         error: Callable[..., None],
         sender: str | None = None,
-    ):
+    ) -> None:
         try:
             assert sender is not None
             if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
@@ -128,7 +128,7 @@ class Object(dbus.service.Object):
         except BaseException as e:
             error(f"Exception: {e}\n{traceback.format_exc()}")
 
-    def _upgrade(self, sender: str):
+    def _upgrade(self, sender: str) -> None | bool:
         self.notify_all("Starting system upgrade", "upgrade")
         try:
             self.upgrade_stderr(b"PROGRESS 1/5 Building system:latest\n")
@@ -141,7 +141,7 @@ class Object(dbus.service.Object):
             if not os.path.exists(SYSTEM_PATH):
                 os.makedirs(SYSTEM_PATH, exist_ok=True)
 
-            def onerror(msg: str):
+            def onerror(msg: str) -> None:
                 self.upgrade_status("error")
                 self.upgrade_stderr(f"Build failed: {msg}\n".encode())
                 self._upgrade_event.set()
@@ -179,9 +179,7 @@ class Object(dbus.service.Object):
             self.notify_all("System upgrade complete, reboot required", "upgrade")
 
         except BaseException as e:
-            self.upgrade_stderr(
-                f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
-            )
+            self.upgrade_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())
             self.upgrade_status("error")
             self.notify_all("System upgrade failed", "upgrade")
 
@@ -190,7 +188,7 @@ class Object(dbus.service.Object):
 
         return False
 
-    def _upgrade_parse(self, line: bytes):
+    def _upgrade_parse(self, line: bytes) -> None:
         if line.startswith(b"PROGRESS "):
             parts = line[9:].split(b"/", 1)
             if len(parts) != 2:
@@ -293,7 +291,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         signature="s",
     )
-    def upgrade_status(self, status: str):
+    def upgrade_status(self, status: str) -> None:
         self._upgrade_status = status
         print(f"upgrade status: {status}")
 
@@ -301,7 +299,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         signature="s",
     )
-    def upgrade_stdout(self, stdout: bytes):
+    def upgrade_stdout(self, stdout: bytes) -> None:
         bytes_to_stdout(b"[upgrade:1] " + stdout)
         self._upgrade_parse(stdout)
 
@@ -309,7 +307,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         signature="s",
     )
-    def upgrade_stderr(self, stderr: bytes):
+    def upgrade_stderr(self, stderr: bytes) -> None:
         bytes_to_stderr(b"[upgrade:2] " + stderr)
         self._upgrade_parse(stderr)
 
@@ -317,7 +315,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.upgrade",
         signature="i",
     )
-    def upgrade_progress(self, progress: int):
+    def upgrade_progress(self, progress: int) -> None:
         self._upgrade_progress = progress
         print(f"Upgrade progress: {progress}")
 
@@ -347,7 +345,7 @@ class Object(dbus.service.Object):
         success: Callable[[], None],
         error: Callable[..., None],
         sender: str | None = None,
-    ):
+    ) -> None:
         try:
             assert sender is not None
             if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
@@ -378,7 +376,7 @@ class Object(dbus.service.Object):
 
         self.build_progress(round(current / status_total * 100))
 
-    def _build_parse(self, line: bytes):
+    def _build_parse(self, line: bytes) -> None:
         if line.startswith(b"STEP "):
             parts = line[5:].split(b"/", 1)
             if len(parts) != 2:
@@ -423,7 +421,7 @@ class Object(dbus.service.Object):
             self._build_dkms_progress_status = (current, total)
             self._emit_build_progress()
 
-    def _build(self):
+    def _build(self) -> None | bool:
         self.notify_all("Building system image", "build")
         try:
             build(
@@ -437,9 +435,7 @@ class Object(dbus.service.Object):
             self.notify_all("System image built successfully", "build")
 
         except BaseException as e:
-            self.build_stderr(
-                f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
-            )
+            self.build_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())
             self.build_status("error")
             self.notify_all("System build failed", "build")
 
@@ -452,7 +448,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.build",
         signature="i",
     )
-    def build_progress(self, progress: int):
+    def build_progress(self, progress: int) -> None:
         self._build_progress = progress
         print(f"Build progress: {progress}")
 
@@ -460,7 +456,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.build",
         signature="s",
     )
-    def build_status(self, status: str):
+    def build_status(self, status: str) -> None:
         self._build_status = status
         print(f"build status: {status}")
         self._upgrade_event.set()
@@ -469,7 +465,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.build",
         signature="s",
     )
-    def build_stdout(self, stdout: bytes):
+    def build_stdout(self, stdout: bytes) -> None:
         bytes_to_stdout(b"[build:1] " + stdout)
         self._build_parse(stdout)
         if self._upgrade_thread is None:
@@ -482,7 +478,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.build",
         signature="s",
     )
-    def build_stderr(self, stderr: bytes):
+    def build_stderr(self, stderr: bytes) -> None:
         bytes_to_stderr(b"[build:2] " + stderr)
         self._build_parse(stderr)
         if self._upgrade_thread is None:
@@ -511,7 +507,7 @@ class Object(dbus.service.Object):
         success: Callable[[], None],
         error: Callable[..., None],
         sender: str | None = None,
-    ):
+    ) -> None:
         try:
             assert sender is not None
             if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
@@ -531,7 +527,7 @@ class Object(dbus.service.Object):
         except BaseException as e:
             error(f"Exception: {e}\n{traceback.format_exc()}")
 
-    def _checkupdates(self):
+    def _checkupdates(self) -> None | bool:
         try:
             self._updates = checkupdates()
             self._updates_ttl = time.time() + 60 * 5  # recheck in 5 minutes
@@ -569,7 +565,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.checkupdates",
         signature="s",
     )
-    def checkupdates_status(self, status: str):
+    def checkupdates_status(self, status: str) -> None:
         self._checkupdates_status = status
         print(f"checkupdates status: {status}")
 
@@ -577,7 +573,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.checkupdates",
         signature="s",
     )
-    def checkupdates_stderr(self, stderr: bytes):
+    def checkupdates_stderr(self, stderr: bytes) -> None:
         bytes_to_stderr(b"[checkupdates:2] " + stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]
@@ -603,7 +599,7 @@ class Object(dbus.service.Object):
         success: Callable[[], None],
         error: Callable[..., None],
         sender: str | None = None,
-    ):
+    ) -> None:
         try:
             assert sender is not None
             if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
@@ -623,7 +619,7 @@ class Object(dbus.service.Object):
         except BaseException as e:
             error(f"Exception: {e}\n{traceback.format_exc()}")
 
-    def _pull(self):
+    def _pull(self) -> None | bool:
         self.notify_all("Pulling base image", "pull")
         try:
             image = baseImage()
@@ -658,7 +654,7 @@ class Object(dbus.service.Object):
         dbus_interface="system.pull",
         signature="s",
     )
-    def pull_status(self, status: str):
+    def pull_status(self, status: str) -> None:
         self._pull_status = status
         print(f"pull status: {status}")
 
@@ -666,14 +662,14 @@ class Object(dbus.service.Object):
         dbus_interface="system.pull",
         signature="s",
     )
-    def pull_stdout(self, stdout: bytes):
+    def pull_stdout(self, stdout: bytes) -> None:
         bytes_to_stdout(b"[pull:1] " + stdout)
 
     @dbus.service.signal(  # pyright:ignore [reportUnknownMemberType]
         dbus_interface="system.pull",
         signature="s",
     )
-    def pull_stderr(self, stderr: bytes):
+    def pull_stderr(self, stderr: bytes) -> None:
         bytes_to_stderr(b"[pull:2] " + stderr)
 
     @dbus.service.method(  # pyright:ignore [reportUnknownMemberType]

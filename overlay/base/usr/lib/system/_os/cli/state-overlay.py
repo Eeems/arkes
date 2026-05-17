@@ -1,14 +1,15 @@
 import os
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import cast
+
 import xattr  # pyright:ignore [reportMissingTypeStubs]
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Callable
-
-from ..system import is_root
-from ..system import execute
+from ..system import execute, is_root
 
 xattrList = cast(
     Callable[[str], list[bytes]],
@@ -39,10 +40,10 @@ def command(_: Namespace) -> None:
         rmfattr("/var/ostree/state-overlays/opt/upper", b"trusted.overlay.uuid")
         execute("ostree", "admin", "state-overlay", "opt", "/opt")
 
-    os.chmod("/var/ostree/state-overlays/opt", 0o755)
+    os.chmod("/var/ostree/state-overlays/opt", 0o755)  # noqa: S103
 
 
-def rmfattr(path: str, attr: bytes):
+def rmfattr(path: str, attr: bytes) -> None:
     if attr in xattrList(path):
         xattrRemove(path, attr)
 

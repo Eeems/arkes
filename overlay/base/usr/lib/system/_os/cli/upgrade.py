@@ -1,22 +1,28 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import (
+    Any,
+    TextIO,
+    cast,
+)
+
 import progressbar
 
-from argparse import ArgumentParser
-from argparse import Namespace
-
-from typing import Callable
-from typing import TextIO
-from typing import cast
-from typing import Any
-
+from ..console import (
+    AlwaysUpdateProgressBar,
+    print_stderr,
+)
+from ..dbus import (
+    checkupdates,
+    pull,
+    upgrade,
+    upgrade_status,
+)
 from ..system import baseImage
-from ..dbus import pull
-from ..dbus import checkupdates
-from ..dbus import upgrade_status
-from ..dbus import upgrade
-from ..console import print_stderr
-from ..console import AlwaysUpdateProgressBar
-
 
 kwds = {"help": "Perform a system upgrade"}
 

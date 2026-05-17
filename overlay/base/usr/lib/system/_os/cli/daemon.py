@@ -1,19 +1,24 @@
-import sys
-import os
 import importlib
+import os
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from glob import iglob
+from typing import cast
+
 import dbus  # pyright:ignore [reportMissingTypeStubs]
 import dbus.service  # pyright:ignore [reportMissingTypeStubs]
+from dbus.mainloop.glib import (  # pyright: ignore[reportMissingTypeStubs]
+    DBusGMainLoop,  # pyright:ignore [reportUnknownVariableType]
+)
+from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
+    GLib,  # pyright:ignore [reportUnknownVariableType,reportAttributeAccessIssue]
+)
 
-from typing import cast
-from typing import Callable
-from dbus.mainloop.glib import DBusGMainLoop  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType]
-from gi.repository import GLib  # pyright:ignore [reportMissingTypeStubs,reportUnknownVariableType,reportAttributeAccessIssue]
-from argparse import ArgumentParser
-from argparse import Namespace
-from glob import iglob
-
-from ..system import is_root
-from ..system import chronic
+from ..system import chronic, is_root
 
 
 def register(_: ArgumentParser) -> None:

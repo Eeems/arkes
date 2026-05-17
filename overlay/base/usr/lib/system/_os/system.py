@@ -14,7 +14,7 @@ from typing import (
     cast,
 )
 
-import xattr  # pyright: ignore[reportMissingTypeStubs]
+import xattr  # pyright:ignore [reportMissingTypeStubs]
 
 from . import SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
@@ -37,7 +37,7 @@ def file_hash(file: str) -> str:
 
 
 def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:
-    from .podman import base_images
+    from .podman import base_images  # noqa: PLC0415
 
     results = list(base_images(systemFile))
     if not results:
@@ -52,7 +52,7 @@ def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:
 
 
 def _execute(cmd: str) -> int:
-    status = os.system(cmd)
+    status = os.system(cmd)  # noqa: S605
     return os.waitstatus_to_exitcode(status)
 
 
@@ -61,7 +61,7 @@ def execute(
     *args: str,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     if isinstance(cmd, str):
         _args = [cmd]
     else:
@@ -72,7 +72,7 @@ def execute(
         raise subprocess.CalledProcessError(ret, cmd, None, None)
 
 
-def chronic(cmd: str | list[str], *args: str):
+def chronic(cmd: str | list[str], *args: str) -> None:
     argv: list[str] = []
     if isinstance(cmd, str):
         argv.append(cmd)
@@ -85,6 +85,7 @@ def chronic(cmd: str | list[str], *args: str):
 
     try:
         _ = subprocess.check_output(argv, stderr=subprocess.STDOUT)
+
     except subprocess.CalledProcessError as e:
         print(e.output.decode("utf-8"))  # pyright:ignore [reportAny]
         raise
@@ -178,20 +179,24 @@ def system_kernelCommandLine() -> str:
 
 
 def checkupdates(image: str | None = None) -> list[str]:
-    from .ostree import current_deployment
-    from .podman import context_hash, image_labels, system_hash
+    from .ostree import current_deployment  # noqa: PLC0415
+    from .podman import (  # noqa: PLC0415
+        context_hash,
+        image_labels,
+        system_hash,
+    )
 
     if image is None:
         image = baseImage()
 
     updates: list[str] = []
-    new_hash = context_hash(f"KARGS={system_kernelCommandLine()}".encode("utf-8"))
+    new_hash = context_hash(f"KARGS={system_kernelCommandLine()}".encode())
     current_hash = system_hash()
     if new_hash != current_hash:
         updates.append(f"Systemfile {current_hash[:9]} -> {new_hash[:9]}")
 
     remote_labels = image_labels(image, remote=True)
-    with open("/usr/lib/os-release", "r") as f:
+    with open("/usr/lib/os-release") as f:
         local_info = {
             x[0]: x[1]
             for x in [
@@ -385,7 +390,10 @@ def in_nspawn_system_cmd(
     home: str = "ro",
     var: str = "ro",
 ) -> list[str]:
-    from .ostree import Deployment, current_deployment
+    from .ostree import (  # noqa: PLC0415
+        Deployment,
+        current_deployment,
+    )
 
     _ostree_root = ""
     if os.path.exists("/ostree") and os.path.isdir("/ostree"):
@@ -401,7 +409,7 @@ def in_nspawn_system_cmd(
         os.makedirs(_ostree, exist_ok=True)
         repo = os.path.join(_ostree, "repo")
         _ostree_root = f"{SYSTEM_PATH}/"
-        from .ostree import ostree
+        from .ostree import ostree  # noqa: PLC0415
 
         setattr(ostree, "repo", repo)
         if not os.path.exists(repo):
@@ -563,7 +571,7 @@ def update_bootloader(
     )
 
 
-def delete(glob: str):
+def delete(glob: str) -> None:
     for path in iglob(glob):
         if os.path.islink(path) or os.path.isfile(path):
             os.unlink(path)
@@ -580,7 +588,7 @@ def wait_for_processes(
     *processes: subprocess.Popen[bytes],
     cleanup: Callable[[], None] | None = None,
     fast_fail: bool = True,
-):
+) -> None:
     errors: list[subprocess.CalledProcessError] = []
     queue = list(processes)
     while queue:
@@ -602,21 +610,21 @@ def wait_for_processes(
             if not fast_fail:
                 continue
 
-            for proc in queue:
-                proc.terminate()
+            for proc2 in queue:
+                proc2.terminate()
 
-            for proc in queue:
+            for proc2 in queue:
                 try:
-                    if proc.returncode is None:
-                        _ = proc.wait(timeout=5)
+                    if proc2.returncode is None:
+                        _ = proc2.wait(timeout=5)
 
                 except subprocess.TimeoutExpired:
-                    proc.kill()
+                    proc2.kill()
 
-            for proc in queue:
-                if proc.wait():
+            for proc2 in queue:
+                if proc2.wait():
                     errors.append(
-                        subprocess.CalledProcessError(proc.returncode, proc.args)
+                        subprocess.CalledProcessError(proc2.returncode, proc2.args)
                     )
 
             queue = []

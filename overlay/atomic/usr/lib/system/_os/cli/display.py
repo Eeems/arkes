@@ -1,16 +1,21 @@
 import argparse
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Callable
-from typing import Any
-
+from ..niri import (
+    getOutputs,
+    getOutputScale,
+    setOutputScale,
+)
 from ..system import chronic
-from ..niri import setOutputScale
-from ..niri import getOutputScale
-from ..niri import getOutputs
 
 kwds = {"help": "Control system display"}
 
@@ -40,7 +45,7 @@ def command(args: Namespace) -> None:
     cast(Callable[[argparse.Namespace], None], args.func2)(args)
 
 
-def command_scale(args: Namespace):
+def command_scale(args: Namespace) -> None:
     display = cast(str | None, args.display)
     if display is None:
         display = list(getOutputs().keys())[0]
@@ -53,16 +58,16 @@ def command_scale(args: Namespace):
         print(f"{setOutputScale(display, int(scale))}%")
 
 
-def command_list(_: Namespace):
+def command_list(_: Namespace) -> None:
     print("\n".join(getOutputs().keys()))
 
 
-def command_off(_: Namespace):
+def command_off(_: Namespace) -> None:
     for display in getOutputs().keys():
         chronic("niri", "msg", "output", display, "off")
 
 
-def command_on(_: Namespace):
+def command_on(_: Namespace) -> None:
     for display in getOutputs().keys():
         chronic("niri", "msg", "output", display, "on")
 

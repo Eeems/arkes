@@ -10,12 +10,12 @@ from typing import override
 import progressbar
 
 
-def bytes_to_stdout(line: bytes):
+def bytes_to_stdout(line: bytes) -> None:
     _ = sys.stdout.buffer.write(line)
     _ = sys.stdout.flush()
 
 
-def bytes_to_stderr(line: bytes):
+def bytes_to_stderr(line: bytes) -> None:
     _ = sys.stderr.buffer.write(line)
     _ = sys.stderr.flush()
 
@@ -45,7 +45,7 @@ def shell(*args: str) -> int:
         stdout=slave_fd,
         stderr=slave_fd,
         close_fds=True,
-        preexec_fn=os.setsid,
+        preexec_fn=os.setsid,  # noqa: PLW1509
     )
     os.close(slave_fd)
     old_tty = termios.tcgetattr(sys.stdin.fileno())
@@ -90,5 +90,5 @@ def shell(*args: str) -> int:
 class AlwaysUpdateProgressBar(progressbar.ProgressBar):
     # Patched to always update
     @override
-    def update(self, value: int | None = None, force: bool = False):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def update(self, value: int | None = None, force: bool = False) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         super().update(value, force=True)

@@ -7,9 +7,9 @@ from typing import cast
 from urllib.parse import urlparse
 
 import requests
-from _os.system import (
-    chronic,  # pyright:ignore [ reportImplicitRelativeImport]
-    execute,  # pyright:ignore [ reportImplicitRelativeImport]
+from _os.system import (  # pyright: ignore[reportImplicitRelativeImport]
+    chronic,
+    execute,
 )
 
 
@@ -52,7 +52,7 @@ script = f"/usr/lib/system/initialize_pacman.d/{name}"
 with open(script, "w") as f:
     _ = f.write("#!/bin/sh\n")
 
-    def runAndAppend(*cmd: str):
+    def runAndAppend(*cmd: str) -> None:
         chronic(*cmd)
         _ = f.write(f"{shlex.join(cmd)}\n")
 
@@ -72,7 +72,7 @@ with open(script, "w") as f:
             )
 
         elif is_url(keyfile):
-            res = requests.get(keyfile)
+            res = requests.get(keyfile, timeout=30)
             res.raise_for_status()
             keyfileDest = os.path.join(
                 "/usr/lib/system/initialize_pacman.d", f"{name}.gpg"

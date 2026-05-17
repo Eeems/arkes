@@ -1,15 +1,16 @@
 import sys
-
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from concurrent.futures import ThreadPoolExecutor
 from typing import cast
 
-from argparse import ArgumentParser
-from argparse import Namespace
-
-from concurrent.futures import ThreadPoolExecutor
-
+from ..ostree import (
+    Deployment,
+    deployments,
+)
 from ..system import baseImage
-from ..ostree import deployments
-from ..ostree import Deployment
 
 
 def register(parser: ArgumentParser) -> None:

@@ -1,22 +1,21 @@
 # pyright: reportImportCycles=false
+import json
 import os
 import shlex
 import subprocess
-import json
-
+from collections.abc import (
+    Callable,
+    Generator,
+)
 from datetime import datetime
-from typing import Callable
 from typing import cast
-from collections.abc import Generator
 
-from . import SYSTEM_PATH
-from . import ROOTFS_PATH
-from . import OS_NAME
-
-from .system import execute
-from .system import _execute  # pyright:ignore [reportPrivateUsage]
-from .console import bytes_to_stdout
-from .console import bytes_to_stderr
+from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
+from .console import bytes_to_stderr, bytes_to_stdout
+from .system import (
+    _execute,  # pyright:ignore [reportPrivateUsage]
+    execute,
+)
 
 RETAIN = 5
 
@@ -29,7 +28,7 @@ def ostree(
     *args: str,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     execute(*ostree_cmd(*args), onstdout=onstdout, onstderr=onstderr)
 
 
@@ -42,7 +41,7 @@ def commit(
     skipList: list[str] | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     if rootfs is None:
         rootfs = ROOTFS_PATH
 
@@ -76,8 +75,8 @@ def commit_export(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
-    from .podman import export_stream
-    from .ostree import ostree_cmd
+    from .ostree import ostree_cmd  # noqa: PLC0415
+    from .podman import export_stream  # noqa: PLC0415
 
     with export_stream(
         setup="""
@@ -128,7 +127,7 @@ def deploy(
     sysroot: str = "/",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,  # pyright:ignore [reportUnusedParameter]
     onstderr: Callable[[bytes], None] = bytes_to_stderr,  # pyright:ignore [reportUnusedParameter]
-):
+) -> None:
     kargs = ["--karg=root=LABEL=SYS_ROOT", "--karg=rw"]
     revision = f"{OS_NAME}/{branch}"
     if b"/usr/etc/system/commandline" in subprocess.check_output(
@@ -170,8 +169,8 @@ def prune(
     branch: str = "system",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
-    from .podman import podman
+) -> None:
+    from .podman import podman  # noqa: PLC0415
 
     ostree(
         "prune",
@@ -190,7 +189,7 @@ def undeploy(
     index: int,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     execute(
         "ostree",
         "admin",
@@ -203,7 +202,7 @@ def undeploy(
 
 
 class Deployment:
-    def __init__(self, data: dict[str, str | int | bool]):
+    def __init__(self, data: dict[str, str | int | bool]) -> None:
         self.data: dict[str, str | int | bool] = data
 
     @property
@@ -287,7 +286,7 @@ class Deployment:
 
     @property
     def os_info(self) -> dict[str, str]:
-        with open(os.path.join(self.path, "usr/lib/os-release"), "r") as f:
+        with open(os.path.join(self.path, "usr/lib/os-release")) as f:
             return {
                 x[0]: x[1]
                 for x in [
@@ -313,7 +312,7 @@ class Deployment:
 
     @property
     def packages(self) -> dict[str, str]:
-        from .system import in_nspawn_system_output
+        from .system import in_nspawn_system_output  # noqa: PLC0415
 
         packages: list[tuple[str, str]] = []
         try:
@@ -337,7 +336,6 @@ class Deployment:
         try:
             with open(
                 os.path.join(self.path, "usr/lib/system/packages.txt"),
-                "r",
                 encoding="utf-8",
             ) as f:
                 packages = list(
@@ -351,7 +349,7 @@ class Deployment:
         return dict(packages)
 
 
-def deployments() -> Generator[Deployment, None, None]:
+def deployments() -> Generator[Deployment]:
     status = json.loads(  # pyright: ignore[reportAny]
         subprocess.check_output(["ostree", "admin", "status", "--json"])
     )

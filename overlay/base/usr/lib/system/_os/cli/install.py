@@ -1,26 +1,35 @@
-import os
-import sys
-import shutil
-import shlex
 import atexit
-
+import os
+import shlex
+import shutil
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from getpass import getpass
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
 from glob import iglob
+from typing import (
+    Any,
+    cast,
+)
 
 from .. import OS_NAME
-from ..system import is_root
-from ..system import execute
-from ..system import baseImage
-from ..ostree import ostree
-from ..ostree import deploy
-from ..ostree import commit
-from ..podman import build
-from ..podman import export
-from ..podman import podman_cmd
+from ..ostree import (
+    commit,
+    deploy,
+    ostree,
+)
+from ..podman import (
+    build,
+    export,
+    podman_cmd,
+)
+from ..system import (
+    baseImage,
+    execute,
+    is_root,
+)
 
 kwds = {"help": f"Installs {OS_NAME}"}
 
@@ -90,7 +99,7 @@ def install(
     formatPartitions: bool = False,
     password: str | None = None,
     extraPackages: list[str] | None = None,
-):
+) -> None:
     if os.path.exists("/ostree"):
         print("Cannot install on existing system")
         sys.exit(1)
@@ -132,7 +141,7 @@ def install(
     execute("ostree", "admin", "stateroot-init", f"--sysroot={sysroot}", OS_NAME)
     ostree("init", "--mode=bare")
     ostree("config", "set", "sysroot.bootprefix", "1")
-    systemfile = "/tmp/Systemfile"
+    systemfile = "/tmp/Systemfile"  # noqa: S108
     if os.path.exists(systemfile):
         os.unlink(systemfile)
 
@@ -162,8 +171,8 @@ def install(
     buildImage = baseImage()
     tmp = os.path.join(sysroot, ".tmp")
     os.mkdir(tmp)
-    execute("mount", "-o", "bind", tmp, "/var/tmp")
-    exitFunc1 = atexit.register(execute, "umount", "/var/tmp")
+    execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
+    exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
     execute(
         "bash",
         "-c",
@@ -195,7 +204,7 @@ def install(
     _ = shutil.move(os.path.join(rootfs, "var/lib/containers"), lib)
     _ = shutil.rmtree(os.path.join(rootfs, "var/tmp"))
     atexit.unregister(exitFunc1)
-    execute("umount", "/var/tmp")
+    execute("umount", "/var/tmp")  # noqa: S108
     os.rmdir(tmp)
 
     commit(branch, rootfs)

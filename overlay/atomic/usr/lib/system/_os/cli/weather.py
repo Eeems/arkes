@@ -1,12 +1,10 @@
-import os
-import sys
 import json
+import os
 import subprocess
-
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Callable, cast
-from typing import Any
+import sys
+from argparse import ArgumentParser, Namespace
+from collections.abc import Callable
+from typing import Any, cast
 
 from ..system import _execute as __execute  # pyright:ignore [reportPrivateUsage]
 

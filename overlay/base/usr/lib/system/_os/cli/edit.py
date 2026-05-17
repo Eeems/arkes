@@ -1,17 +1,24 @@
 import os
-import sys
 import shlex
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
-
-from ..system import is_root
-from ..system import system_kernelCommandLine
-from ..system import _execute  # pyright: ignore[reportPrivateUsage]
-from ..podman import context_hash
-from ..podman import system_hash
+from ..podman import (
+    context_hash,
+    system_hash,
+)
+from ..system import (
+    _execute,  # pyright: ignore[reportPrivateUsage]
+    is_root,
+    system_kernelCommandLine,
+)
 
 kwds = {"help": "Edit the systemfile"}
 
@@ -31,9 +38,7 @@ def command(_: Namespace) -> None:
         print("Something went wrong while editing the systemfile", file=sys.stderr)
         sys.exit(retcode)
 
-    if system_hash() == context_hash(
-        f"KARGS={system_kernelCommandLine()}".encode("utf-8")
-    ):
+    if system_hash() == context_hash(f"KARGS={system_kernelCommandLine()}".encode()):
         print("Systemfile context has not been modified")
         return
 

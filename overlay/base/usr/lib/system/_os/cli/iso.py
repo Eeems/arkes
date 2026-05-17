@@ -1,25 +1,33 @@
-import shutil
 import atexit
 import os
-import sys
 import shlex
-
+import shutil
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from datetime import datetime
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
-from .. import OS_NAME
-from .. import SYSTEM_PATH
-from .. import ROOTFS_PATH
-
-from ..system import is_root
-from ..system import baseImage
-from ..system import execute
-from ..podman import podman
-from ..podman import podman_cmd
-from ..podman import export
+from .. import (
+    OS_NAME,
+    ROOTFS_PATH,
+    SYSTEM_PATH,
+)
+from ..podman import (
+    export,
+    podman,
+    podman_cmd,
+)
+from ..system import (
+    baseImage,
+    execute,
+    is_root,
+)
 
 kwds = {"help": "Build a bootable ISO image to install your system"}
 
@@ -37,7 +45,7 @@ def command(_: Namespace) -> None:
     print(f"ISO Created: {name}")
 
 
-def iso():
+def iso() -> str:
     cwd = os.getcwd()
     os.chdir(SYSTEM_PATH)
     if os.path.exists("archiso"):

@@ -1,17 +1,22 @@
 import argparse
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from collections.abc import Callable
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Callable
-from typing import Any
-
-from ..niri import getVolumeOut
-from ..niri import setVolumeOut
-from ..niri import muteOut
-from ..niri import unmuteOut
-from ..niri import toggleMuteOut
+from ..niri import (
+    getVolumeOut,
+    muteOut,
+    setVolumeOut,
+    toggleMuteOut,
+    unmuteOut,
+)
 
 kwds = {"help": "Control system volume"}
 
@@ -54,23 +59,23 @@ def command(args: Namespace) -> None:
     cast(Callable[[argparse.Namespace], None], args.func2)(args)
 
 
-def command_get(_: Namespace):
+def command_get(_: Namespace) -> None:
     print(f"{getVolumeOut()}%")
 
 
-def command_mute(_: Namespace):
+def command_mute(_: Namespace) -> None:
     muteOut()
 
 
-def command_unmute(_: Namespace):
+def command_unmute(_: Namespace) -> None:
     unmuteOut()
 
 
-def command_toggleMute(_: Namespace):
+def command_toggleMute(_: Namespace) -> None:
     toggleMuteOut()
 
 
-def command_set(args: Namespace):
+def command_set(args: Namespace) -> None:
     volume = cast(str, args.volume)
     if volume.startswith("+"):
         value = getVolumeOut() + int(volume[1:])

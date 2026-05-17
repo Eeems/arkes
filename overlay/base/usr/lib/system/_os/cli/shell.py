@@ -1,13 +1,18 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
-
-from ..system import is_root
-from ..system import in_nspawn_system_cmd
 from ..console import shell
+from ..system import (
+    in_nspawn_system_cmd,
+    is_root,
+)
 
 kwds = {"help": "Open a console of the booted system in a temporary container."}
 

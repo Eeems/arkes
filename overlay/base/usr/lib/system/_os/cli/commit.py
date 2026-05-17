@@ -1,12 +1,12 @@
 import sys
-
-from argparse import ArgumentParser
-from argparse import Namespace
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from typing import cast
 
-from ..system import is_root
-
 from ..ostree import commit
+from ..system import is_root
 
 
 def register(parser: ArgumentParser) -> None:

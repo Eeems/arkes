@@ -74,7 +74,7 @@ def podman(
     *args: str,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     execute(
         *podman_cmd(*args),
         onstdout=onstdout,
@@ -193,7 +193,7 @@ def context_hash(extra: bytes | None = None) -> str:
 
 
 def system_hash() -> str:
-    with open("/usr/lib/os-release", "r") as f:
+    with open("/usr/lib/os-release") as f:
         local_info = {
             x[0]: x[1]
             for x in [
@@ -450,8 +450,8 @@ def build(
     extraSteps: list[str] | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
-    from .system import baseImage
+) -> None:
+    from .system import baseImage  # noqa: PLC0415
 
     base_image = baseImage(systemfile)
     if not image_exists(base_image, remote=False):
@@ -479,7 +479,7 @@ def build(
             "packages", ""
         )
 
-        with open(containerfile, "w") as f, open(systemfile, "r") as i:
+        with open(containerfile, "w") as f, open(systemfile) as i:
             _ = f.write(i.read())
             _ = f.write("\n".join(_extraSteps + [CONTAINER_POST_STEPS.strip()]))
 
@@ -513,7 +513,7 @@ def export_stream(
     workingDir: str | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-) -> Generator[IO[bytes], None, None]:
+) -> Generator[IO[bytes]]:
     if workingDir is None:
         workingDir = SYSTEM_PATH
 
@@ -523,7 +523,7 @@ def export_stream(
     timestamp = int(time())
     name = f"export-{tag}-{timestamp}"
 
-    def rm(name: str):
+    def rm(name: str) -> None:
         containers = get_client().containers
         if containers.exists(name):
             containers.get(name).remove()  # pyright: ignore[reportUnknownMemberType]
@@ -565,7 +565,7 @@ def export(
     workingDir: str | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-) -> Generator[tarfile.TarFile, None, None]:
+) -> Generator[tarfile.TarFile]:
     with export_stream(tag, setup, workingDir, onstdout, onstderr) as stdout:
         yield tarfile.open(fileobj=stdout, mode="r|*")
 
@@ -576,9 +576,12 @@ def hex_to_base62(hex_digest: str) -> str:
 
     return (
         "".join(
-            (string.digits + string.ascii_lowercase + string.ascii_uppercase)[
-                int(hex_digest, 16) // (62**i) % 62
-            ]
+            cast(
+                str,
+                (string.digits + string.ascii_lowercase + string.ascii_uppercase)[
+                    int(hex_digest, 16) // (62**i) % 62
+                ],
+            )
             for i in range(50)
         )[::-1].lstrip("0")
         or "0"
@@ -593,7 +596,7 @@ def pull(
     image: str,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
-):
+) -> None:
     podman(
         "pull",
         image_qualified_name(image),
@@ -609,7 +612,7 @@ def parse_containerfile(
 ) -> list[dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
     is_path = isinstance(containerfile, str)
     if is_path:
-        containerfile = open(containerfile, "r")
+        containerfile = open(containerfile)
 
     try:
         argv = ["-p"] if pretty else []

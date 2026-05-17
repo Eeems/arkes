@@ -1,14 +1,19 @@
-import sys
 import os
+import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from typing import cast
-from typing import Any
-from argparse import ArgumentParser
-from argparse import Namespace
-
+from .. import (
+    ROOTFS_PATH,
+    SYSTEM_PATH,
+)
 from ..podman import export
-from .. import SYSTEM_PATH
-from .. import ROOTFS_PATH
 from ..system import is_root
 
 kwds = {"help": "Export your current system image to a folder"}

@@ -1,15 +1,19 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from ..dbus import build
 from ..console import print_stderr
-from .upgrade import ProgressState
-from .upgrade import noop
-
+from ..dbus import build
+from .upgrade import (
+    ProgressState,
+    noop,
+)
 
 kwds = {"help": "Build your system image"}
 

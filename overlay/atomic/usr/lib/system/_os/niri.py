@@ -35,9 +35,7 @@ def getOutputScale(display: str) -> int:
 
 
 def setOutputScale(display: str, scale: int) -> int:
-    if scale < 20:
-        scale = 20
-
+    scale = max(scale, 20)
     chronic("niri", "msg", "output", display, "scale", str(scale / 100))
     return getOutputScale(display)
 

@@ -1,12 +1,15 @@
 import sys
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import cast
-from typing import Any
-
-from ..system import is_root
 from ..ostree import prune
+from ..system import is_root
 
 kwds = {"help": "Prune unused data from the ostree"}
 

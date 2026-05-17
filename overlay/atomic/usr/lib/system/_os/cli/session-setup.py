@@ -1,16 +1,18 @@
 import os
-
-from argparse import ArgumentParser
-from argparse import Namespace
-
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
 from typing import cast
 
-from ..niri import getOutputs
-from ..niri import setOutputScale
-from ..niri import setVolumeOut
-from ..niri import getVolumeOut
-from ..niri import setVolumeIn
-from ..niri import getVolumeIn
+from ..niri import (
+    getOutputs,
+    getVolumeIn,
+    getVolumeOut,
+    setOutputScale,
+    setVolumeIn,
+    setVolumeOut,
+)
 
 
 def register(parser: ArgumentParser) -> None:
