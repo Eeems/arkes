@@ -4,85 +4,49 @@
 # x-templates=nvidia
 ARG HASH
 
-FROM ghcr.io/eeems/arkes:base_2026.03.13 as pwvucontrol
-
-RUN <<EOT
-  /usr/lib/system/initialize_pacman
-  mkdir /var/home
-
-  /usr/lib/system/install_aur_packages libwireplumber-4.0-compat
-  echo "[system] Installing fakeroot debugedit pkg-config"
-  chronic pacman -Syu --asdeps --needed --noconfirm fakeroot debugedit pkg-config
-  chronic useradd -m aur
-  chronic passwd -d aur
-  echo "aur ALL=(ALL:ALL) NOPASSWD: ALL" >/etc/sudoers.d/aur
-  chronic sudo -u aur git clone \
-    --branch pwvucontrol \
-    --single-branch \
-    https://github.com/archlinux/aur.git \
-    /tmp/src
-  cd /tmp/src
-  sudo -u aur chronic makepkg \
-    --noconfirm \
-    --needed \
-    --syncdeps \
-    --install
-  rm pwvucontrol-debug-*.pkg.tar.zst
-  mv pwvucontrol-*.pkg.tar.zst /pwvucontrol.pkg.tar.zst
-
-  cd ..
-  chronic rm -r src
-  chronic rm /etc/sudoers.d/aur
-  chronic userdel aur
-  chronic rm -r /home/aur
-  /usr/lib/system/remove_unused_packages
-  rmdir /var/home
-  /usr/lib/system/remove_pacman_files
-EOT
-
 FROM arkes:base
 
 RUN /usr/lib/system/package_layer \
-  ghostty \
-  gnome-software \
-  flatpak-xdg-utils \
-  fwupd \
-  greetd-tuigreet \
-  niri \
-  xdg-desktop-portal-gnome \
-  xwayland-satellite \
-  gnome-keyring \
-  nautilus \
-  power-profiles-daemon \
-  python-numpy \
-  pipewire-audio \
-  pipewire-pulse \
-  awww \
-  hyprlock \
-  hypridle \
-  gamescope \
-  vulkan-swrast \
-  ttf-roboto-mono-nerd \
-  ttf-dejavu-nerd \
-  noto-fonts-emoji \
-  noto-fonts-cjk \
   adw-gtk-theme \
-  swaync \
-  nwg-clipman \
-  libnotify \
-  waybar \
-  fuzzel \
-  brightnessctl \
-  nm-connection-editor \
-  gnome-power-manager \
-  gnome-disk-utility \
-  polkit-gnome \
+  awww \
   bluez-utils \
-  system-config-printer \
-  dex \
+  brightnessctl \
   cups \
   cups-pdf \
+  dex \
+  flatpak-xdg-utils \
+  fuzzel \
+  fwupd \
+  gamescope \
+  ghostty \
+  gnome-disk-utility \
+  gnome-keyring \
+  gnome-power-manager \
+  gnome-software \
+  greetd-tuigreet \
+  hypridle \
+  hyprlock \
+  libnotify \
+  nautilus \
   networkmanager-dmenu \
+  niri \
+  nm-connection-editor \
+  noto-fonts-cjk \
+  noto-fonts-emoji \
+  nwg-clipman \
+  pipewire-audio \
+  pipewire-pulse \
+  polkit-gnome \
+  power-profiles-daemon \
+  python-numpy \
+  swaync \
+  system-config-printer \
+  ttf-dejavu-nerd \
+  ttf-roboto-mono-nerd \
+  vulkan-swrast \
+  waybar \
+  xdg-desktop-portal-gnome \
+  xwayland-satellite \
   --aur \
   python-imageio-ffmpeg \
   python-screeninfo \
@@ -91,6 +55,7 @@ RUN /usr/lib/system/package_layer \
   overskride \
   distroshelf \
   libwireplumber-4.0-compat \
+  pwvucontrol \
   wego \
   prelockd \
   --rm \
@@ -105,14 +70,6 @@ RUN <<EOT
   echo "[system] Symlinking awww -> swww"
   ln -s /usr/bin/awww /usr/bin/swww
   ln -s /usr/bin/awww-daemon /usr/bin/swww-daemon
-EOT
-
-RUN --mount=target=/mnt,from=pwvucontrol,src=/ <<EOT
-  set -e
-  /usr/lib/system/initialize_pacman
-  echo "[system] Installing pwvucontrol"
-  chronic pacman -U --needed --noconfirm /mnt/pwvucontrol.pkg.tar.zst
-  /usr/lib/system/remove_pacman_files
 EOT
 
 RUN <<EOT
