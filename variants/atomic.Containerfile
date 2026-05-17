@@ -60,6 +60,7 @@ RUN /usr/lib/system/package_layer \
   prelockd \
   --rm \
   distroshelf-debug \
+  pwvucontrol-debug \
   libwireplumber-4.0-compat-debug \
   overskride-debug \
   syshud-debug \
