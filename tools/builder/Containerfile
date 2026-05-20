@@ -58,6 +58,7 @@ RUN apt-get update \
     # Pyenv extra dependencies
     curl \
     gir1.2-gtk-4.0 \
+    gir1.2-ostree-1.0 \
     git \
     libbz2-dev \
     libffi-dev \
