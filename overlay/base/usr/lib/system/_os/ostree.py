@@ -10,11 +10,18 @@ from collections.abc import (
 from datetime import datetime
 from typing import cast
 
+import gi
+
 from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
 from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
     execute,
+)
+
+gi.require_version("OSTree", "1.0")
+from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
+    OSTree,  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
 )
 
 RETAIN = 5
@@ -202,84 +209,69 @@ def undeploy(
 
 
 class Deployment:
-    def __init__(self, data: dict[str, str | int | bool]) -> None:
-        self.data: dict[str, str | int | bool] = data
+    def __init__(self, sysroot: OSTree.Sysroot, deployment: OSTree.Deployment) -> None:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
+        self.sysroot: OSTree.Sysroot = sysroot
+        self.deployment: OSTree.Deployment = deployment
 
     @property
     def checksum(self) -> str:
-        checksum = self.data.get("checksum", "")
-        assert isinstance(checksum, str)
-        return checksum
+        return self.deployment.get_csum()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def stateroot(self) -> str:
-        stateroot = self.data.get("stateroot", "")
-        assert isinstance(stateroot, str)
-        return stateroot
+        return self.deployment.get_osname()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def unlocked(self) -> str:
-        unlocked = self.data.get("unlocked", "")
-        assert isinstance(unlocked, str)
-        return unlocked
+        state = self.deployment.unlocked_state_to_string(self.deployment.get_unlocked())  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+        assert isinstance(state, str)
+        return state
 
     @property
     def booted(self) -> bool:
-        booted = self.data.get("booted", False)
-        assert isinstance(booted, bool)
-        return booted
+        return self.index == self.sysroot.get_booted_deployment().get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def pending(self) -> bool:
-        pending = self.data.get("pending", False)
-        assert isinstance(pending, bool)
-        return pending
+        staged = self.sysroot.get_staged_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        if staged is None:
+            return False
+
+        return self.index == staged.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def rollback(self) -> bool:
-        rollback = self.data.get("rollback", False)
-        assert isinstance(rollback, bool)
-        return rollback
+        _, rollback = self.sysroot.query_deployments_for(None)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        return self.index == rollback.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def finalization_locked(self) -> bool:
-        finalization_locked = self.data.get("finalization-locked", False)
-        assert isinstance(finalization_locked, bool)
-        return finalization_locked
+        return self.deployment.is_finalization_locked()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def soft_reboot_target(self) -> bool:
-        soft_reboot_target = self.data.get("soft-reboot-target", False)
-        assert isinstance(soft_reboot_target, bool)
-        return soft_reboot_target
+        return self.deployment.is_soft_reboot_target()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def staged(self) -> bool:
-        staged = self.data.get("staged", False)
-        assert isinstance(staged, bool)
-        return staged
+        return self.deployment.is_staged()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def pinned(self) -> bool:
-        pinned = self.data.get("pinned", False)
-        assert isinstance(pinned, bool)
-        return pinned
+        return self.deployment.is_pinned()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def serial(self) -> int:
-        serial = self.data.get("serial", -1)
-        assert isinstance(serial, int)
-        return serial
+        return self.deployment.get_deployserial()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def index(self) -> int:
-        index = self.data.get("index", -1)
-        assert isinstance(index, int)
-        return index
+        return self.deployment.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def path(self) -> str:
-        path = f"/ostree/deploy/{self.stateroot}/deploy/{self.checksum}.{self.serial}"
+        path = self.sysroot.get_deployment_directory(self.deployment).get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        assert isinstance(path, str)
         assert os.path.exists(path)
         assert os.path.isdir(path)
         return path
@@ -350,16 +342,10 @@ class Deployment:
 
 
 def deployments() -> Generator[Deployment]:
-    status = json.loads(  # pyright: ignore[reportAny]
-        subprocess.check_output(["ostree", "admin", "status", "--json"])
-    )
-    assert isinstance(status, dict)
-    deployments = cast(
-        list[dict[str, str | int | bool]],
-        status.get("deployments", []),  # pyright: ignore[reportUnknownMemberType]
-    )
-    for deployment in deployments:
-        yield Deployment(deployment)
+    sysroot = OSTree.Sysroot.new_default()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    sysroot.load()  # pyright: ignore[reportUnknownMemberType]
+    for deployment in sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        yield Deployment(sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
 
 def current_deployment() -> Deployment:
