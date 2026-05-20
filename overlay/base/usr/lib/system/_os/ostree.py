@@ -1,5 +1,4 @@
 # pyright: reportImportCycles=false
-import json
 import os
 import shlex
 import subprocess
@@ -10,7 +9,7 @@ from collections.abc import (
 from datetime import datetime
 from typing import cast
 
-import gi
+import gi  # pyright: ignore[reportMissingTypeStubs]
 
 from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
@@ -19,8 +18,9 @@ from .system import (
     execute,
 )
 
-gi.require_version("OSTree", "1.0")
-from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
+gi.require_version("OSTree", "1.0")  # pyright: ignore[reportUnknownMemberType]
+from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]  # noqa: E402
+    Gio,  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
     OSTree,  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
 )
 
@@ -342,7 +342,11 @@ class Deployment:
 
 
 def deployments() -> Generator[Deployment]:
-    sysroot = OSTree.Sysroot.new_default()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    repo_path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
+    if repo_path.endswith("ostree/repo"):
+        repo_path = repo_path[:-11]
+
+    sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(repo_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     sysroot.load()  # pyright: ignore[reportUnknownMemberType]
     for deployment in sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         yield Deployment(sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
