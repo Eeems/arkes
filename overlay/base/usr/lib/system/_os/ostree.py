@@ -209,8 +209,8 @@ def undeploy(
 
 
 class Deployment:
-    def __init__(self, sysroot: OSTree.Sysroot, deployment: OSTree.Deployment) -> None:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
-        self.sysroot: OSTree.Sysroot = sysroot
+    def __init__(self, deployment: OSTree.Deployment) -> None:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
+        self.sysroot: OSTree.Sysroot = sysroot()
         self.deployment: OSTree.Deployment = deployment
 
     @property
@@ -341,20 +341,20 @@ class Deployment:
         return dict(packages)
 
 
-def deployments() -> Generator[Deployment]:
-    repo_path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
-    if repo_path.endswith("ostree/repo"):
-        repo_path = repo_path[:-11]
+def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
+    if sysroot_path is None:
+        path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
+        sysroot_path = path[:-11] if path.endswith("ostree/repo") else path
 
-    sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(repo_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     sysroot.load()  # pyright: ignore[reportUnknownMemberType]
-    for deployment in sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        yield Deployment(sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
+    return sysroot  # pyright: ignore[reportUnknownVariableType]
+
+
+def deployments() -> Generator[Deployment]:
+    for deployment in sysroot().get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        yield Deployment(deployment)  # pyright: ignore[reportUnknownArgumentType]
 
 
 def current_deployment() -> Deployment:
-    candidates = [x for x in deployments() if x.booted]
-    assert len(candidates) == 1, (
-        f"There should be one current deployment, not {len(candidates)}"
-    )
-    return candidates[0]
+    return Deployment(sysroot().get_booted_deployment())  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
