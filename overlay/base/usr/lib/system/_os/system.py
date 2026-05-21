@@ -218,7 +218,17 @@ def checkupdates(image: str | None = None) -> list[str]:
     system_updates: list[str] = []
     try:
         system_updates = (
-            in_nspawn_system_output("checkupdates", etc="overlay")
+            in_nspawn_system_output(
+                "bash",
+                "-ec",
+                "\n".join(
+                    [
+                        "chronic /usr/lib/system/initialize_pacman",
+                        "checkupdates",
+                    ]
+                ),
+                etc="overlay",
+            )
             .strip()
             .decode("utf-8")
             .splitlines()
