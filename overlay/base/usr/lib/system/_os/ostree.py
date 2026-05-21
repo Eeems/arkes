@@ -229,7 +229,11 @@ class Deployment:
 
     @property
     def booted(self) -> bool:
-        return self.index == self.sysroot.get_booted_deployment().get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+        deployment = self.sysroot.get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        if deployment is None:
+            return False
+
+        return self.index == deployment.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def pending(self) -> bool:
@@ -242,6 +246,9 @@ class Deployment:
     @property
     def rollback(self) -> bool:
         _, rollback = self.sysroot.query_deployments_for(None)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        if rollback is None:
+            return False
+
         return self.index == rollback.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
