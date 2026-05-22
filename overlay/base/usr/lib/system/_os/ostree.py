@@ -364,4 +364,6 @@ def deployments() -> Generator[Deployment]:
 
 
 def current_deployment() -> Deployment:
-    return Deployment(sysroot().get_booted_deployment())  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    deployment = sysroot().get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    assert deployment is not None
+    return Deployment(deployment)  # pyright: ignore[reportUnknownArgumentType]
