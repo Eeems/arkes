@@ -256,7 +256,7 @@ def command(args: Namespace) -> None:
             "  push: *on-filter",
             "  workflow_dispatch:",
             "  schedule:",
-            '    - cron: "0 23 * * *"',
+            '    - cron: "0 3 * * *"',
             "",
             "concurrency:",
             "  group: build-${{ github.ref_name }}",
