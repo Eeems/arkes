@@ -57,6 +57,8 @@ def command(args: Namespace) -> None:
             "make/hash-builder.py",
             *glob("tools/builder/**", recursive=True),
             *glob("tools/dockerfile2llbjson/**", recursive=True),
+            "overlay/base/etc/containers/registries.conf.d/10-docker.conf",
+            "overlay/base/usr/share/containers/storage.conf",
         ]
     ):
         m.update(file_hash(file).encode("utf-8"))
