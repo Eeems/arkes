@@ -101,6 +101,7 @@ def build(target: str, cache: bool = True) -> None:
         f"--file={containerfile}",
         "--format=oci",
         "--timestamp=1735689640",
+        "--annotation=io.github.containers.compression.zstd=true",
         ".",
     )
     if target == "rootfs":
@@ -176,6 +177,7 @@ def build(target: str, cache: bool = True) -> None:
         "--file=variant.Containerfile",
         "--format=oci",
         "--timestamp=1735689640",
+        "--annotation=io.github.containers.compression.zstd=true",
         ".",
     )
     podman("rmi", build_tag)

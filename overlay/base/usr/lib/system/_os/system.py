@@ -52,7 +52,7 @@ def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:
 
 
 def _execute(cmd: str) -> int:
-    status = os.system(cmd)  # noqa: S605
+    status = os.system(cmd)  # noqa: S605  # pyright: ignore[reportDeprecated]
     return os.waitstatus_to_exitcode(status)
 
 
@@ -130,13 +130,13 @@ def execute_pipe(
     os.set_blocking(p.stderr.fileno(), False)
     while p.poll() is None:
         _ = select([p.stderr, p.stdout], [] if p.stdin is None else [p.stdin], [])
-        line = p.stdout.readline()
+        line = p.stdout.readline()  # pyright: ignore[reportAny]
         if line:
-            onstdout(line)
+            onstdout(line)  # pyright: ignore[reportAny]
 
-        line = p.stderr.readline()
+        line = p.stderr.readline()  # pyright: ignore[reportAny]
         if line:
-            onstderr(line)
+            onstderr(line)  # pyright: ignore[reportAny]
 
         if p.stdin is None or p.stdin.closed:
             continue
@@ -161,11 +161,11 @@ def execute_pipe(
             p.stdin.close()
 
     # Drain remaining buffered data from file objects
-    for line in p.stdout.readlines():
-        onstdout(line)
+    for line in p.stdout.readlines():  # pyright: ignore[reportAny]
+        onstdout(line)  # pyright: ignore[reportAny]
 
-    for line in p.stderr.readlines():
-        onstderr(line)
+    for line in p.stderr.readlines():  # pyright: ignore[reportAny]
+        onstderr(line)  # pyright: ignore[reportAny]
 
     return p.returncode
 
