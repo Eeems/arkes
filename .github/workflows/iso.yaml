@@ -63,12 +63,12 @@ jobs:
       - name: Setup container
         uses: ./.github/actions/setup-container
 
-      - name: Login to ghcr
+      - name: Login to quay.io
         uses: redhat-actions/podman-login@v1
         with:
-          username: ${{github.actor}}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: ghcr.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: quay.io
           auth_file_path: /run/containers/0/auth.json
 
       - name: Mask registry passwords
@@ -84,7 +84,7 @@ jobs:
         uses: ./.github/actions/import-container
         with:
           artifact: ${{ inputs.artifact }}
-          image: ghcr.io/eeems/arkes:${{ inputs.artifact }}
+          image: quay.io/eeems/arkes:${{ inputs.artifact }}
 
       - name: Get manifest cache
         if: inputs.artifact != ''

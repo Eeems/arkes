@@ -95,7 +95,7 @@ bytes_to_stderr = cast(
 IMAGE = cast(str, _os.IMAGE)
 REGISTRY = cast(str, _os.REGISTRY)
 REPO = cast(str, _os.REPO)
-BUILDER = f"{REPO}-builder"
+BUILDER = "ghcr.io/eeems/arkes-builder"
 
 
 def ci_log(*args: str) -> None:

@@ -8,7 +8,7 @@ from glob import iglob
 from typing import cast
 
 OS_NAME = "arkes"
-REGISTRY = "ghcr.io"
+REGISTRY = "quay.io"
 IMAGE = f"eeems/{OS_NAME}"
 REPO = f"{REGISTRY}/{IMAGE}"
 SYSTEM_PATH = "/var/lib/system"
