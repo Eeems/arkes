@@ -51,6 +51,7 @@ RUN <<EOT
     pacman-contrib \
     python-pyxattr \
     python-requests \
+    python-podman \
     python-progressbar \
     python-dbus \
     distrobox \
@@ -74,8 +75,7 @@ RUN <<EOT
   mkdir /var/home
   /usr/lib/system/package_layer \
     --aur \
-    localepurge \
-    python-podman
+    localepurge
   rmdir /var/home
 EOT
 
