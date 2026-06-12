@@ -54,14 +54,12 @@ RUN /usr/lib/system/package_layer \
   syshud \
   overskride \
   distroshelf \
-  libwireplumber-4.0-compat \
   pwvucontrol \
   wego \
   prelockd \
   --rm \
   distroshelf-debug \
   pwvucontrol-debug \
-  libwireplumber-4.0-compat-debug \
   overskride-debug \
   syshud-debug \
   wego-debug
