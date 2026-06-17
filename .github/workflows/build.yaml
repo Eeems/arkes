@@ -39,7 +39,7 @@ on:
   push: *on-filter
   workflow_dispatch:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 5 * * *"
 
 concurrency:
   group: build-${{ github.ref_name }}
