@@ -186,7 +186,7 @@ def command(args: Namespace) -> None:
                     shlex.join(
                         [
                             "basedpyright",
-                            "--pythonversion=3.12",
+                            "--pythonversion=3.14",
                             "--pythonplatform=Linux",
                             "--venvpath=.venv",
                             "make.py",
