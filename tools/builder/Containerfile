@@ -30,46 +30,48 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install core tools + build deps for pyenv + your system deps
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+    build-essential \
     ca-certificates \
-    gnupg \
-    ostree \
-    podman \
-    sudo \
-    jq \
+    containernetworking-plugins \
+    fuse-overlayfs \
     gh \
+    gnupg \
     golang-go \
+    jq \
+    libcairo2-dev \
+    libdbus-1-dev \
+    libgirepository-2.0-dev \
+    libglib2.0-dev \
+    libpython3-dev \
     meson \
-    uidmap \
     netavark \
+    ninja-build \
+    ostree \
+    pkg-config \
+    podman \
+    python3-dev \
     skopeo \
+    sudo \
+    uidmap \
     xdelta3 \
     zstd \
-    fuse-overlayfs \
-    containernetworking-plugins \
-    ninja-build \
-    build-essential \
-    pkg-config \
-    python3-dev \
-    libpython3-dev \
-    libdbus-1-dev \
-    libglib2.0-dev \
-    libcairo2-dev \
-    libgirepository-2.0-dev \
     # Pyenv extra dependencies
-    libssl-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    libreadline-dev \
-    libsqlite3-dev \
     curl \
+    gir1.2-gtk-4.0 \
+    gir1.2-ostree-1.0 \
     git \
-    libncursesw5-dev \
-    xz-utils \
-    tk-dev \
-    libxml2-dev \
-    libxmlsec1-dev \
+    libbz2-dev \
     libffi-dev \
     liblzma-dev \
+    libncursesw5-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxmlsec1-dev \
+    tk-dev \
+    xz-utils \
+    zlib1g-dev \
     # Install docker-ce
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | tee /etc/apt/keyrings/docker.asc > /dev/null \
@@ -85,14 +87,16 @@ RUN apt-get update \
     && curl https://pyenv.run | bash \
     && pyenv install 3.13 \
     && pyenv global 3.13 \
+    && pyenv exec python -m pip install --root-user-action ignore --upgrade pip \
     && pyenv exec python -m pip install --root-user-action ignore --upgrade \
-    pip \
-    setuptools \
     requests \
+    setuptools \
     wheel \
+    && pyenv exec python -m pip install --root-user-action ignore --upgrade \
     dbus-python \
     podman \
     progressbar2 \
+    PyGObject \
     pyxattr \
     # Cleanup
     && pip cache purge \
