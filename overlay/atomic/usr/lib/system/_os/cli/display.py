@@ -63,12 +63,12 @@ def command_list(_: Namespace) -> None:
 
 
 def command_off(_: Namespace) -> None:
-    for display in getOutputs().keys():
+    for display in getOutputs():
         chronic("niri", "msg", "output", display, "off")
 
 
 def command_on(_: Namespace) -> None:
-    for display in getOutputs().keys():
+    for display in getOutputs():
         chronic("niri", "msg", "output", display, "on")
 
 

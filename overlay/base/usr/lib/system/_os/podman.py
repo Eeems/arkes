@@ -612,7 +612,7 @@ def parse_containerfile(
 ) -> list[dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
     is_path = isinstance(containerfile, str)
     if is_path:
-        containerfile = open(containerfile)
+        containerfile = open(containerfile)  # noqa: SIM115
 
     try:
         argv = ["-p"] if pretty else []

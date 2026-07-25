@@ -209,4 +209,4 @@ def groups_for_sender(obj: dbus.service.Object, sender: str) -> set[str]:
         obj.connection.get_unix_user,  # pyright:ignore [reportAttributeAccessIssue,reportUnknownMemberType]
     )(sender)
     user = pwd.getpwuid(userid).pw_name
-    return set([x.gr_name for x in grp.getgrall() if user in x.gr_mem])
+    return {x.gr_name for x in grp.getgrall() if user in x.gr_mem}

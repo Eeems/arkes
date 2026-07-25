@@ -9,7 +9,7 @@ from typing import (
     cast,
 )
 
-import _os.podman  # noqa: E402 #pyright:ignore [reportMissingImports]
+import _os.podman  # pyright:ignore [reportMissingImports]
 
 from . import REPO, is_root
 

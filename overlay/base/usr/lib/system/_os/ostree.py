@@ -291,7 +291,7 @@ class Deployment:
                 x[0]: x[1]
                 for x in [
                     x.strip().split("=", 1)
-                    for x in f.readlines()
+                    for x in f
                     if "=" in x
                     if not x.startswith("#")
                 ]
@@ -316,13 +316,13 @@ class Deployment:
 
         packages: list[tuple[str, str]] = []
         try:
-            packages = list(
+            packages = [
                 cast(tuple[str, str], tuple(x.split(" ", 1)))
                 for x in in_nspawn_system_output("pacman", "-Q", deployment=self)
                 .strip()
                 .decode("utf-8")
                 .splitlines()
-            )
+            ]
 
         except subprocess.CalledProcessError as e:
             if e.returncode != 2:
@@ -338,10 +338,10 @@ class Deployment:
                 os.path.join(self.path, "usr/lib/system/packages.txt"),
                 encoding="utf-8",
             ) as f:
-                packages = list(
+                packages = [
                     cast(tuple[str, str], tuple(x.split(" ", 1)))
                     for x in f.read().strip().splitlines()
-                )
+                ]
 
         except FileNotFoundError:
             pass

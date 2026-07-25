@@ -109,7 +109,7 @@ class Object(dbus.service.Object):
     ) -> None:
         try:
             assert sender is not None
-            if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
+            if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
                 error("Permission denied")
                 return
 
@@ -348,7 +348,7 @@ class Object(dbus.service.Object):
     ) -> None:
         try:
             assert sender is not None
-            if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
+            if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
                 error("Permission denied")
                 return
 
@@ -510,7 +510,7 @@ class Object(dbus.service.Object):
     ) -> None:
         try:
             assert sender is not None
-            if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
+            if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
                 error("Permission denied")
                 return
 
@@ -602,7 +602,7 @@ class Object(dbus.service.Object):
     ) -> None:
         try:
             assert sender is not None
-            if not set(["adm", "wheel", "root"]) & groups_for_sender(self, sender):
+            if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
                 error("Permission denied")
                 return
 
@@ -638,9 +638,7 @@ class Object(dbus.service.Object):
             raise
 
         except BaseException as e:
-            self.pull_stderr(
-                f"Exception: {e}\n{traceback.format_exc()}".encode()
-            )
+            self.pull_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())
             self.pull_status("error")
             self.notify_all("Failed to pull base image", "pull")
             raise

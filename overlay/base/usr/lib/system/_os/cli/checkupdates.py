@@ -54,18 +54,17 @@ def command(args: Namespace) -> None:
         return
 
     print("\n".join(updates))
-    if cast(bool, args.download):
-        if (
-            [x for x in updates if x.startswith(f"{baseImage()} ")]
-            and force
-            or pull_available()
-        ):
-            try:
-                pull()
+    if cast(bool, args.download) and (
+        [x for x in updates if x.startswith(f"{baseImage()} ")]
+        and force
+        or pull_available()
+    ):
+        try:
+            pull()
 
-            except BaseException:
-                traceback.print_exc()
-                sys.exit(1)
+        except BaseException:
+            traceback.print_exc()
+            sys.exit(1)
 
     sys.exit(2)
 
