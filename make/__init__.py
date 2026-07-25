@@ -99,6 +99,9 @@ BUILDER = "ghcr.io/eeems/arkes-builder"
 
 
 def ci_log(*args: str) -> None:
+    # Needed to get proper module
+    import os  # noqa: PLC0415
+
     if "CI" not in os.environ:
         return
 
@@ -127,6 +130,9 @@ def progress_bar[T](
     out: TextIO = sys.stdout,
     interval: int = 1,
 ) -> Generator[T]:
+    # Needed to get proper module
+    import os  # noqa: PLC0415
+
     if count is None:
         count = len(iterable)  # pyright: ignore[reportArgumentType]
 
