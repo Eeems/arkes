@@ -59,7 +59,7 @@ def command(_: Namespace) -> None:
             [
                 "du",
                 "-hs",
-                *set([os.path.dirname(x.path) for x in _deployments]),
+                *{os.path.dirname(x.path) for x in _deployments},
             ]
         )
         .strip()

@@ -37,7 +37,7 @@ def command(args: Namespace) -> None:
         return
 
     # TODO load settings from a config file
-    for display in getOutputs().keys():
+    for display in getOutputs():
         _ = setOutputScale(display, 100)
 
     # Ensure volumes are clipped to the max allowed

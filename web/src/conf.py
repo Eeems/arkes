@@ -1,6 +1,6 @@
 import datetime
 
-year = datetime.datetime.today().year
+year = datetime.datetime.now(datetime.UTC).year
 
 project = "Arkēs"
 copyright = f"2025{f'-{year}' if year > 2025 else ''}, Eeems"
