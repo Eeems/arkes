@@ -90,7 +90,7 @@ def command(args: Namespace) -> None:
     )
 
 
-def install(
+def install(  # noqa: PLR0917
     branch: str = "system",
     sysroot: str = "/mnt",
     dev_sys: str | None = None,

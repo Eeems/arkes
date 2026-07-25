@@ -202,8 +202,8 @@ def checkupdates(image: str | None = None) -> list[str]:
             x[0]: x[1]
             for x in [
                 x.strip().split("=", 1)
-                for x in f.readlines()
-                if x.startswith("VERSION_ID=") or x.startswith("VERSION=")
+                for x in f
+                if x.startswith(("VERSION_ID=", "VERSION="))
             ]
         }
 
@@ -303,7 +303,7 @@ def checkupdates(image: str | None = None) -> list[str]:
                 mode="w", suffix=".packages", delete=False
             ) as f:
                 packages_path = f.name
-                for pkg in user_pkgs.keys():
+                for pkg in user_pkgs:
                     _ = f.write(f"{pkg}\n")
 
             packages_script: list[str] = [
@@ -645,4 +645,4 @@ def wait_for_processes(
         cleanup()
 
     if errors:
-        raise ExceptionGroup("CalledProcessError", errors)  # noqa: F821
+        raise ExceptionGroup("CalledProcessError", errors)

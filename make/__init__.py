@@ -45,9 +45,9 @@ _ = shutil.copy2("overlay/base/usr/bin/os", os.path.join(_osDir, "bin/os"))
 _ = shutil.copystat("overlay/base/usr/bin/os", os.path.join(_osDir, "bin/os"))
 sys.path.append(os.path.join(_osDir, "lib/system"))
 
-import _os  # noqa: E402 #pyright:ignore [reportMissingImports]
-import _os.podman  # noqa: E402 #pyright:ignore [reportMissingImports]
-import _os.system  # noqa: E402 #pyright:ignore [reportMissingImports]
+import _os  # pyright:ignore [reportMissingImports]
+import _os.podman  # pyright:ignore [reportMissingImports]
+import _os.system  # pyright:ignore [reportMissingImports]
 
 podman = cast(Callable[..., None], _os.podman.podman)  # pyright:ignore [reportUnknownMemberType]
 podman_cmd = cast(Callable[..., list[str]], _os.podman.podman_cmd)  # pyright:ignore [reportUnknownMemberType]
@@ -226,7 +226,7 @@ if os.path.exists(DIGEST_CACHE_PATH):
                 future.set_result(digest)
                 _image_digests[image] = future
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Failed to load digest cache: {e}", file=sys.stderr)
             os.unlink(DIGEST_CACHE_PATH)
 
@@ -246,12 +246,11 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
             _image_digests_write_cache(image, digest)
             return digest
 
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             e = ex
-            if isinstance(e, subprocess.CalledProcessError):
-                if e.returncode == 2:
-                    # Exit early, image cannot be found
-                    break
+            if isinstance(e, subprocess.CalledProcessError) and e.returncode == 2:
+                # Exit early, image cannot be found
+                break
 
             if isinstance(e, AssertionError):
                 raise

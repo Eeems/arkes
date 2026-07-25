@@ -1,11 +1,14 @@
 import json
-
+from argparse import (
+    ArgumentParser,
+    FileType,
+    Namespace,
+)
 from io import TextIOWrapper
-from argparse import ArgumentParser
-from argparse import Namespace
-from argparse import FileType
-from typing import Any
-from typing import cast
+from typing import (
+    Any,
+    cast,
+)
 
 from . import parse_containerfile
 

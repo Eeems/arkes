@@ -1,15 +1,17 @@
 import os
-import tempfile
 import subprocess
+import tempfile
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
 
-from argparse import ArgumentParser
-from argparse import Namespace
-from typing import Any
-from typing import cast
-
-from .shell import shell
 from .ref import ref
-
+from .shell import shell
 
 kwds: dict[str, str] = {
     "help": "Open a builder shell similar to what runs in github actions",

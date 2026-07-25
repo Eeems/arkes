@@ -196,11 +196,7 @@ def system_hash() -> str:
     with open("/usr/lib/os-release") as f:
         local_info = {
             x[0]: x[1]
-            for x in [
-                x.strip().split("=", 1)
-                for x in f.readlines()
-                if x.startswith("BUILD_ID=")
-            ]
+            for x in [x.strip().split("=", 1) for x in f if x.startswith("BUILD_ID=")]
         }
 
     return local_info.get("BUILD_ID", "0000-00-00.0").split(".", 1)[1]
@@ -258,7 +254,7 @@ def image_tags(image: str, skip_manifest: bool = False) -> list[str]:
     ):
         tags = [
             x[19:]
-            for x in image_labels(f"{REPO}:_manifest", False).keys()
+            for x in image_labels(f"{REPO}:_manifest", False)
             if x.startswith("arkes.manifest.tag.")
         ]
         if tags:
@@ -567,7 +563,7 @@ def export(
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> Generator[tarfile.TarFile]:
     with export_stream(tag, setup, workingDir, onstdout, onstderr) as stdout:
-        yield tarfile.open(fileobj=stdout, mode="r|*")
+        yield tarfile.open(fileobj=stdout, mode="r|*")  # noqa: SIM115
 
 
 def hex_to_base62(hex_digest: str) -> str:
@@ -612,7 +608,7 @@ def parse_containerfile(
 ) -> list[dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
     is_path = isinstance(containerfile, str)
     if is_path:
-        containerfile = open(containerfile)
+        containerfile = open(containerfile)  # noqa: SIM115
 
     try:
         argv = ["-p"] if pretty else []

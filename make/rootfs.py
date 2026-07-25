@@ -48,10 +48,14 @@ def command(args: Namespace) -> None:
         for x in [
             x.rstrip().split(" ", 1)[1].split("=", 1)
             for x in lines
-            if x.startswith("ARG ARCHIVE_YEAR=")
-            or x.startswith("ARG ARCHIVE_MONTH=")
-            or x.startswith("ARG ARCHIVE_DAY=")
-            or x.startswith("ARG PACSTRAP_TAG=")
+            if x.startswith(
+                (
+                    "ARG ARCHIVE_YEAR=",
+                    "ARG ARCHIVE_MONTH=",
+                    "ARG ARCHIVE_DAY=",
+                    "ARG PACSTRAP_TAG=",
+                )
+            )
         ]
     }
 

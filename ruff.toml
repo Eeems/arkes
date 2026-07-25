@@ -1,3 +1,5 @@
+target-version = "py314"
+
 [lint]
 extend-select = [
     "UP",
@@ -6,22 +8,29 @@ extend-select = [
     "S",
 ]
 ignore = [
-    "PLW0603",
-    "PLR2004",
-    "PLR0915",
-    "PLR0912",
+    "ANN001",
+    "ANN003",
+    "ANN401",
+    "B009",
+    "B010",
+    "BLE001",
+    "DTZ005",
+    "DTZ007",
+    "FLY002",
+    "FURB188",
+    "N999",
     "PLR0911",
-    "PLR6301",
+    "PLR0912",
     "PLR0913",
+    "PLR0915",
+    "PLR2004",
+    "PLR6301",
+    "PLW0603",
+    "RUF015",
     "S101",
     "S404",
     "S603",
     "S607",
-    "ANN401",
-    "ANN001",
-    "ANN003",
-    "BLE001",
-    "FLY002",
-    "DTZ005",
-    "N999"
+    "TRY002",
+    "E402"
 ]
