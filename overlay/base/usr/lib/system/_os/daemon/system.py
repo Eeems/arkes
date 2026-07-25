@@ -550,7 +550,7 @@ class Object(dbus.service.Object):
 
         except BaseException as e:
             self.checkupdates_stderr(
-                f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
+                f"Exception: {e}\n{traceback.format_exc()}".encode()
             )
             self.checkupdates_status("error")
             self.notify_all("Failed to checkupdates base image", "checkupdates")
@@ -639,7 +639,7 @@ class Object(dbus.service.Object):
 
         except BaseException as e:
             self.pull_stderr(
-                f"Exception: {e}\n{traceback.format_exc()}".encode("utf-8")
+                f"Exception: {e}\n{traceback.format_exc()}".encode()
             )
             self.pull_status("error")
             self.notify_all("Failed to pull base image", "pull")

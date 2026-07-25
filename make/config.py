@@ -51,7 +51,7 @@ def _get_config_data(
 def parse_config(containerfile: str) -> tuple[str, ConfigItem]:
     filename = os.path.basename(containerfile)
     assert filename.endswith(".Containerfile")
-    with open(containerfile, "r") as f:
+    with open(containerfile) as f:
         lines = f.read().splitlines()
 
     config: ConfigItem = {}

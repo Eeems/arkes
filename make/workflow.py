@@ -376,7 +376,7 @@ def command(args: Namespace) -> None:
 
         return
 
-    with open(".github/workflows/build.yaml", "r") as f:
+    with open(".github/workflows/build.yaml") as f:
         current_workflow = f.read()
 
     if generated_workflow == current_workflow:

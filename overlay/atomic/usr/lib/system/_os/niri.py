@@ -94,25 +94,25 @@ def setVolumeIn(volume: int, maxVolume: int = 100) -> int:
     return getVolumeIn()
 
 
-def muteOut():
+def muteOut() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1")
 
 
-def unmuteOut():
+def unmuteOut() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0")
 
 
-def toggleMuteOut():
+def toggleMuteOut() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle")
 
 
-def muteIn():
+def muteIn() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "1")
 
 
-def unmuteIn():
+def unmuteIn() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "0")
 
 
-def toggleMuteIn():
+def toggleMuteIn() -> None:
     chronic("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle")

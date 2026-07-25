@@ -60,7 +60,7 @@ def command(args: Namespace) -> None:
     wegoRc = os.path.expanduser("~/.wegorc")
     useWego = os.path.exists(wegoRc)
     if useWego:
-        with open(wegoRc, "r") as f:
+        with open(wegoRc) as f:
             useWego = bool(
                 [
                     x.split("=", 1)[1]
@@ -89,11 +89,11 @@ def command(args: Namespace) -> None:
 
     if not useWego:
         print(
-            (
+            
                 subprocess.check_output(["curl", "--silent", "wttr.in?format=%t%c"])
                 .decode("utf-8")
                 .replace("\n", "\r")
-            )
+            
         )
         print(
             subprocess.check_output(

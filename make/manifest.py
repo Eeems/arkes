@@ -160,9 +160,9 @@ def command(args: Namespace) -> None:
             )
 
         except Exception:
-            tmppath = f"/tmp/{os.getpid()}.manifest.Containerfile"
+            tmppath = f"/tmp/{os.getpid()}.manifest.Containerfile"  # noqa: S108
             with (
-                open(containerfile, "r") as f,
+                open(containerfile) as f,
                 open(tmppath, "w") as out,
             ):
                 _ = out.write(f.read())

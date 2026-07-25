@@ -99,8 +99,6 @@ BUILDER = "ghcr.io/eeems/arkes-builder"
 
 
 def ci_log(*args: str) -> None:
-    import os
-
     if "CI" not in os.environ:
         return
 
@@ -128,9 +126,7 @@ def progress_bar[T](
     prefix: str = "Progress: ",
     out: TextIO = sys.stdout,
     interval: int = 1,
-) -> Generator[T, None, None]:
-    import os
-
+) -> Generator[T]:
     if count is None:
         count = len(iterable)  # pyright: ignore[reportArgumentType]
 
@@ -143,11 +139,9 @@ def progress_bar[T](
 
     current = 0
 
-    def show():
+    def show() -> None:
         nonlocal current
-        if current > count:
-            current = count
-
+        current = min(current, count)
         if no_progress:
             print(f"{prefix} {current}/{count}")
             return
@@ -216,7 +210,7 @@ def image_size_cached(image: str) -> int:
     return future
 
 
-DIGEST_CACHE_PATH = os.path.join(os.environ.get("TMPDIR", "/tmp"), "manifest_cache")
+DIGEST_CACHE_PATH = os.path.join(os.environ.get("TMPDIR", "/tmp"), "manifest_cache")  # noqa: S108
 _image_digests: dict[str, Future[str]] = {}
 _image_digests_lock = threading.Lock()
 _image_digests_write_lock = threading.Lock()
@@ -232,7 +226,7 @@ if os.path.exists(DIGEST_CACHE_PATH):
                 future.set_result(digest)
                 _image_digests[image] = future
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Failed to load digest cache: {e}", file=sys.stderr)
             os.unlink(DIGEST_CACHE_PATH)
 
@@ -252,7 +246,7 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
             _image_digests_write_cache(image, digest)
             return digest
 
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             e = ex
             if isinstance(e, subprocess.CalledProcessError):
                 if e.returncode == 2:
@@ -269,7 +263,7 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
 
 
 def image_digest_cached(image: str, skip_manifest: bool = False) -> Future[str]:
-    global _image_digests
+    global _image_digests  # noqa: PLW0602
     image = image_qualified_name(image)
     future = _image_digests.get(image, None)
     if future is None:
@@ -284,7 +278,7 @@ def image_digest_cached(image: str, skip_manifest: bool = False) -> Future[str]:
 
 
 def _image_digests_write_cache(image: str, digest: str) -> None:
-    global _image_digests
+    global _image_digests  # noqa: PLW0602
     with _image_digests_write_lock:
         image = image_qualified_name(image)
         future: Future[str] = Future()

@@ -54,7 +54,7 @@ def command(_: Namespace) -> None:
 
         print()
 
-    size = size = (
+    size = (
         subprocess.check_output(
             [
                 "du",

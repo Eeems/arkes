@@ -1,3 +1,4 @@
+# pyright: reportUnnecessaryTypeIgnoreComment=false
 import json
 import os
 import shlex
@@ -172,7 +173,7 @@ def execute_pipe(
 
 def system_kernelCommandLine() -> str:
     if os.path.exists("/etc/system/commandline"):
-        with open("/etc/system/commandline", "r") as f:
+        with open("/etc/system/commandline") as f:
             return f.read().strip()
 
     return ""

@@ -128,7 +128,7 @@ def update_variants_rst() -> None:
     rst_path = Path("web/src/variants.rst")
 
     # Read current file
-    with open(rst_path, "r") as f:
+    with open(rst_path) as f:
         content = f.read()
 
     # Check if markers exist
@@ -163,7 +163,7 @@ def check_diagram_diff() -> bool | Iterable[str]:
         return True  # Different because file doesn't exist
 
     # Read current file
-    with open(rst_path, "r") as f:
+    with open(rst_path) as f:
         content = f.read()
 
     # Check if markers exist

@@ -1,5 +1,4 @@
 import datetime
-from datetime import timezone
 
 year = datetime.datetime.today().year
 
@@ -31,7 +30,7 @@ ogp_use_first_image = True
 ogp_type = "article"
 ogp_enable_meta_description = True
 ogp_custom_meta_tags = [
-    f'<meta property="og:article:modified_time" content="{datetime.datetime.now(timezone.utc).isoformat()}" />',
+    f'<meta property="og:article:modified_time" content="{datetime.datetime.now(datetime.UTC).isoformat()}" />',
 ]
 extensions = [
     "sphinxext.opengraph",

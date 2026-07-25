@@ -35,7 +35,7 @@ def checkupdates(
 
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_status(status: str):
+    def on_status(status: str) -> None:
         setattr(on_status, "status", status)
         if status in ["error", "none", "available"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
@@ -70,7 +70,7 @@ def pull(
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_status(status: str):
+    def on_status(status: str) -> None:
         onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
@@ -119,7 +119,7 @@ def upgrade(
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_status(status: str):
+    def on_status(status: str) -> None:
         onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
@@ -169,7 +169,7 @@ def build(
     )
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
-    def on_status(status: str):
+    def on_status(status: str) -> None:
         onstderr(f"Status: {status}")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:

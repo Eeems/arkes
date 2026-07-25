@@ -40,7 +40,7 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     containerfile = "rootfs.Containerfile"
-    with open(containerfile, "r") as f:
+    with open(containerfile) as f:
         lines = f.readlines()
 
     config = {
@@ -63,16 +63,16 @@ def command(args: Namespace) -> None:
     with open(containerfile, "w") as f:
         for line in lines:
             if line.startswith("ARG ARCHIVE_YEAR="):
-                line = f"ARG ARCHIVE_YEAR={year}\n"
+                line = f"ARG ARCHIVE_YEAR={year}\n"  # noqa: PLW2901
 
             elif line.startswith("ARG ARCHIVE_MONTH="):
-                line = f"ARG ARCHIVE_MONTH={month}\n"
+                line = f"ARG ARCHIVE_MONTH={month}\n"  # noqa: PLW2901
 
             elif line.startswith("ARG ARCHIVE_DAY="):
-                line = f"ARG ARCHIVE_DAY={day}\n"
+                line = f"ARG ARCHIVE_DAY={day}\n"  # noqa: PLW2901
 
             elif line.startswith("ARG PACSTRAP_TAG="):
-                line = f"ARG PACSTRAP_TAG={tag}\n"
+                line = f"ARG PACSTRAP_TAG={tag}\n"  # noqa: PLW2901
 
             _ = f.write(line)
 
