@@ -1,0 +1,65 @@
+#!/bin/bash
+set -e
+if [ "$EUID" -ne 0 ];then
+  exec sudo "$0" "$@"
+fi
+log(){
+  echo "$@" 1>&2
+}
+up(){
+  log "Setting up kernel..."
+  sysctl net.ipv4.conf.all.rp_filter=0 1>&2
+  sysctl net.ipv4.conf.enp7s0.rp_filter=0 1>&2
+  log "Setting up networking..."
+  ip tuntap add mode tun dev tun0
+  ip addr add 192.18.0.1/15 dev tun0
+  ip link set dev tun0 up
+  ip route add default via 192.18.0.1 dev tun0 metric 1
+  log "Starting ssh connection..."
+  sudo -u eeems ssh -TND 4711 "$1" >/dev/null &
+  log "Starting vpn..."
+  tun2socks \
+    --device tun0 \
+    --proxy socks5://localhost:4711 \
+    --interface enp7s0 \
+    --loglevel error \
+    >/dev/null &
+}
+down(){
+  log "Stopping background jobs..."
+  kill $(jobs -p)
+  wait $(jobs -p)
+  log "Stopping networking..."
+  ip route del default via 192.18.0.1 dev tun0 metric 1
+  ip link set dev tun0 down
+  ip tuntap del mode tun dev tun0
+  log "Stopped."
+}
+ipaddr(){
+  log "Wating for ip..."
+  ret=1
+  while [ $ret != 0 ];do
+    set +e
+    ip=$(curl -s4 icanhazip.com)
+    ret=$?
+    set -e
+  done
+  log -n "ipv4: "
+  echo "$ip"
+}
+help(){
+  log "Usage: $0 <host>"
+}
+main(){
+  if [ $# -ne 1 ];then
+    help
+    return 1
+  fi
+  ipaddr 1>&2
+  up "$1"
+  trap "down" EXIT
+  ipaddr
+  log "VPN connected!"
+  wait $(jobs -p)
+}
+main "$@"

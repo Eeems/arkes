@@ -33,7 +33,8 @@ RUN /usr/lib/system/package_layer \
   pyenv \
   spotify \
   podman-docker \
-  podman-compose
+  podman-compose \
+  tun2socks
 
 RUN systemctl enable zerotier-one
 
