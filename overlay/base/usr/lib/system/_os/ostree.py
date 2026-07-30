@@ -19,7 +19,7 @@ from .system import (
 )
 
 gi.require_version("OSTree", "1.0")  # pyright: ignore[reportUnknownMemberType]
-from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]  # noqa: E402
+from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
     Gio,  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
     OSTree,  # pyright: ignore[reportUnknownVariableType, reportAttributeAccessIssue]
 )
@@ -237,11 +237,11 @@ class Deployment:
 
     @property
     def pending(self) -> bool:
-        staged = self.sysroot.get_staged_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        if staged is None:
+        pending, _ = self.sysroot.query_deployments_for(self.stateroot)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        if pending is None:
             return False
 
-        return self.index == staged.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+        return self.index == pending.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
     def rollback(self) -> bool:
@@ -350,8 +350,10 @@ class Deployment:
 
 def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
     if sysroot_path is None:
-        path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
-        sysroot_path = path[:-11] if path.endswith("ostree/repo") else path
+        sysroot_path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
+        parent = os.path.dirname(sysroot_path)
+        if os.path.basename(sysroot_path) == "repo" and os.path.basename(parent) == "ostree":
+            sysroot_path = os.path.dirname(parent)
 
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     sysroot.load()  # pyright: ignore[reportUnknownMemberType]
