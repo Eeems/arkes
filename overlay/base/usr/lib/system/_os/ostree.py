@@ -245,7 +245,7 @@ class Deployment:
 
     @property
     def rollback(self) -> bool:
-        _, rollback = self.sysroot.query_deployments_for(None)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        _, rollback = self.sysroot.query_deployments_for(self.stateroot)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         if rollback is None:
             return False
 
