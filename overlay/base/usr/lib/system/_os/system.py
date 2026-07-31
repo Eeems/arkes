@@ -28,7 +28,7 @@ def file_hash(file: str) -> str:
     xattrList = cast(Callable[[str], list[bytes]], getattr(xattr, "list"))
     m.update(b"\n".join(xattrList(file)))
     if os.path.isdir(file):
-        m.update(file.encode("utf-8"))
+        m.update(os.path.basename(file).encode("utf-8"))
 
     else:
         with open(file, "rb") as f:
@@ -130,7 +130,11 @@ def execute_pipe(
     os.set_blocking(p.stdout.fileno(), False)
     os.set_blocking(p.stderr.fileno(), False)
     while p.poll() is None:
-        _ = select([p.stderr, p.stdout], [] if p.stdin is None else [p.stdin], [])
+        _ = select(
+            [p.stderr, p.stdout],
+            [] if p.stdin is None or p.stdin.closed else [p.stdin],
+            [],
+        )
         line = p.stdout.readline()  # pyright: ignore[reportAny]
         if line:
             onstdout(line)  # pyright: ignore[reportAny]

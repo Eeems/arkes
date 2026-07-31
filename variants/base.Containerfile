@@ -41,6 +41,7 @@ RUN <<EOT
     xfsprogs \
     dosfstools \
     git \
+    colordiff \
     fakeroot \
     debugedit \
     terminus-font \

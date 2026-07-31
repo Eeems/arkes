@@ -181,9 +181,9 @@ def in_system_cmd(
     )
 
 
-def context_hash(extra: bytes | None = None) -> str:
+def context_hash(extra: bytes | None = None, path: str = "/") -> str:
     m = sha256()
-    for file in sorted(iglob("/etc/system/**", recursive=True)):
+    for file in sorted(iglob(f"{path}/etc/system/**", recursive=True)):
         m.update(file_hash(file).encode("utf-8"))
 
     if extra is not None:
