@@ -209,8 +209,8 @@ def undeploy(
 
 
 class Deployment:
-    def __init__(self, deployment: OSTree.Deployment) -> None:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
-        self.sysroot: OSTree.Sysroot = sysroot()
+    def __init__(self, sysroot: OSTree.Sysroot, deployment: OSTree.Deployment) -> None:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
+        self.sysroot: OSTree.Sysroot = sysroot
         self.deployment: OSTree.Deployment = deployment
 
     @property
@@ -361,11 +361,13 @@ def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: igno
 
 
 def deployments() -> Generator[Deployment]:
-    for deployment in sysroot().get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        yield Deployment(deployment)  # pyright: ignore[reportUnknownArgumentType]
+    _sysroot: OSTree.Sysroot = sysroot()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    for deployment in _sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        yield Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
 
 def current_deployment() -> Deployment:
-    deployment = sysroot().get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    _sysroot: OSTree.Sysroot = sysroot()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    deployment = _sysroot.get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     assert deployment is not None
-    return Deployment(deployment)  # pyright: ignore[reportUnknownArgumentType]
+    return Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
