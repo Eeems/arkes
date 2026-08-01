@@ -16,8 +16,10 @@ from typing import (
 
 from .. import OS_NAME
 from ..ostree import (
+    chroot,
     commit,
     deploy,
+    deployments,
     ostree,
     update_grub_config,
 )
@@ -240,29 +242,10 @@ def install(  # noqa: PLR0917
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
     update_grub_config(sysroot)
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "boot"),
-        os.path.join(sysPath, "boot"),
-    )
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "ostree"),
-        os.path.join(sysPath, "sysroot/ostree"),
-    )
-    for i in ["dev", "proc", "sys"]:
-        execute("mount", "-o", "bind", f"/{i}", os.path.join(sysPath, i))
-
-    execute(
-        "chroot",
-        sysPath,
-        "/bin/bash",
-        "-c",
+    chroot(
+        list(deployments(sysroot))[0],
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
+        sysroot=sysroot,
     )
     execute("umount", "--recursive", sysroot)
 

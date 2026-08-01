@@ -399,40 +399,44 @@ def update_grub_config(
         stem = os.path.basename(path)[len("ostree-") : -len(".conf")]
         serial = 0
         if "." in stem:
-            serial_str, stem = stem.rsplit(".", 1)
+            stem, serial_str = stem.rsplit(".", 1)
             if not serial_str.isdigit():
                 continue
 
             serial = int(serial_str)
 
-        checksum = stem.rpartition("-")[2]
-        stateroot = stem[: -len(checksum) - 1]
-        deployment = deployments_by_key.get((stateroot, checksum, serial))
-        if deployment is None:
-            continue
+        try:
+            checksum = stem.rpartition("-")[2]
+            stateroot = stem[: -len(checksum) - 1]
+            deployment = deployments_by_key.get((stateroot, checksum, serial))
+            if deployment is None:
+                continue
 
-        os_info = deployment.os_info
-        version = os_info.get("VERSION", "0")
-        version_id = os_info.get("VERSION_ID", "0")
-        index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
-        title = (
-            f"{index}: {deployment.image} {version}.{version_id} "
-            f"[{deployment.stateroot}]"
-        )
-        for char in "'\"$\\\n\r":
-            if char in title:
-                raise ValueError(
-                    f"Unsafe character {char!r} found in boot title: {title!r}"
-                )
+            os_info = deployment.os_info
+            version = os_info.get("VERSION", "0")
+            version_id = os_info.get("VERSION_ID", "0")
+            index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
+            title = (
+                f"{index}: {deployment.image} {version}.{version_id} "
+                f"[{deployment.stateroot}]"
+            )
+            for char in "'\"$\\\n\r":
+                if char in title:
+                    raise ValueError(
+                        f"Unsafe character {char!r} found in boot title: {title!r}"
+                    )
 
-        with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
+            with open(path, encoding="utf-8") as f:
+                lines = f.readlines()
 
-        for i, line in enumerate(lines):
-            if line.startswith("title="):
-                lines[i] = f"title={title}\n"
-                staged.append((path, lines))
-                break
+            for i, line in enumerate(lines):
+                if line.startswith("title="):
+                    lines[i] = f"title={title}\n"
+                    staged.append((path, lines))
+                    break
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to update boot title for {path}: {e}") from e
 
     for path, lines in staged:
         with open(f"{path}.new", "w", encoding="utf-8") as f:
@@ -457,33 +461,13 @@ def update_grub_config(
         )
 
     else:
-        execute(
-            "mount",
-            "--mkdir",
-            "--rbind",
-            os.path.join(sysroot, "boot"),
-            os.path.join(deployment.path, "boot"),
-        )
-        execute(
-            "mount",
-            "--mkdir",
-            "--rbind",
-            os.path.join(sysroot, "ostree"),
-            os.path.join(deployment.path, "sysroot/ostree"),
-        )
-        for i in ["dev", "proc", "sys"]:
-            execute("mount", "-o", "bind", f"/{i}", os.path.join(deployment.path, i))
-
-        execute(
-            "chroot",
-            deployment.path,
-            "/bin/bash",
-            "-c",
+        chroot(
+            deployment,
             "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg.new",
+            sysroot=sysroot,
             onstdout=onstdout,
             onstderr=onstderr,
         )
-        execute("umount", "--recursive", sysroot)
 
     execute(
         "grub-script-check",
@@ -492,3 +476,59 @@ def update_grub_config(
         onstderr=onstderr,
     )
     os.replace(grub_cfg_new, grub_cfg)
+
+
+def chroot(
+    deployment: Deployment,
+    cmd: str,
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    execute(
+        "mount",
+        "--mkdir",
+        "--rbind",
+        os.path.join(sysroot, "boot"),
+        os.path.join(deployment.path, "boot"),
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    execute(
+        "mount",
+        "--mkdir",
+        "--rbind",
+        os.path.join(sysroot, "ostree"),
+        os.path.join(deployment.path, "sysroot/ostree"),
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    for i in ["dev", "proc", "sys"]:
+        execute(
+            "mount",
+            "-o",
+            "bind",
+            f"/{i}",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    execute(
+        "chroot",
+        deployment.path,
+        "/bin/bash",
+        "-c",
+        cmd,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    os.sync()
+    for i in ["sys", "proc", "dev", "sysroot/ostree", "boot"]:
+        execute(
+            "umount",
+            "--recursive",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
