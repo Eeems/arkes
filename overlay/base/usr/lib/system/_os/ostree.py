@@ -405,7 +405,7 @@ def update_grub_config(
                 (
                     arg[len("ostree=") :]
                     for line in lines
-                    if line.startswith("options=")
+                    if line.startswith("options ")
                     for arg in line.split()
                     if arg.startswith("ostree=")
                 ),
@@ -440,8 +440,8 @@ def update_grub_config(
                     )
 
             for i, line in enumerate(lines):
-                if line.startswith("title="):
-                    lines[i] = f"title={title}\n"
+                if line.startswith("title "):
+                    lines[i] = f"title {title}\n"
                     staged.append((path, lines))
                     break
 
