@@ -193,10 +193,13 @@ def print_file_changes(
             for file, (from_hash, to_hash) in changes.items():
                 if from_hash is None:
                     status = "\033[32mA\033[0m"
+
                 elif to_hash is None:
                     status = "\033[31mD\033[0m"
+
                 else:
                     status = "\033[33mM\033[0m"
+
                 print(f"{status} {file}")
 
 
