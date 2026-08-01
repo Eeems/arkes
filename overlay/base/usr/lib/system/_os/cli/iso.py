@@ -108,6 +108,7 @@ def iso() -> str:
             ]
         ),
     )
+    os.unlink(os.path.join(ROOTFS_PATH, "var/lib/containers/storage/db.sql"))
     _ = shutil.copytree(os.path.join(ROOTFS_PATH, "etc/system/archiso"), "archiso")
     for path in [
         "loader/entries/01-archiso-x86_64-linux.conf",

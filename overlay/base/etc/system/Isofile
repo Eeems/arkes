@@ -83,8 +83,7 @@ RUN <<EOT
   systemctl enable resize-cowspace.service
 EOT
 
-# Fix some specific podman/buildah bugs
+# Fix buildah bug
 RUN <<EOT
-  rm /var/lib/containers/storage/db.sql
   sed -i 's|^#mount_program = "/usr/bin/fuse-overlayfs"|mount_program = "/usr/bin/fuse-overlayfs"|' /etc/containers/storage.conf
 EOT
