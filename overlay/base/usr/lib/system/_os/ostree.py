@@ -371,8 +371,8 @@ def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: igno
     return sysroot  # pyright: ignore[reportUnknownVariableType]
 
 
-def deployments() -> Generator[Deployment]:
-    _sysroot: OSTree.Sysroot = sysroot()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+def deployments(sysroot_path: str | None = None) -> Generator[Deployment]:
+    _sysroot: OSTree.Sysroot = sysroot(sysroot_path)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     for deployment in _sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         yield Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
@@ -391,7 +391,7 @@ def update_grub_config(
 ) -> None:
     deployments_by_key: dict[tuple[str, int], Deployment] = {
         (deployment.checksum, deployment.serial): deployment
-        for deployment in deployments()
+        for deployment in deployments(sysroot)
     }
     entries_dir = os.path.join(sysroot, "boot/loader/entries")
     for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
@@ -428,14 +428,15 @@ def update_grub_config(
         for i, line in enumerate(lines):
             if line.startswith("title="):
                 lines[i] = f"title={title}\n"
-                with open(path, "w", encoding="utf-8") as f:
+                with open(f"{path}.new", "w", encoding="utf-8") as f:
                     f.writelines(lines)
 
+                os.replace(f"{path}.new", path)
                 break
 
     grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
     grub_cfg_new = f"{grub_cfg}.new"
-    deployment = next(iter(deployments()), None)
+    deployment = next(iter(deployments(sysroot)), None)
     if deployment is None:
         raise RuntimeError(f"No deployments found in sysroot {sysroot}")
 
