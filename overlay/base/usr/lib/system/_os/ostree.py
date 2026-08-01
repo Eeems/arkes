@@ -389,6 +389,7 @@ def update_grub_config(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
+    sysroot = os.path.normpath(sysroot)
     deployments_by_key: dict[tuple[str, str, int], Deployment] = {
         (deployment.stateroot, deployment.checksum, deployment.serial): deployment
         for deployment in deployments(sysroot)
@@ -463,7 +464,13 @@ def update_grub_config(
     else:
         chroot(
             deployment,
-            "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg.new",
+            shlex.join(
+                [
+                    "grub-mkconfig",
+                    "-o",
+                    os.path.join("/", os.path.relpath(grub_cfg_new, sysroot)),
+                ]
+            ),
             sysroot=sysroot,
             onstdout=onstdout,
             onstderr=onstderr,
