@@ -397,19 +397,31 @@ def update_grub_config(
     entries_dir = os.path.join(sysroot, "boot/loader/entries")
     staged: list[tuple[str, list[str]]] = []
     for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
-        stem = os.path.basename(path)[len("ostree-") : -len(".conf")]
-        serial = 0
-        if "." in stem:
-            stem, serial_str = stem.rsplit(".", 1)
-            if not serial_str.isdigit():
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            bootlink = next(
+                (
+                    arg[len("ostree=") :]
+                    for line in lines
+                    if line.startswith("options=")
+                    for arg in line.split()
+                    if arg.startswith("ostree=")
+                ),
+                None,
+            )
+            if bootlink is None:
                 continue
 
+            deployment_name = os.path.basename(
+                os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
+            )
+            checksum, serial_str = deployment_name.rsplit(".", 1)
             serial = int(serial_str)
-
-        try:
-            checksum = stem.rpartition("-")[2]
-            stateroot = stem[: -len(checksum) - 1]
-            deployment = deployments_by_key.get((stateroot, checksum, serial))
+            deployment = deployments_by_key.get(
+                (bootlink.split("/")[3], checksum, serial)
+            )
             if deployment is None:
                 continue
 
@@ -426,9 +438,6 @@ def update_grub_config(
                     raise ValueError(
                         f"Unsafe character {char!r} found in boot title: {title!r}"
                     )
-
-            with open(path, encoding="utf-8") as f:
-                lines = f.readlines()
 
             for i, line in enumerate(lines):
                 if line.startswith("title="):
