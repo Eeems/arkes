@@ -10,7 +10,10 @@ from ..ostree import (
     Deployment,
     deployments,
 )
-from ..system import baseImage
+from ..system import (
+    baseImage,
+    is_root,
+)
 
 
 def register(parser: ArgumentParser) -> None:
@@ -101,6 +104,10 @@ def command(args: Namespace) -> None:
                 print(status)
 
         return
+
+    if showPackages and not is_root():
+        print("Must be run as root", file=sys.stderr)
+        sys.exit(1)
 
     _deployments = list(deployments())
     try:
