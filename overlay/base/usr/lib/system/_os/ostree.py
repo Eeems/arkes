@@ -510,6 +510,15 @@ def chroot(
         onstdout=onstdout,
         onstderr=onstderr,
     )
+    for i in ["sysroot/ostree", "boot"]:
+        execute(
+            "mount",
+            "--make-rslave",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
     for i in ["dev", "proc", "sys"]:
         execute(
             "mount",
@@ -531,7 +540,15 @@ def chroot(
         onstderr=onstderr,
     )
     os.sync()
-    for i in ["sys", "proc", "dev", "sysroot/ostree", "boot"]:
+    for i in ["sys", "proc", "dev"]:
+        execute(
+            "umount",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    for i in ["sysroot/ostree", "boot"]:
         execute(
             "umount",
             "--recursive",
