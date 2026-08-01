@@ -21,7 +21,6 @@ from ..ostree import (
 )
 from ..podman import context_hash
 from ..system import (
-    baseImage,
     file_hash,
     is_root,
     wait_for_processes,
@@ -240,8 +239,8 @@ def command(args: Namespace) -> None:
             to_info = to_deployment.os_info
             from_id = from_info.get("VERSION_ID", "0")
             to_id = to_info.get("VERSION_ID", "0")
-            from_image = baseImage(f"{from_deployment.path}/etc/system/Systemfile")
-            to_image = baseImage(f"{to_deployment.path}/etc/system/Systemfile")
+            from_image = from_deployment.image
+            to_image = to_deployment.image
             from_version = f"{from_info.get('VERSION', '0')}.{from_id}"
             to_version = f"{to_info.get('VERSION', '0')}.{to_id}"
             if output == Output.DIFF:

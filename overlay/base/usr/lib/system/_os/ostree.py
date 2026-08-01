@@ -7,6 +7,7 @@ from collections.abc import (
     Generator,
 )
 from datetime import datetime
+from glob import iglob
 from typing import cast
 
 import gi  # pyright: ignore[reportMissingTypeStubs]
@@ -15,6 +16,7 @@ from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
 from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
+    baseImage,
     execute,
 )
 
@@ -349,12 +351,19 @@ class Deployment:
 
         return dict(packages)
 
+    @property
+    def image(self) -> str:
+        return baseImage(os.path.join(self.path, "etc/system/Systemfile"))
+
 
 def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
     if sysroot_path is None:
         sysroot_path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
         parent = os.path.dirname(sysroot_path)
-        if os.path.basename(sysroot_path) == "repo" and os.path.basename(parent) == "ostree":
+        if (
+            os.path.basename(sysroot_path) == "repo"
+            and os.path.basename(parent) == "ostree"
+        ):
             sysroot_path = os.path.dirname(parent)
 
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
@@ -373,3 +382,79 @@ def current_deployment() -> Deployment:
     deployment = _sysroot.get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     assert deployment is not None
     return Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
+
+
+def update_grub_config(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    deployments_by_key: dict[tuple[str, int], Deployment] = {
+        (deployment.checksum, deployment.serial): deployment
+        for deployment in deployments()
+    }
+    entries_dir = os.path.join(sysroot, "boot/loader/entries")
+    for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
+        stem = os.path.basename(path)[len("ostree-") : -len(".conf")]
+        serial = 0
+        if "." in stem:
+            serial_str, stem = stem.rsplit(".", 1)
+            if not serial_str.isdigit():
+                continue
+
+            serial = int(serial_str)
+
+        deployment = deployments_by_key.get((stem.rpartition("-")[2], serial))
+        if deployment is None:
+            continue
+
+        os_info = deployment.os_info
+        version = os_info.get("VERSION", "0")
+        version_id = os_info.get("VERSION_ID", "0")
+        index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
+        title = (
+            f"{index}: {deployment.image} {version}.{version_id} "
+            f"[{deployment.stateroot}]"
+        )
+        for char in "'\"$\\\n\r":
+            if char in title:
+                raise ValueError(
+                    f"Unsafe character {char!r} found in boot title: {title!r}"
+                )
+
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        for i, line in enumerate(lines):
+            if line.startswith("title="):
+                lines[i] = f"title={title}\n"
+                with open(path, "w", encoding="utf-8") as f:
+                    f.writelines(lines)
+
+                break
+
+    grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
+    grub_cfg_new = f"{grub_cfg}.new"
+    deployment = next(iter(deployments()), None)
+    if deployment is None:
+        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
+
+    execute(
+        "chroot",
+        deployment.path,
+        "/bin/bash",
+        "-c",
+        "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg.new",
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    execute(
+        "chroot",
+        deployment.path,
+        "/bin/bash",
+        "-c",
+        "grub-script-check /boot/efi/EFI/grub/grub.cfg.new",
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    os.replace(grub_cfg_new, grub_cfg)

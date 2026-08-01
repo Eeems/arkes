@@ -19,6 +19,7 @@ from ..ostree import (
     commit,
     deploy,
     ostree,
+    update_grub_config,
 )
 from ..podman import (
     build,
@@ -254,13 +255,7 @@ def install(  # noqa: PLR0917
     for i in ["dev", "proc", "sys"]:
         execute("mount", "-o", "bind", f"/{i}", os.path.join(sysPath, i))
 
-    execute(
-        "chroot",
-        sysPath,
-        "/bin/bash",
-        "-c",
-        "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg",
-    )
+    update_grub_config(sysroot)
     execute(
         "chroot",
         sysPath,

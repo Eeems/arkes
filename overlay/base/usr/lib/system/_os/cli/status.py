@@ -11,7 +11,6 @@ from ..ostree import (
     deployments,
 )
 from ..system import (
-    baseImage,
     is_root,
 )
 
@@ -47,11 +46,10 @@ def get_status(
         return "\n".join([f"{k}: {v}" for k, v in deployment.imagePackages.items()])
 
     osInfo = deployment.os_info
-    ref = baseImage(f"{deployment.path}/etc/system/Systemfile")
     version = osInfo.get("VERSION", "0")
     version_id = osInfo.get("VERSION_ID", "0")
     build_id = osInfo.get("BUILD_ID", "0")
-    status = f"{deployment.index}: {ref}"
+    status = f"{deployment.index}: {deployment.image}"
     if deployment.type:
         status += f" ({deployment.type})"
 

@@ -19,6 +19,7 @@ from ..ostree import (
     commit_export,
     deploy,
     prune,
+    update_grub_config,
 )
 from ..podman import (
     build,
@@ -30,7 +31,6 @@ from ..system import (
     baseImage,
     checkupdates,
     system_kernelCommandLine,
-    update_bootloader,
 )
 
 
@@ -169,7 +169,7 @@ class Object(dbus.service.Object):
                 onstderr=self.upgrade_stderr,
             )
             self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
-            update_bootloader(
+            update_grub_config(
                 onstdout=self.upgrade_stdout,
                 onstderr=self.upgrade_stderr,
             )

@@ -5,7 +5,10 @@ from argparse import (
 )
 from typing import cast
 
-from ..ostree import deploy
+from ..ostree import (
+    deploy,
+    update_grub_config,
+)
 from ..system import is_root
 
 
@@ -19,7 +22,9 @@ def command(args: Namespace) -> None:
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
-    deploy(cast(str, args.branch), cast(str, args.sysroot))
+    sysroot = cast(str, args.sysroot)
+    deploy(cast(str, args.branch), sysroot)
+    update_grub_config(sysroot)
 
 
 if __name__ == "__main__":
