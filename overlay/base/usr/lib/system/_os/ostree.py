@@ -317,7 +317,9 @@ class Deployment:
         try:
             packages = [
                 cast(tuple[str, str], tuple(x.split(" ", 1)))
-                for x in in_nspawn_system_output("pacman", "-Q", deployment=self)
+                for x in in_nspawn_system_output(
+                    "pacman", "-Q", deployment=self, quiet=True
+                )
                 .strip()
                 .decode("utf-8")
                 .splitlines()
