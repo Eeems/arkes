@@ -64,6 +64,27 @@ def get_status(
     return status
 
 
+class InvalidIndex(Exception):
+    pass
+
+
+def get_index(index: int) -> int:
+    requested = index
+    maximum = sum(1 for _ in deployments()) - 1
+    if index < 0:
+        index += maximum + 1
+
+    if 0 <= index <= maximum:
+        return index
+
+    if index != requested:
+        raise InvalidIndex(
+            f"deployment {requested} is {index}, which could not be found"
+        )
+
+    raise InvalidIndex(f"deployment {requested} could not be found")
+
+
 def command(args: Namespace) -> None:
     idx = cast(int | None, args.deployment)
     showPackages = cast(bool, args.packages)
@@ -82,23 +103,13 @@ def command(args: Namespace) -> None:
         return
 
     _deployments = list(deployments())
-    _idx = idx
-    if idx < 0:
-        idx = len(_deployments) + idx
+    try:
+        deployment = _deployments[get_index(idx)]
 
-    if idx < 0 or idx >= len(_deployments):
-        if idx != _idx:
-            print(
-                f"Error: deployment {_idx} is {idx}, which could not be found",
-                file=sys.stderr,
-            )
-
-        else:
-            print(f"Error: deployment {_idx} could not be found", file=sys.stderr)
-
+    except InvalidIndex as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    deployment = _deployments[idx]
     print(get_status(deployment, showPackages, showImagePackages))
 
 

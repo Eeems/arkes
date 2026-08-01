@@ -26,6 +26,10 @@ from ..system import (
     is_root,
     wait_for_processes,
 )
+from .status import (
+    InvalidIndex,
+    get_index,
+)
 
 kwds = {"help": "Diff the changes between two deployments"}
 
@@ -117,7 +121,7 @@ def context_files(deployment: Deployment) -> dict[str, str]:
     context = f"{deployment.path}/etc/system"
     return {
         os.path.relpath(file, deployment.path): file_hash(file)
-        for file in iglob(f"{context}/**", recursive=True)
+        for file in iglob(f"{context}/**", recursive=True, include_hidden=True)
         if not os.path.isdir(file)
     }
 
@@ -133,6 +137,7 @@ def diff_files(
         "-U0",
         *([] if from_label is None else [f"--label={from_label}"]),
         *([] if to_label is None else [f"--label={to_label}"]),
+        "--",
         from_path,
         to_path,
     ]
@@ -196,14 +201,33 @@ def print_file_changes(
                 print(f"{status} {file}")
 
 
+def package_manifest(
+    systemfileHash: str, image: str, version: str, packages: dict[str, str]
+) -> bytes:
+    return (
+        f"Systemfile {systemfileHash[:9]}\n{image} {version}\n"
+        + "".join(f"{pkg} {version}\n" for pkg, version in sorted(packages.items()))
+    ).encode()
+
+
 def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
     _deployments = list(deployments())
-    from_index = cast(int, args.from_deployment)
-    to_index = cast(int, args.to_deployment)
+    try:
+        from_index = get_index(cast(int, args.from_deployment))
+        to_index = get_index(cast(int, args.to_deployment))
+
+    except InvalidIndex as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if from_index == to_index:
+        print("Must specify different deployments", file=sys.stderr)
+        sys.exit(1)
+
     from_deployment = _deployments[from_index]
     to_deployment = _deployments[to_index]
     output = cast(Output, args.output)
@@ -221,20 +245,12 @@ def command(args: Namespace) -> None:
             from_version = f"{from_info.get('VERSION', '0')}.{from_id}"
             to_version = f"{to_info.get('VERSION', '0')}.{to_id}"
             if output == Output.DIFF:
-                from_list = (
-                    f"Systemfile {from_hash[:9]}\n{from_image} {from_version}\n"
-                    + "".join(
-                        f"{pkg} {version}\n"
-                        for pkg, version in sorted(from_deployment.packages.items())
-                    )
-                ).encode()
-                to_list = (
-                    f"Systemfile {to_hash[:9]}\n{to_image} {to_version}\n"
-                    + "".join(
-                        f"{pkg} {version}\n"
-                        for pkg, version in sorted(to_deployment.packages.items())
-                    )
-                ).encode()
+                from_list = package_manifest(
+                    from_hash, from_image, from_version, from_deployment.packages
+                )
+                to_list = package_manifest(
+                    to_hash, to_image, to_version, to_deployment.packages
+                )
                 with (
                     tempfile.NamedTemporaryFile() as from_file,
                     tempfile.NamedTemporaryFile() as to_file,
@@ -246,8 +262,8 @@ def command(args: Namespace) -> None:
                     diff_files(
                         from_file.name,
                         to_file.name,
-                        str(from_index),
-                        str(to_index),
+                        from_deployment.path,
+                        to_deployment.path,
                     )
 
                 return
