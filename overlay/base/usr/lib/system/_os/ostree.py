@@ -442,8 +442,12 @@ def update_grub_config(
             for i, line in enumerate(lines):
                 if line.startswith("title "):
                     lines[i] = f"title {title}\n"
-                    staged.append((path, lines))
                     break
+
+            else:
+                lines.append(f"title {title}\n")
+
+            staged.append((path, lines))
 
         except Exception as e:
             raise RuntimeError(f"Failed to update boot title for {path}: {e}") from e
