@@ -200,6 +200,7 @@ def install(  # noqa: PLR0917
             ]
         ),
     )
+    os.unlink(os.path.join(rootfs, "var/lib/containers/storage/db.sql"))
     lib = os.path.join(sysroot, "ostree/deploy", OS_NAME, "var/lib")
     os.makedirs(lib, exist_ok=True)
     _ = shutil.move(os.path.join(rootfs, "var/lib/containers"), lib)
@@ -238,6 +239,7 @@ def install(  # noqa: PLR0917
     execute(
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
+    update_grub_config(sysroot)
     execute(
         "mount",
         "--mkdir",
@@ -255,7 +257,6 @@ def install(  # noqa: PLR0917
     for i in ["dev", "proc", "sys"]:
         execute("mount", "-o", "bind", f"/{i}", os.path.join(sysPath, i))
 
-    update_grub_config(sysroot)
     execute(
         "chroot",
         sysPath,

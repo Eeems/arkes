@@ -389,11 +389,12 @@ def update_grub_config(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
-    deployments_by_key: dict[tuple[str, int], Deployment] = {
-        (deployment.checksum, deployment.serial): deployment
+    deployments_by_key: dict[tuple[str, str, int], Deployment] = {
+        (deployment.stateroot, deployment.checksum, deployment.serial): deployment
         for deployment in deployments(sysroot)
     }
     entries_dir = os.path.join(sysroot, "boot/loader/entries")
+    staged: list[tuple[str, list[str]]] = []
     for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
         stem = os.path.basename(path)[len("ostree-") : -len(".conf")]
         serial = 0
@@ -404,7 +405,9 @@ def update_grub_config(
 
             serial = int(serial_str)
 
-        deployment = deployments_by_key.get((stem.rpartition("-")[2], serial))
+        checksum = stem.rpartition("-")[2]
+        stateroot = stem[: -len(checksum) - 1]
+        deployment = deployments_by_key.get((stateroot, checksum, serial))
         if deployment is None:
             continue
 
@@ -428,11 +431,15 @@ def update_grub_config(
         for i, line in enumerate(lines):
             if line.startswith("title="):
                 lines[i] = f"title={title}\n"
-                with open(f"{path}.new", "w", encoding="utf-8") as f:
-                    f.writelines(lines)
-
-                os.replace(f"{path}.new", path)
+                staged.append((path, lines))
                 break
+
+    for path, lines in staged:
+        with open(f"{path}.new", "w", encoding="utf-8") as f:
+            f.writelines(lines)
+
+    for path, _ in staged:
+        os.replace(f"{path}.new", path)
 
     grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
     grub_cfg_new = f"{grub_cfg}.new"
@@ -440,21 +447,47 @@ def update_grub_config(
     if deployment is None:
         raise RuntimeError(f"No deployments found in sysroot {sysroot}")
 
+    if sysroot == "/":
+        execute(
+            "grub-mkconfig",
+            "-o",
+            grub_cfg_new,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    else:
+        execute(
+            "mount",
+            "--mkdir",
+            "--rbind",
+            os.path.join(sysroot, "boot"),
+            os.path.join(deployment.path, "boot"),
+        )
+        execute(
+            "mount",
+            "--mkdir",
+            "--rbind",
+            os.path.join(sysroot, "ostree"),
+            os.path.join(deployment.path, "sysroot/ostree"),
+        )
+        for i in ["dev", "proc", "sys"]:
+            execute("mount", "-o", "bind", f"/{i}", os.path.join(deployment.path, i))
+
+        execute(
+            "chroot",
+            deployment.path,
+            "/bin/bash",
+            "-c",
+            "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg.new",
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+        execute("umount", "--recursive", sysroot)
+
     execute(
-        "chroot",
-        deployment.path,
-        "/bin/bash",
-        "-c",
-        "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg.new",
-        onstdout=onstdout,
-        onstderr=onstderr,
-    )
-    execute(
-        "chroot",
-        deployment.path,
-        "/bin/bash",
-        "-c",
-        "grub-script-check /boot/efi/EFI/grub/grub.cfg.new",
+        "grub-script-check",
+        grub_cfg_new,
         onstdout=onstdout,
         onstderr=onstderr,
     )
