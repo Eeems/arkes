@@ -82,3 +82,8 @@ RUN <<EOT
   > /etc/systemd/system/resize-cowspace.service
   systemctl enable resize-cowspace.service
 EOT
+
+# Fix buildah bug
+RUN <<EOT
+  sed -i 's|^#mount_program = "/usr/bin/fuse-overlayfs"|mount_program = "/usr/bin/fuse-overlayfs"|' /etc/containers/storage.conf
+EOT

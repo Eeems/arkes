@@ -573,19 +573,6 @@ def in_nspawn_system_output(
     )
 
 
-def update_bootloader(
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,
-    onstderr: Callable[[bytes], None] = bytes_to_stderr,
-) -> None:
-    execute(
-        "/usr/bin/grub-mkconfig",
-        "-o",
-        "/boot/efi/EFI/grub/grub.cfg",
-        onstderr=onstderr,
-        onstdout=onstdout,
-    )
-
-
 def delete(glob: str) -> None:
     for path in iglob(glob):
         if os.path.islink(path) or os.path.isfile(path):

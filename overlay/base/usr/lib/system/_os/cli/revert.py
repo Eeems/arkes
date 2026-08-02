@@ -8,7 +8,10 @@ from typing import (
     cast,
 )
 
-from ..ostree import undeploy
+from ..ostree import (
+    undeploy,
+    update_grub_config,
+)
 from ..system import is_root
 
 kwds = {"help": "Revert the last system upgrade"}
@@ -24,6 +27,7 @@ def command(_: Namespace) -> None:
         sys.exit(1)
 
     undeploy(0)
+    update_grub_config()
 
 
 if __name__ == "__main__":

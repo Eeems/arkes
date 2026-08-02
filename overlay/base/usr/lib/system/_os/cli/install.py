@@ -16,9 +16,12 @@ from typing import (
 
 from .. import OS_NAME
 from ..ostree import (
+    chroot,
     commit,
     deploy,
+    deployments,
     ostree,
+    update_grub_config,
 )
 from ..podman import (
     build,
@@ -199,6 +202,7 @@ def install(  # noqa: PLR0917
             ]
         ),
     )
+    os.unlink(os.path.join(rootfs, "var/lib/containers/storage/db.sql"))
     lib = os.path.join(sysroot, "ostree/deploy", OS_NAME, "var/lib")
     os.makedirs(lib, exist_ok=True)
     _ = shutil.move(os.path.join(rootfs, "var/lib/containers"), lib)
@@ -237,36 +241,11 @@ def install(  # noqa: PLR0917
     execute(
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "boot"),
-        os.path.join(sysPath, "boot"),
-    )
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "ostree"),
-        os.path.join(sysPath, "sysroot/ostree"),
-    )
-    for i in ["dev", "proc", "sys"]:
-        execute("mount", "-o", "bind", f"/{i}", os.path.join(sysPath, i))
-
-    execute(
-        "chroot",
-        sysPath,
-        "/bin/bash",
-        "-c",
-        "grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg",
-    )
-    execute(
-        "chroot",
-        sysPath,
-        "/bin/bash",
-        "-c",
+    update_grub_config(sysroot)
+    chroot(
+        list(deployments(sysroot))[0],
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
+        sysroot=sysroot,
     )
     execute("umount", "--recursive", sysroot)
 

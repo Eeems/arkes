@@ -7,6 +7,7 @@ from collections.abc import (
     Generator,
 )
 from datetime import datetime
+from glob import iglob
 from typing import cast
 
 import gi  # pyright: ignore[reportMissingTypeStubs]
@@ -15,6 +16,7 @@ from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
 from .console import bytes_to_stderr, bytes_to_stdout
 from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
+    baseImage,
     execute,
 )
 
@@ -349,12 +351,19 @@ class Deployment:
 
         return dict(packages)
 
+    @property
+    def image(self) -> str:
+        return baseImage(os.path.join(self.path, "etc/system/Systemfile"))
+
 
 def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
     if sysroot_path is None:
         sysroot_path = cast(str, ostree.repo)  # pyright: ignore[reportFunctionMemberAccess]
         parent = os.path.dirname(sysroot_path)
-        if os.path.basename(sysroot_path) == "repo" and os.path.basename(parent) == "ostree":
+        if (
+            os.path.basename(sysroot_path) == "repo"
+            and os.path.basename(parent) == "ostree"
+        ):
             sysroot_path = os.path.dirname(parent)
 
     sysroot = OSTree.Sysroot.new(Gio.File.new_for_path(sysroot_path))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
@@ -362,8 +371,8 @@ def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: igno
     return sysroot  # pyright: ignore[reportUnknownVariableType]
 
 
-def deployments() -> Generator[Deployment]:
-    _sysroot: OSTree.Sysroot = sysroot()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+def deployments(sysroot_path: str | None = None) -> Generator[Deployment]:
+    _sysroot: OSTree.Sysroot = sysroot(sysroot_path)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     for deployment in _sysroot.get_deployments():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         yield Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
@@ -373,3 +382,190 @@ def current_deployment() -> Deployment:
     deployment = _sysroot.get_booted_deployment()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     assert deployment is not None
     return Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
+
+
+def update_grub_config(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    sysroot = os.path.normpath(sysroot)
+    deployments_by_key: dict[tuple[str, str, int], Deployment] = {
+        (deployment.stateroot, deployment.checksum, deployment.serial): deployment
+        for deployment in deployments(sysroot)
+    }
+    entries_dir = os.path.join(sysroot, "boot/loader/entries")
+    staged: list[tuple[str, list[str]]] = []
+    for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            bootlink = next(
+                (
+                    arg[len("ostree=") :]
+                    for line in lines
+                    if line.startswith("options ")
+                    for arg in line.split()
+                    if arg.startswith("ostree=")
+                ),
+                None,
+            )
+            if bootlink is None:
+                continue
+
+            deployment_name = os.path.basename(
+                os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
+            )
+            checksum, serial_str = deployment_name.rsplit(".", 1)
+            serial = int(serial_str)
+            deployment = deployments_by_key.get(
+                (bootlink.split("/")[3], checksum, serial)
+            )
+            if deployment is None:
+                continue
+
+            os_info = deployment.os_info
+            version = os_info.get("VERSION", "0")
+            version_id = os_info.get("VERSION_ID", "0")
+            index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
+            title = (
+                f"{index}: {deployment.image} {version}.{version_id} "
+                f"[{deployment.stateroot}]"
+            )
+            for char in "'\"$\\\n\r":
+                if char in title:
+                    raise ValueError(
+                        f"Unsafe character {char!r} found in boot title: {title!r}"
+                    )
+
+            for i, line in enumerate(lines):
+                if line.startswith("title "):
+                    lines[i] = f"title {title}\n"
+                    break
+
+            else:
+                lines.append(f"title {title}\n")
+
+            staged.append((path, lines))
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to update boot title for {path}: {e}") from e
+
+    for path, lines in staged:
+        with open(f"{path}.new", "w", encoding="utf-8") as f:
+            f.writelines(lines)
+
+    for path, _ in staged:
+        os.replace(f"{path}.new", path)
+
+    grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
+    grub_cfg_new = f"{grub_cfg}.new"
+    deployment = next(iter(deployments(sysroot)), None)
+    if deployment is None:
+        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
+
+    if sysroot == "/":
+        execute(
+            "grub-mkconfig",
+            "-o",
+            grub_cfg_new,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    else:
+        chroot(
+            deployment,
+            shlex.join(
+                [
+                    "grub-mkconfig",
+                    "-o",
+                    os.path.join("/", os.path.relpath(grub_cfg_new, sysroot)),
+                ]
+            ),
+            sysroot=sysroot,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    execute(
+        "grub-script-check",
+        grub_cfg_new,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    os.replace(grub_cfg_new, grub_cfg)
+
+
+def chroot(
+    deployment: Deployment,
+    cmd: str,
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    execute(
+        "mount",
+        "--mkdir",
+        "--rbind",
+        os.path.join(sysroot, "boot"),
+        os.path.join(deployment.path, "boot"),
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    execute(
+        "mount",
+        "--mkdir",
+        "--rbind",
+        os.path.join(sysroot, "ostree"),
+        os.path.join(deployment.path, "sysroot/ostree"),
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    for i in ["sysroot/ostree", "boot"]:
+        execute(
+            "mount",
+            "--make-rslave",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    for i in ["dev", "proc", "sys"]:
+        execute(
+            "mount",
+            "-o",
+            "bind",
+            f"/{i}",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    execute(
+        "chroot",
+        deployment.path,
+        "/bin/bash",
+        "-c",
+        cmd,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    os.sync()
+    for i in ["sys", "proc", "dev"]:
+        execute(
+            "umount",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    for i in ["sysroot/ostree", "boot"]:
+        execute(
+            "umount",
+            "--recursive",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
