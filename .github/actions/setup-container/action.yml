@@ -38,6 +38,12 @@ runs:
         df -h
         podman image ls
 
+    - name: Mask registry password
+      shell: bash
+      run: echo "::add-mask::$REGISTRY_PASSWORD"
+      env:
+        REGISTRY_PASSWORD: ${{ inputs.password }}
+
     - name: Login to ${{ inputs.registry }}
       uses: redhat-actions/podman-login@v2
       with:
