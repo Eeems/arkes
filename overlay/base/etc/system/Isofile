@@ -62,7 +62,7 @@ RUN /usr/lib/system/package_layer \
 RUN <<EOT
   set -e
   sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso
-  /usr/lib/system/build_kernel
+  /usr/lib/system/post_build.d/95-build_kernel
   /usr/lib/system/create_live_bootloader
   systemctl disable atomic-state-overlay.service
   printf '%s\n' \
