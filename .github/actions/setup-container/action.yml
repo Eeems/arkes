@@ -1,5 +1,16 @@
 name: Setup container for running containers
 description: Setup container for running containers
+inputs:
+  registry:
+    default: quay.io
+    description: container registry
+    required: false
+  username:
+    description: Container registry username
+    required: true
+  password:
+    description: Container registry password
+    required: true
 runs:
   using: composite
   steps:
@@ -26,3 +37,20 @@ runs:
       run: |
         df -h
         podman image ls
+
+    - name: Mask registry password
+      shell: bash
+      run: echo "::add-mask::$REGISTRY_PASSWORD"
+      env:
+        REGISTRY_PASSWORD: ${{ inputs.password }}
+
+    - name: Login to ${{ inputs.registry }}
+      uses: redhat-actions/podman-login@v2
+      with:
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+        registry: ${{ inputs.registry }}
+        auth_file_path: /run/containers/0/auth.json
+
+    - name: Mask registry passwords
+      uses: ./.github/actions/mask-registry-passwords

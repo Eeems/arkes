@@ -131,6 +131,14 @@ def command(args: Namespace) -> None:
             print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
             failed = True
 
+    if shutil.which("actionlint") is not None:
+        print("[check] Checking github actions", file=sys.stderr)
+        cmd = shlex.join(["actionlint"])
+        res = _execute(cmd)
+        if res:
+            print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
+            failed = True
+
     print("[check] Setting up venv", file=sys.stderr)
     if not os.path.exists(".venv/bin/activate"):
         chronic("python", "-m", "venv", "--system-site-packages", ".venv")

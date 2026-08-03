@@ -83,17 +83,9 @@ jobs:
 
       - name: Setup container
         uses: ./.github/actions/setup-container
-
-      - name: Login to quay.io
-        uses: redhat-actions/podman-login@v1
         with:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-          registry: quay.io
-          auth_file_path: /run/containers/0/auth.json
-
-      - name: Mask registry passwords
-        uses: ./.github/actions/mask-registry-passwords
 
       - name: Get manifest cache
         if: ${{ inputs.cache }}

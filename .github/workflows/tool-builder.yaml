@@ -37,12 +37,14 @@ jobs:
           pip install pyxattr progressbar2
           IMAGE_NAME=ghcr.io/eeems/arkes-builder
           HASH="$(python ./make/hash-builder.py --no-newline)"
-          echo "unique_tag=${HASH}" >> $GITHUB_OUTPUT
-          echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-          ref=$(python ./make/ref.py "${{ github.head_ref || github.ref_name }}")
-          echo "tags=${IMAGE_NAME}:$ref,${IMAGE_NAME}:${HASH}" >> $GITHUB_OUTPUT
-          echo "missing=$(skopeo list-tags docker://$IMAGE_NAME | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
+          echo "unique_tag=${HASH}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          ref=$(python ./make/ref.py "$REF")
+          echo "tags=${IMAGE_NAME}:$ref,${IMAGE_NAME}:${HASH}" >> "$GITHUB_OUTPUT"
+          echo "missing=$(skopeo list-tags docker://$IMAGE_NAME | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+        env:
+          REF: ${{ github.head_ref || github.ref_name }}
 
       - name: Build and push
         if: fromJson(steps.meta.outputs.missing)
