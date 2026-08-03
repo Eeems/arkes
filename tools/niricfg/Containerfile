@@ -47,7 +47,7 @@ EOT
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV FLUTTER_VERSION=3.41.2
+ENV FLUTTER_VERSION=3.44.8
 ENV FLUTTER_HOME=/root/flutter
 ENV PATH="/root/.local/bin:${FLUTTER_HOME}/bin:${PATH}"
 
