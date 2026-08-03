@@ -1,0 +1,139 @@
+// https://raw.githubusercontent.com/jgarza9788/niri-animation-collection/refs/heads/main/LICENSE
+animations {
+    window-open {
+        duration-ms 260
+        curve "linear"
+
+        custom-shader r"
+// =========================
+// Exponential
+// =========================
+float easeInExpo(float t) {
+    return t == 0.0 ? 0.0 : pow(2.0, 10.0 * (t - 1.0));
+}
+
+float easeOutExpo(float t) {
+    return t == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * t);
+}
+
+float easeInOutExpo(float t) {
+    if (t == 0.0) return 0.0;
+    if (t == 1.0) return 1.0;
+    return t < 0.5
+        ? 0.5 * pow(2.0, 20.0 * t - 10.0)
+        : 1.0 - 0.5 * pow(2.0, -20.0 * t + 10.0);
+}
+
+// =========================
+// Sine
+// =========================
+float easeInSine(float t) {
+    return 1.0 - cos((t * 3.141592653589793) / 2.0);
+}
+
+float easeOutSine(float t) {
+    return sin((t * 3.141592653589793) / 2.0);
+}
+
+float easeInOutSine(float t) {
+    return -0.5 * (cos(3.141592653589793 * t) - 1.0);
+}
+
+// =========================
+// Quadratic
+// =========================
+float easeInQuad(float t) {
+    return t * t;
+}
+
+float easeOutQuad(float t) {
+    return 1.0 - (1.0 - t) * (1.0 - t);
+}
+
+float easeInOutQuad(float t) {
+    return t < 0.5
+        ? 2.0 * t * t
+        : 1.0 - pow(-2.0 * t + 2.0, 2.0) / 2.0;
+}
+
+// =========================
+// Cubic
+// =========================
+float easeInCubic(float t) {
+    return t * t * t;
+}
+
+float easeOutCubic(float t) {
+    float f = t - 1.0;
+    return f * f * f + 1.0;
+}
+
+float easeInOutCubic(float t) {
+    return t < 0.5
+        ? 4.0 * t * t * t
+        : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+}
+
+//---
+
+float saturate(float x) {
+    return clamp(x, 0.0, 1.0);
+}
+
+vec2 scaleUV(vec2 uv, vec2 scale) {
+    return (uv - 0.5) / scale + 0.5;
+}
+
+float centerGradient(float x) {
+    x = x * 2.0;
+    return x < 1.0 ? x : 2.0 - x;
+}
+
+vec4 open_color(vec3 coords_geo, vec3 size_geo) {
+
+    vec2 uv = (niri_geo_to_tex * coords_geo).xy;
+
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        return vec4(0.0);
+    }
+
+    float t = easeOutQuad(niri_clamped_progress);
+
+    float x = mix(0.1,1.0,easeOutCubic(niri_clamped_progress));
+    float y = easeInQuad(niri_clamped_progress);
+
+    vec2 suv = scaleUV(uv, vec2(x, y));
+
+    if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) {
+        return vec4(0.0);
+    }
+
+    // Soft edge masks inspired by the BMW shader's center gradients.
+    float tb = centerGradient(suv.y);
+    float lr = centerGradient(suv.x);
+
+    float tbMask = smoothstep(0.0, 0.10, tb);
+    float lrMask = smoothstep(0.0, 0.10, lr);
+
+    float mask = tbMask * lrMask;
+
+    // Cool startup tint.
+    vec3 tint = vec3(0.55, 0.82, 1.0);
+    vec3 color = mix(tint, vec3(1.0), t);
+
+    // Stronger tint at the beginning.
+    float tintAmt = smoothstep(0.0, 0.8, t);
+
+    vec3 rgb = mix(tint, color, tintAmt);
+    float alpha = mask * t;
+
+    //gets the window color
+    vec4 wColor = texture2D(niri_tex, suv) ;
+
+    //returns the final color
+    return mix(vec4(rgb, alpha * wColor.a),wColor, easeInExpo( niri_clamped_progress));
+
+}
+        "
+    }
+}
