@@ -230,3 +230,4 @@ binds {
     Ctrl+Alt+Delete { quit; }
 }
 include "monitors.kdl"
+include "animations.kdl"

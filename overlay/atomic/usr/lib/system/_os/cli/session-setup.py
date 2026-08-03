@@ -34,6 +34,11 @@ def command(args: Namespace) -> None:
             with open(kdl_path, "w") as f:
                 _ = f.write("")
 
+        kdl_path = os.path.join(cfg_path, "animations.kdl")
+        if not os.path.exists(kdl_path):
+            with open(kdl_path, "w") as f:
+                _ = f.write("")
+
         return
 
     # TODO load settings from a config file
