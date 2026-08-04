@@ -73,8 +73,8 @@ EOT
 
 RUN <<EOT
   set -e
-  curl -L https://github.com/Eeems/niricfg/releases/download/0.0.2/niricfg.tar.gz -o /tmp/niricfg.tar.gz
-  echo "9b1c1f306611a28f1f2d78d961b41b0cdf79fa7af6946c72587670df2f66ab40  /tmp/niricfg.tar.gz" | sha256sum -c
+  curl -L https://github.com/Eeems/niricfg/releases/download/0.0.3/niricfg.tar.gz -o /tmp/niricfg.tar.gz
+  echo "d95f43152b68b4edc46c3b8c5fc0ac4c17f4a6b4e287d44cb37d897ca431929b  /tmp/niricfg.tar.gz" | sha256sum -c
   mkdir -p /opt/niricfg
   tar xf /tmp/niricfg.tar.gz -C /opt/niricfg
   rm /tmp/niricfg.tar.gz
