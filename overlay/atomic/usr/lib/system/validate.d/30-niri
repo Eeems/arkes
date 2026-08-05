@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+
+end=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$end" ]; do
+    if niri msg version >/dev/null 2>&1; then
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "timed out waiting for the niri session" >&2
+exit 1
