@@ -3,7 +3,7 @@ set -euo pipefail
 
 end=$((SECONDS + 60))
 while [ "$SECONDS" -lt "$end" ]; do
-    socket="$(compgen -G "$XDG_RUNTIME_DIR"/niri*.sock | head -n1)"
+    socket="$(compgen -G "$XDG_RUNTIME_DIR"/niri*.sock | head -n1 || true)"
     if [ -n "$socket" ] && NIRI_SOCKET="$socket" niri msg version >/dev/null 2>&1; then
         exit 0
     fi

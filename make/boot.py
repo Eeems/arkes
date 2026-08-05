@@ -15,9 +15,8 @@ from . import (
     BUILDER,
     podman_cmd,
 )
+from .ref import ref
 from .shell import shell
-
-ISO_RUNNER_IMAGE = f"{BUILDER}:iso-runner"
 
 kwds: dict[str, str] = {
     "help": "Boot an iso in qemu",
@@ -30,6 +29,11 @@ def register(parser: ArgumentParser) -> None:
         "--graphical",
         action="store_true",
         help="Open a graphical window instead of the serial console",
+    )
+    _ = parser.add_argument(
+        "--branch",
+        default="iso-runner",
+        help="iso-runner image ref to use, defaults to iso-runner.",
     )
 
 
@@ -55,13 +59,13 @@ def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
     return args
 
 
-def extract_boot(iso: str, workspace: str) -> tuple[str, str, str]:
+def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
     data = subprocess.check_output(
         podman_cmd(
             "run",
             "--rm",
             f"--volume={iso}:/iso:ro",
-            ISO_RUNNER_IMAGE,
+            f"{BUILDER}:{branch}",
             "isoinfo",
             "-R",
             "-i",
@@ -76,15 +80,15 @@ def extract_boot(iso: str, workspace: str) -> tuple[str, str, str]:
                 value = arg.split("=", 1)[1]
                 assert value
                 return (
-                    extract(iso, workspace, "/arkes/x86_64/vmlinuz"),
-                    extract(iso, workspace, "/arkes/x86_64/initramfs.img"),
+                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
+                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", branch),
                     value,
                 )
 
     raise RuntimeError("Unable to find archisosearchuuid in the iso boot entry")
 
 
-def extract(iso: str, workspace: str, path: str) -> str:
+def extract(iso: str, workspace: str, path: str, branch: str) -> str:
     dest = os.path.join(workspace, os.path.basename(path))
     with open(dest, "wb") as f:
         _ = subprocess.run(
@@ -92,7 +96,7 @@ def extract(iso: str, workspace: str, path: str) -> str:
                 "run",
                 "--rm",
                 f"--volume={iso}:/iso:ro",
-                ISO_RUNNER_IMAGE,
+                f"{BUILDER}:{branch}",
                 "isoinfo",
                 "-R",
                 "-i",
@@ -160,6 +164,7 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     graphical = cast(bool, args.graphical)
+    branch = ref(cast(str, args.branch))
     with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
         ret = shell(
             *podman_cmd(
@@ -167,9 +172,9 @@ def command(args: Namespace) -> None:
                 "--rm",
                 "-it",
                 *qemu_args(iso, workspace, graphical),
-                ISO_RUNNER_IMAGE,
+                f"{BUILDER}:{branch}",
                 "qemu-system-x86_64",
-                *qemu_cmd(*extract_boot(iso, workspace), graphical, True),
+                *qemu_cmd(*extract_boot(iso, workspace, branch), graphical, True),
             )
         )
 

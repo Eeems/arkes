@@ -32,6 +32,10 @@ on:
         description: Builder tag to use
         required: false
         type: string
+      iso_runner:
+        description: Content hash of the iso runner image to use for boot tests
+        required: false
+        type: string
   workflow_dispatch:
     inputs: *inputs
 
@@ -108,7 +112,10 @@ jobs:
         uses: ./.github/actions/run-with-podman-service
         timeout-minutes: 30
         with:
-          run: ./make.py test /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+          run: >-
+            ./make.py test
+            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
       - name: Pacman cache
         uses: ./.github/actions/pacman-cache-update

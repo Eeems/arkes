@@ -51,7 +51,7 @@ def register(parser: ArgumentParser) -> None:
     )
 
 
-def command(args: Namespace) -> None:
+def iso_runner_hash() -> str:
     m = sha256()
     for file in sorted(
         [
@@ -63,7 +63,11 @@ def command(args: Namespace) -> None:
     ):
         m.update(file_hash(file).encode("utf-8"))
 
-    print(hex_to_base62(m.hexdigest()), end="\n" if cast(bool, args.newline) else "")
+    return hex_to_base62(m.hexdigest())
+
+
+def command(args: Namespace) -> None:
+    print(cast(str, iso_runner_hash()), end="\n" if cast(bool, args.newline) else "")
 
 
 # Do not use /usr/lib/system/_os version of this to avoid external dependencies while loading

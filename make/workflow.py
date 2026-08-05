@@ -209,6 +209,7 @@ def command(args: Namespace) -> None:
                 f"    pull: ${{{{ github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates) }}}}",
                 "    push: ${{ github.event_name != 'pull_request' }}",
                 "    builder: ${{ needs.builder.outputs.unique_tag }}",
+                "    iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}",
             ]
         )
 

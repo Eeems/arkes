@@ -13,16 +13,17 @@ from typing import (
 )
 
 from . import (
+    BUILDER,
     bytes_to_stderr,
     bytes_to_stdout,
     podman_cmd,
 )
 from .boot import (
-    ISO_RUNNER_IMAGE,
     extract_boot,
     qemu_args,
     qemu_cmd,
 )
+from .ref import ref
 
 kwds: dict[str, str] = {
     "help": "Boot an iso in qemu and run validation against it",
@@ -31,6 +32,11 @@ kwds: dict[str, str] = {
 
 def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("iso", help="Path to the iso to boot")
+    _ = parser.add_argument(
+        "--branch",
+        default="iso-runner",
+        help="iso-runner image ref to use, defaults to iso-runner.",
+    )
 
 
 def command(args: Namespace) -> None:
@@ -39,15 +45,16 @@ def command(args: Namespace) -> None:
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
 
+    branch = ref(cast(str, args.branch))
     with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
         cmd = podman_cmd(
             "run",
             "--rm",
             "-i",
             *qemu_args(iso, workspace, False),
-            ISO_RUNNER_IMAGE,
+            f"{BUILDER}:{branch}",
             "qemu-system-x86_64",
-            *qemu_cmd(*extract_boot(iso, workspace), False, False),
+            *qemu_cmd(*extract_boot(iso, workspace, branch), False, False),
         )
         proc = subprocess.Popen(
             cmd,
