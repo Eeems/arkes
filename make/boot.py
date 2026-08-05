@@ -154,7 +154,7 @@ def qemu_cmd(
 
 
 def command(args: Namespace) -> None:
-    iso = cast(str, args.iso)
+    iso = os.path.abspath(cast(str, args.iso))
     if not os.path.exists(iso):
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
