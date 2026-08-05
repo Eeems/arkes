@@ -85,5 +85,6 @@ EOT
 
 # Fix buildah bug
 RUN <<EOT
+  set -e
   sed -i 's|^#mount_program = "/usr/bin/fuse-overlayfs"|mount_program = "/usr/bin/fuse-overlayfs"|' /etc/containers/storage.conf
 EOT

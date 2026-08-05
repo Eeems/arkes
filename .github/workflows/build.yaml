@@ -10,6 +10,8 @@ on:
       - master
     paths:
       - .github/workflows/tool-builder.yaml
+      - .github/workflows/tool-niricfg.yaml
+      - .github/workflows/tool-iso-runner.yaml
       - .github/workflows/build.yaml
       - .github/workflows/build-variant.yaml
       - .github/workflows/iso.yaml
@@ -17,6 +19,7 @@ on:
       - ".github/actions/**"
       - "tools/dockerfile2llbjson/**"
       - "tools/builder/**"
+      - "tools/iso-runner/**"
       - "make/__main__.py"
       - "make/__init__.py"
       - "make/iso.py"
@@ -25,6 +28,8 @@ on:
       - "make/push.py"
       - "make/build.py"
       - "make/checkupdates.py"
+      - "make/iso-runner.py"
+      - "make/hash-iso-runner.py"
       - "make/manifest.py"
       - "make/check.py"
       - "make/workflow.py"
@@ -74,6 +79,14 @@ jobs:
   tool-niricfg:
     name: Build niricfg application
     uses: ./.github/workflows/tool-niricfg.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+  tool-iso-runner:
+    name: Build iso runner image
+    uses: ./.github/workflows/tool-iso-runner.yaml
     secrets: inherit
     permissions:
       contents: read
@@ -548,6 +561,7 @@ jobs:
     name: Generate iso for base
     needs:
       - builder
+      - tool-iso-runner
       - base
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -564,6 +578,7 @@ jobs:
     name: Generate iso for atomic
     needs:
       - builder
+      - tool-iso-runner
       - atomic
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -580,6 +595,7 @@ jobs:
     name: Generate iso for atomic-nvidia
     needs:
       - builder
+      - tool-iso-runner
       - atomic-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -597,6 +613,7 @@ jobs:
     name: Generate iso for base-slim
     needs:
       - builder
+      - tool-iso-runner
       - base-slim
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -613,6 +630,7 @@ jobs:
     name: Generate iso for cosmic
     needs:
       - builder
+      - tool-iso-runner
       - cosmic
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -629,6 +647,7 @@ jobs:
     name: Generate iso for eeems
     needs:
       - builder
+      - tool-iso-runner
       - eeems
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -645,6 +664,7 @@ jobs:
     name: Generate iso for eeems-nvidia
     needs:
       - builder
+      - tool-iso-runner
       - eeems-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -661,6 +681,7 @@ jobs:
     name: Generate iso for eeems-system76
     needs:
       - builder
+      - tool-iso-runner
       - eeems-system76
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -677,6 +698,7 @@ jobs:
     name: Generate iso for gnome
     needs:
       - builder
+      - tool-iso-runner
       - gnome
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -693,6 +715,7 @@ jobs:
     name: Generate iso for kde
     needs:
       - builder
+      - tool-iso-runner
       - kde
     uses: ./.github/workflows/iso.yaml
     secrets: inherit

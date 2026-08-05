@@ -1,0 +1,16 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Dependencies for booting an iso under qemu. No driver logic here, that
+# lives in make/boot.py and make/test.py.
+RUN <<EOT
+  set -e
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    genisoimage \
+    libsdl2-2.0-0 \
+    qemu-system-x86
+  apt-get clean
+  rm -rf /var/lib/apt/lists/*
+EOT

@@ -52,6 +52,7 @@ jobs:
         --cap-add=SYS_ADMIN
         --cap-add=NET_ADMIN
         --device=/dev/fuse
+        --device=/dev/kvm
         --tmpfs=/tmp
         --tmpfs=/run
         --userns=host
@@ -102,6 +103,12 @@ jobs:
         uses: ./.github/actions/run-with-podman-service
         with:
           run: ./make.py iso ${{ inputs.variant }}
+
+      - name: Boot test iso
+        uses: ./.github/actions/run-with-podman-service
+        timeout-minutes: 30
+        with:
+          run: ./make.py test /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
       - name: Pacman cache
         uses: ./.github/actions/pacman-cache-update

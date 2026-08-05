@@ -1,0 +1,3 @@
+#!/bin/bash
+set -e
+chronic systemctl --failed --no-legend --no-pager
