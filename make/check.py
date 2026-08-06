@@ -151,10 +151,18 @@ def command(args: Namespace) -> None:
                 with open(path, "rb") as file:
                     shebang = file.readline().strip()
 
-                if shebang.startswith(b"#!") and (
-                    b"bash" in shebang or shebang == b"#!/bin/sh"
-                ):
-                    bash_files.append(path)
+                interpreter_args: list[bytes] = shebang[2:].split()
+                if not interpreter_args:
+                    continue
+
+                interpreter = os.path.basename(interpreter_args[0])
+                if interpreter == b"env" and len(interpreter_args) > 1:
+                    interpreter = os.path.basename(interpreter_args[1])
+
+                if interpreter not in (b"bash", b"sh", b"mksh", b"bats"):
+                    continue
+
+                bash_files.append(path)
 
         if bash_files:
             cmd = ["shfmt", "-i=2"] + (["-w", "-l"] if fix else ["-d"]) + bash_files
