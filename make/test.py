@@ -178,7 +178,7 @@ def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None
         if not data:
             continue
 
-        buffer = (buffer + data)[-max_len:]
+        buffer = (buffer + data)[-(max_len + len(data)) :]
         bytes_to_stdout(data)
         for pattern in patterns:
             if pattern in buffer:
