@@ -139,6 +139,45 @@ def command(args: Namespace) -> None:
             print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
             failed = True
 
+    if shutil.which("shfmt") is not None:
+        print("[check] Checking bash formatting", file=sys.stderr)
+        bash_files: list[str] = []
+        for root, _, files in os.walk("overlay"):
+            for name in files:
+                path = os.path.join(root, name)
+                if os.path.islink(path):
+                    continue
+
+                with open(path, "rb") as file:
+                    shebang = file.readline().strip()
+
+                if shebang.startswith(b"#!") and (
+                    b"bash" in shebang or shebang == b"#!/bin/sh"
+                ):
+                    bash_files.append(path)
+
+        if bash_files:
+            cmd = ["shfmt", "-i=2"] + (["-w", "-l"] if fix else ["-d"]) + bash_files
+            shfmt_failed = False
+
+            def _onstderr(data: bytes) -> None:
+                nonlocal shfmt_failed
+                shfmt_failed = True
+                bytes_to_stderr(data)
+
+            def _onstdout(data: bytes) -> None:
+                nonlocal shfmt_failed
+                shfmt_failed = True
+                bytes_to_stdout(data)
+
+            res = execute_pipe(*cmd, onstderr=_onstderr, onstdout=_onstdout)
+            if res or shfmt_failed:
+                print(
+                    f"[check] Failed: {shlex.join(cmd)}\nStatus code: {res}",
+                    file=sys.stderr,
+                )
+                failed = True
+
     print("[check] Setting up venv", file=sys.stderr)
     if not os.path.exists(".venv/bin/activate"):
         chronic("python", "-m", "venv", "--system-site-packages", ".venv")

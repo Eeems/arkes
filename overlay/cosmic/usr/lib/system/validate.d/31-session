@@ -3,18 +3,18 @@ set -euo pipefail
 
 end=$((SECONDS + 60))
 while [ "$SECONDS" -lt "$end" ]; do
-    seen_user=false
-    seen_manager=false
-    for id in $(loginctl list-sessions --no-legend --no-pager | awk '{print $1}'); do
-        case "$(loginctl show-session "$id" -p Class --value)" in
-            user|greeter) seen_user=true ;;
-            manager) seen_manager=true ;;
-        esac
-        if [ "$seen_user" = true ] && [ "$seen_manager" = true ]; then
-            exit 0
-        fi
-    done
-    sleep 1
+  seen_user=false
+  seen_manager=false
+  for id in $(loginctl list-sessions --no-legend --no-pager | awk '{print $1}'); do
+    case "$(loginctl show-session "$id" -p Class --value)" in
+    user | greeter) seen_user=true ;;
+    manager) seen_manager=true ;;
+    esac
+    if [ "$seen_user" = true ] && [ "$seen_manager" = true ]; then
+      exit 0
+    fi
+  done
+  sleep 1
 done
 
 echo "timed out waiting for login and manager sessions" >&2

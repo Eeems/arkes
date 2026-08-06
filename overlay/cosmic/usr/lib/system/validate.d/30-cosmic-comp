@@ -3,10 +3,10 @@ set -euo pipefail
 
 end=$((SECONDS + 60))
 while [ "$SECONDS" -lt "$end" ]; do
-    if busctl --user status org.freedesktop.a11y.Manager >/dev/null 2>&1; then
-        exit 0
-    fi
-    sleep 1
+  if busctl --user status org.freedesktop.a11y.Manager >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 1
 done
 
 echo "timed out waiting for the cosmic session" >&2

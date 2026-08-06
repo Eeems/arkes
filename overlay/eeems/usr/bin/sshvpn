@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
-if [ "$EUID" -ne 0 ];then
+if [ "$EUID" -ne 0 ]; then
   exec sudo "$0" "$@"
 fi
-log(){
+log() {
   echo "$@" 1>&2
 }
-up(){
+up() {
   log "Setting up kernel..."
   sysctl net.ipv4.conf.all.rp_filter=0 1>&2
   sysctl net.ipv4.conf.enp7s0.rp_filter=0 1>&2
@@ -25,7 +25,7 @@ up(){
     --loglevel error \
     >/dev/null &
 }
-down(){
+down() {
   log "Stopping background jobs..."
   kill $(jobs -p)
   wait $(jobs -p)
@@ -35,10 +35,10 @@ down(){
   ip tuntap del mode tun dev tun0
   log "Stopped."
 }
-ipaddr(){
+ipaddr() {
   log "Wating for ip..."
   ret=1
-  while [ $ret != 0 ];do
+  while [ $ret != 0 ]; do
     set +e
     ip=$(curl -s4 icanhazip.com)
     ret=$?
@@ -47,11 +47,11 @@ ipaddr(){
   log -n "ipv4: "
   echo "$ip"
 }
-help(){
+help() {
   log "Usage: $0 <host>"
 }
-main(){
-  if [ $# -ne 1 ];then
+main() {
+  if [ $# -ne 1 ]; then
     help
     return 1
   fi

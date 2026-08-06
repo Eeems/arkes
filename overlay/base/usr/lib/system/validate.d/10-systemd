@@ -5,7 +5,7 @@ if chronic systemctl is-system-running --wait; then
   exit 0
 fi
 
-systemctl --failed --no-legend --no-pager |
+systemctl --failed --no-legend --no-pager --plain |
   while read -r unit _; do
     if [ -n "$unit" ]; then
       echo "--- $unit ---"
