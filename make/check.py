@@ -165,7 +165,7 @@ def command(args: Namespace) -> None:
                 bash_files.append(path)
 
         if bash_files:
-            cmd = ["shfmt", "-i=2"] + (["-w", "-l"] if fix else ["-d"]) + bash_files
+            cmd = ["shfmt", "-i=2"] + (["-w"] if fix else ["-d"]) + bash_files
             shfmt_failed = False
 
             def _onstderr(data: bytes) -> None:
