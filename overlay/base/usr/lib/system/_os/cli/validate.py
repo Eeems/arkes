@@ -9,7 +9,9 @@ from typing import (
     cast,
 )
 
-kwds = {}
+from ..system import execute
+
+kwds: dict[str, str] = {}
 
 
 def register(_: ArgumentParser) -> None:
@@ -17,12 +19,13 @@ def register(_: ArgumentParser) -> None:
 
 
 def command(_: Namespace) -> None:
-    sys.exit(
-        subprocess.run(
-            ["run-parts", "--report", "/usr/lib/system/validate.d"],
-            check=False,
-        ).returncode
-    )
+    try:
+        execute("run-parts", "--report", "/usr/lib/system/validate.d")
+
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

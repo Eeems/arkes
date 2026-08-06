@@ -8,6 +8,7 @@ from argparse import (
     Namespace,
 )
 from typing import (
+    IO,
     Any,
     cast,
 )
@@ -40,14 +41,14 @@ def register(parser: ArgumentParser) -> None:
 
 
 def command(args: Namespace) -> None:
-    iso = cast(str, args.iso)
+    iso: str = cast(str, args.iso)
     if not os.path.exists(iso):
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
 
-    branch = ref(cast(str, args.branch))
+    branch: str = ref(cast(str, args.branch))
     with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
-        cmd = podman_cmd(
+        cmd: list[str] = podman_cmd(
             "run",
             "--rm",
             "-i",
@@ -56,7 +57,7 @@ def command(args: Namespace) -> None:
             "qemu-system-x86_64",
             *qemu_cmd(*extract_boot(iso, workspace, branch), False, False),
         )
-        proc = subprocess.Popen(
+        proc: subprocess.Popen[bytes] = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -108,7 +109,7 @@ def login(proc: subprocess.Popen[bytes]) -> bool:
 
 
 def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
-    stdin = proc.stdin
+    stdin: IO[bytes] | None = proc.stdin
     if stdin is None:
         raise RuntimeError("stdin is None")
 
@@ -123,7 +124,7 @@ def stop(proc: subprocess.Popen[bytes]) -> None:
     while proc.poll() is None:
         r, _, _ = select.select([proc.stdout, proc.stderr], [], [])
         if proc.stdout in r:
-            data = os.read(proc.stdout.fileno(), 4096)
+            data: bytes = os.read(proc.stdout.fileno(), 4096)
             if data:
                 bytes_to_stdout(data)
 
@@ -137,9 +138,9 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     assert proc.stdout is not None
     assert proc.stderr is not None
     send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
-    rc = -1
-    buffer = b""
-    while rc == -1:
+    res: int = -1
+    buffer: bytes = b""
+    while res == -1:
         r, _, _ = select.select([proc.stdout, proc.stderr], [], [])
         if proc.stdout in r:
             data = os.read(proc.stdout.fileno(), 4096)
@@ -151,15 +152,15 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
             buffer += data
             bytes_to_stdout(data)
-            pos = buffer.find(b"__RC__=")
+            pos: int = buffer.find(b"__RC__=")
             while pos != -1:
-                newline = buffer.find(b"\n", pos)
+                newline: int = buffer.find(b"\n", pos)
                 if newline == -1:
                     break
 
-                value = buffer[pos + len(b"__RC__=") : newline].strip()
+                value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
                 if value.isdigit():
-                    rc = int(value)
+                    res = int(value)
                     break
 
                 pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
@@ -169,15 +170,15 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
             if data:
                 bytes_to_stderr(data)
 
-    if rc == -1:
+    if res == -1:
         print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
         return False
 
-    return rc == 0
+    return res == 0
 
 
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
-    buffer = b""
+    buffer: bytes = b""
     assert proc.stdout is not None
     assert proc.stderr is not None
     while proc.poll() is None:

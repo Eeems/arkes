@@ -19,7 +19,7 @@ from .pull import pull
 
 
 class ShellCallable(Protocol):
-    def __call__(self, *args: str) -> None: ...
+    def __call__(self, *args: str) -> int: ...
 
 
 shell = cast(ShellCallable, _os.console.shell)  # pyright:ignore [reportUnknownMemberType]
@@ -46,7 +46,7 @@ def command(args: Namespace) -> None:
 
         pull(image)
 
-    shell(*podman_cmd("run", "--rm", "-it", image))
+    sys.exit(shell(*podman_cmd("run", "--rm", "-it", image)))
 
 
 if __name__ == "__main__":

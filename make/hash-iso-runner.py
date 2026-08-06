@@ -67,7 +67,7 @@ def iso_runner_hash() -> str:
 
 
 def command(args: Namespace) -> None:
-    print(cast(str, iso_runner_hash()), end="\n" if cast(bool, args.newline) else "")
+    print(iso_runner_hash(), end="\n" if cast(bool, args.newline) else "")
 
 
 # Do not use /usr/lib/system/_os version of this to avoid external dependencies while loading

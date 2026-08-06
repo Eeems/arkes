@@ -38,7 +38,7 @@ def register(parser: ArgumentParser) -> None:
 
 
 def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
-    args = [
+    args: list[str] = [
         f"--volume={iso}:/iso:ro",
         f"--volume={workspace}:/workspace",
         "--security-opt=label=disable",
@@ -46,21 +46,26 @@ def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
     if os.path.exists("/dev/kvm"):
         args.append("--device=/dev/kvm")
 
-    if graphical:
-        display = os.environ.get("DISPLAY")
-        if display:
-            args.extend(
-                [
-                    "--volume=/tmp/.X11-unix:/tmp/.X11-unix",
-                    f"--env=DISPLAY={display}",
-                ]
-            )
+    if not graphical:
+        return args
 
+    runtime_dir: str | None = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime_dir and os.path.isdir(runtime_dir):
+        args.extend([f"--volume={runtime_dir}:{runtime_dir}"])
+
+    args.extend(
+        [
+            "--volume=/tmp/.X11-unix:/tmp/.X11-unix",
+            "--env=DISPLAY",
+            "--env=XDG_RUNTIME_DIR",
+            "--env=WAYLAND_DISPLAY",
+        ]
+    )
     return args
 
 
 def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
-    data = subprocess.check_output(
+    data: bytes = subprocess.check_output(
         podman_cmd(
             "run",
             "--rm",
@@ -77,7 +82,7 @@ def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
     for line in data.decode("utf-8").splitlines():
         for arg in line.split():
             if arg.startswith("archisosearchuuid="):
-                value = arg.split("=", 1)[1]
+                value: str = arg.split("=", 1)[1]
                 assert value
                 return (
                     extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
@@ -89,7 +94,7 @@ def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
 
 
 def extract(iso: str, workspace: str, path: str, branch: str) -> str:
-    dest = os.path.join(workspace, os.path.basename(path))
+    dest: str = os.path.join(workspace, os.path.basename(path))
     with open(dest, "wb") as f:
         _ = subprocess.run(
             podman_cmd(
@@ -118,8 +123,8 @@ def qemu_cmd(
     graphical: bool,
     monitor: bool,
 ) -> list[str]:
-    kvm = os.path.exists("/dev/kvm")
-    args = [
+    kvm: bool = os.path.exists("/dev/kvm")
+    args: list[str] = [
         "-machine",
         "q35",
         "-cpu",
@@ -158,28 +163,27 @@ def qemu_cmd(
 
 
 def command(args: Namespace) -> None:
-    iso = os.path.abspath(cast(str, args.iso))
+    iso: str = os.path.abspath(cast(str, args.iso))
     if not os.path.exists(iso):
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
 
-    graphical = cast(bool, args.graphical)
-    branch = ref(cast(str, args.branch))
+    graphical: bool = cast(bool, args.graphical)
+    branch: str = ref(cast(str, args.branch))
     with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
-        ret = shell(
-            *podman_cmd(
-                "run",
-                "--rm",
-                "-it",
-                *qemu_args(iso, workspace, graphical),
-                f"{BUILDER}:{branch}",
-                "qemu-system-x86_64",
-                *qemu_cmd(*extract_boot(iso, workspace, branch), graphical, True),
+        sys.exit(
+            shell(
+                *podman_cmd(
+                    "run",
+                    "--rm",
+                    "-it",
+                    *qemu_args(iso, workspace, graphical),
+                    f"{BUILDER}:{branch}",
+                    "qemu-system-x86_64",
+                    *qemu_cmd(*extract_boot(iso, workspace, branch), graphical, True),
+                )
             )
         )
-
-    if ret:
-        sys.exit(ret)
 
 
 if __name__ == "__main__":

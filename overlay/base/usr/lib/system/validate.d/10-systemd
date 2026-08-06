@@ -1,12 +1,15 @@
 #!/bin/bash
-set -eo pipefail
+set -euo pipefail
+
+if chronic systemctl is-system-running --wait; then
+  exit 0
+fi
 
 systemctl --failed --no-legend --no-pager |
-    while read -r unit _; do
-        if [ -n "$unit" ]; then
-            echo "--- $unit ---"
-            systemctl status "$unit" --no-pager --no-legend || true
-        fi
-    done
-
-systemctl is-system-running >/dev/null 2>&1
+  while read -r unit _; do
+    if [ -n "$unit" ]; then
+      echo "--- $unit ---"
+      systemctl status "$unit" --no-pager --no-legend || true
+    fi
+  done
+exit 1
