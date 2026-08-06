@@ -1,5 +1,5 @@
+import io
 import os
-import select
 import subprocess
 import sys
 import tempfile
@@ -15,7 +15,6 @@ from typing import (
 
 from . import (
     BUILDER,
-    bytes_to_stderr,
     bytes_to_stdout,
     podman_cmd,
 )
@@ -61,7 +60,7 @@ def command(args: Namespace) -> None:
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
         if not login(proc):
             print("boot-test: validation failed", file=sys.stderr)
@@ -119,56 +118,44 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
 
 def stop(proc: subprocess.Popen[bytes]) -> None:
     assert proc.stdout is not None
-    assert proc.stderr is not None
+    stdout = cast(io.BufferedReader, proc.stdout)
     send(proc, b"sudo systemctl poweroff\n")
-    while proc.poll() is None:
-        r, _, _ = select.select([proc.stdout, proc.stderr], [], [])
-        if proc.stdout in r:
-            data: bytes = os.read(proc.stdout.fileno(), 4096)
-            if data:
-                bytes_to_stdout(data)
+    while True:
+        data: bytes = stdout.read1(4096)
+        if not data:
+            break
 
-        if proc.stderr in r:
-            data = os.read(proc.stderr.fileno(), 4096)
-            if data:
-                bytes_to_stderr(data)
+        bytes_to_stdout(data)
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     assert proc.stdout is not None
-    assert proc.stderr is not None
+    stdout = cast(io.BufferedReader, proc.stdout)
     send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
     res: int = -1
     buffer: bytes = b""
     while res == -1:
-        r, _, _ = select.select([proc.stdout, proc.stderr], [], [])
-        if proc.stdout in r:
-            data = os.read(proc.stdout.fileno(), 4096)
-            if not data:
-                if proc.poll() is not None:
-                    break
+        data: bytes = stdout.read1(4096)
+        if not data:
+            if proc.poll() is not None:
+                break
 
-                continue
+            continue
 
-            buffer += data
-            bytes_to_stdout(data)
-            pos: int = buffer.find(b"__RC__=")
-            while pos != -1:
-                newline: int = buffer.find(b"\n", pos)
-                if newline == -1:
-                    break
+        buffer += data
+        bytes_to_stdout(data)
+        pos: int = buffer.find(b"__RC__=")
+        while pos != -1:
+            newline: int = buffer.find(b"\n", pos)
+            if newline == -1:
+                break
 
-                value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
-                if value.isdigit():
-                    res = int(value)
-                    break
+            value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
+            if value.isdigit():
+                res = int(value)
+                break
 
-                pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
-
-        if proc.stderr in r:
-            data = os.read(proc.stderr.fileno(), 4096)
-            if data:
-                bytes_to_stderr(data)
+            pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
 
     if res == -1:
         print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
@@ -180,26 +167,17 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
     buffer: bytes = b""
     assert proc.stdout is not None
-    assert proc.stderr is not None
+    stdout = cast(io.BufferedReader, proc.stdout)
     while proc.poll() is None:
-        r, _, _ = select.select([proc.stdout, proc.stderr], [], [])
-        if proc.stdout in r:
-            data = os.read(proc.stdout.fileno(), 4096)
-            if not data:
-                continue
+        data: bytes = stdout.read1(4096)
+        if not data:
+            continue
 
-            buffer += data
-            bytes_to_stdout(data)
-            for pattern in patterns:
-                if pattern in buffer:
-                    return pattern
-
-        if proc.stderr in r:
-            data = os.read(proc.stderr.fileno(), 4096)
-            if not data:
-                continue
-
-            bytes_to_stderr(data)
+        buffer += data
+        bytes_to_stdout(data)
+        for pattern in patterns:
+            if pattern in buffer:
+                return pattern
 
     return None
 
