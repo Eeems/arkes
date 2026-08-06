@@ -72,7 +72,9 @@ def command(args: Namespace) -> None:
             stop(proc)
             sys.exit(1)
 
-        stop(proc)
+        if not stop(proc):
+            print("boot-test: shutdown failed", file=sys.stderr)
+            sys.exit(1)
 
     print("boot-test: validation passed", file=sys.stderr)
 
@@ -116,7 +118,7 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
     stdin.flush()
 
 
-def stop(proc: subprocess.Popen[bytes]) -> None:
+def stop(proc: subprocess.Popen[bytes]) -> bool:
     assert proc.stdout is not None
     stdout = cast(io.BufferedReader, proc.stdout)
     send(proc, b"sudo systemctl poweroff\n")
@@ -126,6 +128,8 @@ def stop(proc: subprocess.Popen[bytes]) -> None:
             break
 
         bytes_to_stdout(data)
+
+    return proc.wait() == 0
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
@@ -142,7 +146,7 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
             continue
 
-        buffer += data
+        buffer = (buffer + data)[-(len(b"__RC__=") + 32) :]
         bytes_to_stdout(data)
         pos: int = buffer.find(b"__RC__=")
         while pos != -1:
@@ -166,6 +170,7 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
     buffer: bytes = b""
+    max_len: int = max(len(pattern) for pattern in patterns)
     assert proc.stdout is not None
     stdout = cast(io.BufferedReader, proc.stdout)
     while proc.poll() is None:
@@ -173,7 +178,7 @@ def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None
         if not data:
             continue
 
-        buffer += data
+        buffer = (buffer + data)[-max_len:]
         bytes_to_stdout(data)
         for pattern in patterns:
             if pattern in buffer:
