@@ -18,7 +18,7 @@ def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Run each validation script with verbose output",
+        help="Verbose output",
     )
 
 
