@@ -151,13 +151,21 @@ def command(args: Namespace) -> None:
                 with open(path, "rb") as file:
                     shebang = file.readline().strip()
 
+                if not shebang.startswith(b"#!"):
+                    continue
+
                 interpreter_args: list[bytes] = shebang[2:].split()
                 if not interpreter_args:
                     continue
 
                 interpreter = os.path.basename(interpreter_args[0])
-                if interpreter == b"env" and len(interpreter_args) > 1:
-                    interpreter = os.path.basename(interpreter_args[1])
+                if interpreter == b"env":
+                    for arg in interpreter_args[1:]:
+                        if arg.startswith(b"-"):
+                            continue
+
+                        interpreter = os.path.basename(arg)
+                        break
 
                 if interpreter not in (b"bash", b"sh", b"mksh", b"bats"):
                     continue
