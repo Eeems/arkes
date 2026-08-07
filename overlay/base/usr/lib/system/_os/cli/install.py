@@ -17,7 +17,7 @@ from typing import (
 from .. import OS_NAME
 from ..ostree import (
     chroot,
-    commit,
+    commit_export,
     deploy,
     deployments,
     ostree,
@@ -25,7 +25,6 @@ from ..ostree import (
 )
 from ..podman import (
     build,
-    export,
     podman_cmd,
 )
 from ..system import (
@@ -128,7 +127,7 @@ def install(  # noqa: PLR0917
         print("Boot partition must be specified")
         sys.exit(1)
 
-    setattr(ostree, "repo", f"/mnt{getattr(ostree, 'repo')}")
+    setattr(ostree, "repo", os.path.normpath(f"{sysroot}/{getattr(ostree, 'repo')}"))
     if os.path.ismount(sysroot):
         execute("umount", "--recursive", sysroot)
 
@@ -138,8 +137,6 @@ def install(  # noqa: PLR0917
 
     execute("mount", "--mkdir", dev_sys, sysroot)
     execute("mount", "--mkdir", dev_boot, os.path.join(sysroot, "boot/efi"))
-    systemDir = os.path.join(sysroot, ".system")
-    os.mkdir(systemDir)
     execute("ostree", "admin", "init-fs", f"--sysroot={sysroot}", "--modern", sysroot)
     execute("ostree", "admin", "stateroot-init", f"--sysroot={sysroot}", OS_NAME)
     ostree("init", "--mode=bare")
@@ -158,61 +155,13 @@ def install(  # noqa: PLR0917
         ],
     )
     os.unlink(systemfile)
-    rootfs = os.path.join(systemDir, "rootfs")
-
-    with export(workingDir=systemDir) as t:
-        if not os.path.exists(rootfs):
-            os.makedirs(rootfs, exist_ok=True)
-
-        t.extractall(
-            rootfs,
-            numeric_owner=True,
-            filter="fully_trusted",
-        )
-
-    rootfs = os.path.join(systemDir, "rootfs")
-    buildImage = baseImage()
-    tmp = os.path.join(sysroot, ".tmp")
-    os.mkdir(tmp)
-    execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
-    exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
-    execute(
-        "bash",
-        "-c",
-        " | ".join(
-            [
-                shlex.join(
-                    podman_cmd(
-                        "save",
-                        "--multi-image-archive",
-                        "system:latest",
-                        buildImage,
-                    )
-                ),
-                shlex.join(
-                    [
-                        "podman",
-                        f"--root={rootfs}/var/lib/containers/storage",
-                        "--runroot=/tmp/podman-runroot",
-                        "--storage-driver=overlay",
-                        "--events-backend=file",
-                        "load",
-                    ]
-                ),
-            ]
-        ),
+    commit_export(
+        branch,
+        setup="""
+        rm -f /etc
+        rm -rf /var/*
+        """,
     )
-    os.unlink(os.path.join(rootfs, "var/lib/containers/storage/db.sql"))
-    lib = os.path.join(sysroot, "ostree/deploy", OS_NAME, "var/lib")
-    os.makedirs(lib, exist_ok=True)
-    _ = shutil.move(os.path.join(rootfs, "var/lib/containers"), lib)
-    _ = shutil.rmtree(os.path.join(rootfs, "var/tmp"))
-    atexit.unregister(exitFunc1)
-    execute("umount", "/var/tmp")  # noqa: S108
-    os.rmdir(tmp)
-
-    commit(branch, rootfs)
-    shutil.rmtree(systemDir)
     deploy(branch, sysroot)
     execute(
         "grub-install",
@@ -247,6 +196,44 @@ def install(  # noqa: PLR0917
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
         sysroot=sysroot,
     )
+
+    tmp = os.path.join(sysroot, ".tmp")
+    os.mkdir(tmp)
+    execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
+    exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
+    storage = os.path.join(
+        sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
+    )
+    execute(
+        "bash",
+        "-c",
+        " | ".join(
+            [
+                shlex.join(
+                    podman_cmd(
+                        "save",
+                        "--multi-image-archive",
+                        "system:latest",
+                        baseImage(),
+                    )
+                ),
+                shlex.join(
+                    [
+                        "podman",
+                        f"--root={storage}",
+                        "--runroot=/tmp/podman-runroot",
+                        "--storage-driver=overlay",
+                        "--events-backend=file",
+                        "load",
+                    ]
+                ),
+            ]
+        ),
+    )
+    os.unlink(os.path.join(storage, "db.sql"))
+    atexit.unregister(exitFunc1)
+    execute("umount", "/var/tmp")  # noqa: S108
+    os.rmdir(tmp)
     execute("umount", "--recursive", sysroot)
 
 

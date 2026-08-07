@@ -95,11 +95,12 @@ def command(args: Namespace) -> None:
 
     if shutil.which("gofmt") is not None:
         print("[check] Checking go formatting", file=sys.stderr)
-        cmd = (
-            ["gofmt", "-e"]
-            + (["-w", "-l"] if fix else ["-d"])
-            + ["tools/dockerfile2llbjson"]
-        )
+        cmd = [
+            "gofmt",
+            "-e",
+            *(["-w", "-l"] if fix else ["-d"]),
+            "tools/dockerfile2llbjson",
+        ]
         gofmt_failed = False
 
         def _onstderr(data: bytes) -> None:
@@ -123,13 +124,21 @@ def command(args: Namespace) -> None:
     if shutil.which("go") is not None:
         cwd = os.getcwd()
         print("[check] Analyzing go code", file=sys.stderr)
-        cmd = shlex.join(["go", "vet"])
-        os.chdir("tools/dockerfile2llbjson")
-        res = _execute(cmd)
-        os.chdir(cwd)
-        if res:
-            print(f"[check] Failed: {cmd}\nStatus code: {res}", file=sys.stderr)
-            failed = True
+        cmds: list[list[str]] = [["go", "vet"]]
+        if fix:
+            cmds.insert(0, ["go", "mod", "tidy"])
+
+        for cmd in cmds:
+            command = shlex.join(cmd)
+            os.chdir("tools/dockerfile2llbjson")
+            res = _execute(command)
+            os.chdir(cwd)
+            if res:
+                print(
+                    f"[check] Failed: {command}\nStatus code: {res}",
+                    file=sys.stderr,
+                )
+                failed = True
 
     if shutil.which("actionlint") is not None:
         print("[check] Checking github actions", file=sys.stderr)
