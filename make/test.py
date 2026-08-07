@@ -100,7 +100,7 @@ def command(args: Namespace) -> None:
             _ = stop(proc)
             sys.exit(1)
 
-        if not check(proc, "os validate"):
+        if not check(proc, "os validate --verbose"):
             print("boot-test: live iso failed os validate", file=sys.stderr)
             _ = stop(proc)
             sys.exit(1)
@@ -167,7 +167,7 @@ def command(args: Namespace) -> None:
             _ = stop(proc)
             sys.exit(1)
 
-        if not check(proc, "os validate"):
+        if not check(proc, "os validate --verbose"):
             print("boot-test: installed system failed os validate", file=sys.stderr)
             _ = stop(proc)
             sys.exit(1)

@@ -14,18 +14,25 @@ from ..system import execute
 kwds: dict[str, str] = {}
 
 
-def register(_: ArgumentParser) -> None:
-    pass
+def register(parser: ArgumentParser) -> None:
+    _ = parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Run each validation script with verbose output",
+    )
 
 
-def command(_: Namespace) -> None:
+def command(args: Namespace) -> None:
+    verbose: bool = cast(bool, args.verbose)
+    run_parts_args: list[str] = ["--report"]
+    if verbose:
+        run_parts_args.append("--verbose")
+
     try:
-        execute("run-parts", "--report", "/usr/lib/system/validate.d")
+        execute("run-parts", *run_parts_args, "/usr/lib/system/validate.d")
 
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)
-
-    sys.exit(0)
 
 
 if __name__ == "__main__":
