@@ -1,5 +1,6 @@
 import io
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -16,11 +17,11 @@ from typing import (
 from . import (
     BUILDER,
     bytes_to_stdout,
+    execute,
     podman_cmd,
 )
 from .boot import (
     extract_boot,
-    qemu_args,
     qemu_cmd,
 )
 from .ref import ref
@@ -40,69 +41,168 @@ def register(parser: ArgumentParser) -> None:
 
 
 def command(args: Namespace) -> None:
-    iso: str = cast(str, args.iso)
+    iso: str = os.path.abspath(cast(str, args.iso))
     if not os.path.exists(iso):
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
 
     branch: str = ref(cast(str, args.branch))
-    with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
-        cmd: list[str] = podman_cmd(
-            "run",
-            "--rm",
-            "-i",
-            *qemu_args(iso, workspace, False),
-            f"{BUILDER}:{branch}",
-            "qemu-system-x86_64",
-            *qemu_cmd(*extract_boot(iso, workspace, branch), False, False),
+    image: str = f"{BUILDER}:{branch}"
+    data_dir = os.path.join(
+        os.environ.get("XDG_DATA_HOME")
+        or os.path.join(os.path.expanduser("~"), ".local", "share"),
+        "iso-runner-tmp",
+    )
+    os.makedirs(data_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="iso-runner-", dir=data_dir) as workspace:
+        pod_args: list[str] = [
+            f"--volume={workspace}:/workspace",
+            "--security-opt=label=disable",
+        ]
+        if os.path.exists("/dev/kvm"):
+            pod_args.append("--device=/dev/kvm")
+
+        execute(
+            podman_cmd(
+                "run",
+                "--rm",
+                *pod_args,
+                image,
+                "qemu-img",
+                "create",
+                "-f",
+                "qcow2",
+                "/workspace/disk.qcow2",
+                "32G",
+            ),
         )
+        kernel, initrd, uuid = extract_boot(iso, workspace, branch)
+        disk: str = "/workspace/disk.qcow2"
+
+        # Phase 1: boot the iso, validate, install to the target disk.
         proc: subprocess.Popen[bytes] = subprocess.Popen(
-            cmd,
+            podman_cmd(
+                "run",
+                "--rm",
+                "-i",
+                *pod_args,
+                f"--volume={iso}:/iso:ro",
+                image,
+                "qemu-system-x86_64",
+                *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
+            ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
         if not login(proc):
-            print("boot-test: validation failed", file=sys.stderr)
-            stop(proc)
+            print("boot-test: live iso never reached a shell", file=sys.stderr)
+            _ = stop(proc)
             sys.exit(1)
 
         if not check(proc, "os validate"):
-            print("boot-test: validation failed", file=sys.stderr)
-            stop(proc)
+            print("boot-test: live iso failed os validate", file=sys.stderr)
+            _ = stop(proc)
+            sys.exit(1)
+
+        if not check(
+            proc,
+            "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
+        ):
+            print("boot-test: failed to partition /dev/vda", file=sys.stderr)
+            _ = stop(proc)
+            sys.exit(1)
+
+        if not check(
+            proc,
+            shlex.join(
+                [
+                    "sudo",
+                    "os",
+                    "install",
+                    "--system-partition=/dev/vda2",
+                    "--boot-partition=/dev/vda1",
+                    "--format-partitions",
+                    "--password=live",
+                    "--kernel-commandline=console=ttyS0,115200",
+                ]
+            ),
+        ):
+            print("boot-test: os install failed", file=sys.stderr)
+            _ = stop(proc)
             sys.exit(1)
 
         if not stop(proc):
-            print("boot-test: shutdown failed", file=sys.stderr)
+            print("boot-test: phase 1 shutdown failed", file=sys.stderr)
+            sys.exit(1)
+
+        # Phase 2: boot the installed disk (uefi, no iso) and validate.
+        proc = subprocess.Popen(
+            podman_cmd(
+                "run",
+                "--rm",
+                "-i",
+                *pod_args,
+                image,
+                "bash",
+                "-c",
+                shlex.join(
+                    ["cp", "/usr/share/OVMF/OVMF_VARS_4M.fd", "/workspace/OVMF_VARS_4M.fd"]
+                )
+                + " && exec qemu-system-x86_64 "
+                + shlex.join(
+                    qemu_cmd(None, None, None, False, False, disk=disk, uefi=True)
+                ),
+            ),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if not login(proc, b"root", b"live"):
+            print("boot-test: installed system never reached a shell", file=sys.stderr)
+            _ = stop(proc)
+            sys.exit(1)
+
+        if not check(proc, "os validate"):
+            print("boot-test: installed system failed os validate", file=sys.stderr)
+            _ = stop(proc)
+            sys.exit(1)
+
+        if not stop(proc):
+            print("boot-test: phase 2 shutdown failed", file=sys.stderr)
             sys.exit(1)
 
     print("boot-test: validation passed", file=sys.stderr)
 
 
-def login(proc: subprocess.Popen[bytes]) -> bool:
-    match expect(proc, [b"login:", b"~]$"]):
-        case b"~]$":
+def login(
+    proc: subprocess.Popen[bytes],
+    user: bytes = b"live",
+    password: bytes = b"",
+) -> bool:
+    match expect(proc, [b"login:", b"~]$", b"~]#"]):
+        case b"~]$" | b"~]#":
             return True
 
         case b"login:":
-            send(proc, b"live\n")
+            send(proc, user + b"\n")
 
         case _:
             print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
-    match expect(proc, [b"Password:", b"~]$"]):
+    match expect(proc, [b"Password:", b"~]$", b"~]#"]):
         case b"Password:":
-            send(proc, b"\n")
+            send(proc, password + b"\n")
 
-        case b"~]$":
+        case b"~]$" | b"~]#":
             return True
 
         case _:
             print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect(proc, [b"~]$"]) is None:
+    if expect(proc, [b"~]$", b"~]#"]) is None:
         print("boot-test: never reached the shell prompt", file=sys.stderr)
         return False
 

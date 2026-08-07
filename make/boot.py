@@ -117,11 +117,14 @@ def extract(iso: str, workspace: str, path: str, branch: str) -> str:
 
 
 def qemu_cmd(
-    kernel: str,
-    initrd: str,
-    uuid: str,
+    kernel: str | None,
+    initrd: str | None,
+    uuid: str | None,
     graphical: bool,
     monitor: bool,
+    *,
+    disk: str | None = None,
+    uefi: bool = False,
 ) -> list[str]:
     kvm: bool = os.path.exists("/dev/kvm")
     args: list[str] = [
@@ -137,20 +140,39 @@ def qemu_cmd(
         "2",
         "-audiodev",
         "none,id=noaudio",
-        "-drive",
-        "file=/iso,format=raw,media=cdrom,readonly=on",
-        "-kernel",
-        kernel,
-        "-initrd",
-        initrd,
-        "-append",
-        (
-            "console=ttyS0,115200 "
-            "archisobasedir=arkes "
-            f"archisosearchuuid={uuid} "
-            "copytoram=n cow_spacesize=2G"
-        ),
     ]
+    if uefi:
+        args.extend(
+            [
+                "-drive",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
+                "-drive",
+                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+            ]
+        )
+
+    if disk is not None:
+        args.extend(["-drive", f"file={disk},if=virtio,format=qcow2"])
+
+    if kernel is not None and initrd is not None and uuid is not None:
+        args.extend(
+            [
+                "-drive",
+                "file=/iso,format=raw,media=cdrom,readonly=on",
+                "-kernel",
+                kernel,
+                "-initrd",
+                initrd,
+                "-append",
+                (
+                    "console=ttyS0,115200 "
+                    "archisobasedir=arkes "
+                    f"archisosearchuuid={uuid} "
+                    "copytoram=n cow_spacesize=2G"
+                ),
+            ]
+        )
+
     if graphical:
         args.extend(["-display", "sdl", "-vga", "std", "-serial", "none"])
 

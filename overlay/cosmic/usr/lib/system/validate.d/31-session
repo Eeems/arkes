@@ -1,21 +1,25 @@
 #!/bin/bash
 set -euo pipefail
 
-end=$((SECONDS + 60))
-while [ "$SECONDS" -lt "$end" ]; do
-  seen_user=false
-  seen_manager=false
-  for id in $(loginctl list-sessions --no-legend --no-pager | awk '{print $1}'); do
-    case "$(loginctl show-session "$id" -p Class --value)" in
-    user | greeter) seen_user=true ;;
-    manager) seen_manager=true ;;
-    esac
-    if [ "$seen_user" = true ] && [ "$seen_manager" = true ]; then
-      exit 0
-    fi
+wait_class() {
+  end=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$end" ]; do
+    for id in $(loginctl list-sessions --no-legend --no-pager | awk '{print $1}'); do
+      if [ "$(loginctl show-session "$id" -p Class --value)" = "$1" ]; then
+        return 0
+      fi
+    done
+    sleep 1
   done
-  sleep 1
-done
+  return 1
+}
 
-echo "timed out waiting for login and manager sessions" >&2
-exit 1
+if ! wait_class greeter; then
+  echo "timed out waiting for the greeter session" >&2
+  exit 1
+fi
+
+if [ ! -d /ostree ] && ! wait_class manager; then
+  echo "timed out waiting for the manager session" >&2
+  exit 1
+fi

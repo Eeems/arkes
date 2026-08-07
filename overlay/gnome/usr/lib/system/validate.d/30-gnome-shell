@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+if [ -d /ostree ]; then
+  exit 0
+fi
+
 end=$((SECONDS + 60))
 while [ "$SECONDS" -lt "$end" ]; do
   if busctl --user status org.gnome.Shell >/dev/null 2>&1; then
