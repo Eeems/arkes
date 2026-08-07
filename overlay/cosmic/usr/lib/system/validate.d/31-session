@@ -14,7 +14,7 @@ wait_class() {
   return 1
 }
 
-if ! wait_class greeter; then
+if [ -d /ostree ] && ! wait_class greeter; then
   echo "timed out waiting for the greeter session" >&2
   exit 1
 fi
