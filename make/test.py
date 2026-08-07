@@ -95,46 +95,57 @@ def command(args: Namespace) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        if not login(proc):
-            print("boot-test: live iso never reached a shell", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
 
-        if not check(proc, "os validate --verbose"):
-            print("boot-test: live iso failed os validate", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+        try:
+            if not login(proc):
+                print("boot-test: live iso never reached a shell", file=sys.stderr)
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
 
-        if not check(
-            proc,
-            "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
-        ):
-            print("boot-test: failed to partition /dev/vda", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+            if not check(proc, "os validate --verbose"):
+                print("boot-test: live iso failed os validate", file=sys.stderr)
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
 
-        if not check(
-            proc,
-            shlex.join(
-                [
-                    "sudo",
-                    "os",
-                    "install",
-                    "--system-partition=/dev/vda2",
-                    "--boot-partition=/dev/vda1",
-                    "--format-partitions",
-                    "--password=live",
-                    "--kernel-commandline=console=ttyS0,115200",
-                ]
-            ),
-        ):
-            print("boot-test: os install failed", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+            if not check(
+                proc,
+                "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
+            ):
+                print("boot-test: failed to partition /dev/vda", file=sys.stderr)
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
 
-        if not stop(proc):
-            print("boot-test: phase 1 shutdown failed", file=sys.stderr)
-            sys.exit(1)
+            if not check(
+                proc,
+                shlex.join(
+                    [
+                        "sudo",
+                        "os",
+                        "install",
+                        "--system-partition=/dev/vda2",
+                        "--boot-partition=/dev/vda1",
+                        "--format-partitions",
+                        "--password=live",
+                        "--kernel-commandline=console=ttyS0,115200",
+                    ]
+                ),
+            ):
+                print("boot-test: os install failed", file=sys.stderr)
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
+
+            if not stop(proc):
+                print("boot-test: phase 1 shutdown failed", file=sys.stderr)
+                sys.exit(1)
+
+        except KeyboardInterrupt:
+            proc.kill()
+            _ = proc.wait()
+            raise
 
         # Phase 2: boot the installed disk (uefi, no iso) and validate.
         proc = subprocess.Popen(
@@ -162,21 +173,41 @@ def command(args: Namespace) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        if not login(proc, b"root", b"live"):
-            print("boot-test: installed system never reached a shell", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
 
-        if not check(proc, "os validate --verbose"):
-            print("boot-test: installed system failed os validate", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+        # Kill anything still running when ctrl-c lands mid-phase.
+        try:
+            if not login(proc, b"root", b"live"):
+                print(
+                    "boot-test: installed system never reached a shell",
+                    file=sys.stderr,
+                )
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
 
-        if not stop(proc):
-            print("boot-test: phase 2 shutdown failed", file=sys.stderr)
-            sys.exit(1)
+            if not check(proc, "os validate --verbose"):
+                print(
+                    "boot-test: installed system failed os validate",
+                    file=sys.stderr,
+                )
+                proc.kill()
+                _ = proc.wait()
+                sys.exit(1)
+
+            if not stop(proc):
+                print("boot-test: phase 2 shutdown failed", file=sys.stderr)
+                sys.exit(1)
+
+        except KeyboardInterrupt:
+            proc.kill()
+            _ = proc.wait()
+            raise
 
     print("boot-test: validation passed", file=sys.stderr)
+
+
+def expect_prompt(proc: subprocess.Popen[bytes], *extras: bytes) -> bytes | None:
+    return expect(proc, [*extras, b"~]$", b"~]#"])
 
 
 def login(
@@ -184,7 +215,7 @@ def login(
     user: bytes = b"live",
     password: bytes = b"",
 ) -> bool:
-    match expect(proc, [b"login:", *PROMPTS]):
+    match expect_prompt(proc, b"login:"):
         case b"~]$" | b"~]#":
             return True
 
@@ -195,7 +226,7 @@ def login(
             print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
-    match expect(proc, [b"Password:", *PROMPTS]):
+    match expect_prompt(proc, b"Password:"):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -206,7 +237,7 @@ def login(
             print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect(proc, PROMPTS) is None:
+    if expect_prompt(proc) is None:
         print("boot-test: never reached the shell prompt", file=sys.stderr)
         return False
 
@@ -247,11 +278,6 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     return proc.wait() == 0
 
 
-def kill(proc: subprocess.Popen[bytes]) -> None:
-    proc.kill()
-    _ = proc.wait()
-
-
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
     res: int = -1
@@ -285,7 +311,7 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
         return False
 
     while True:
-        for pattern in PROMPTS:
+        for pattern in [b"~]$", b"~]#"]:
             if buffer.find(pattern, prompt) != -1:
                 return res == 0
 
@@ -300,9 +326,6 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
     print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
     return False
-
-
-PROMPTS: list[bytes] = [b"~]$", b"~]#"]
 
 
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:

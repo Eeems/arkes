@@ -85,7 +85,7 @@ Templates create variant combinations using `-` separator:
 - Prefer early exits instead of if/else at the end of a statement.
 - Try to reduce the levels on indentation in a method if possible. You can early exit, hoist common code, etc to accomplish this.
 
-### Go (1.25.4)
+### Go
 - Use gofmt for formatting, go vet for static analysis
 - Standard Go module structure in `tools/` directory
 
