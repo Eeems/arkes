@@ -5,6 +5,9 @@ if chronic systemctl is-system-running --wait; then
   exit 0
 fi
 
+# Work around bug in cosmic variant
+systemctl reset-failed systemd-vconsole-setup.service
+
 systemctl --failed --no-legend --no-pager --plain |
   while read -r unit _; do
     if [ -n "$unit" ]; then
