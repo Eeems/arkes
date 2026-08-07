@@ -225,6 +225,11 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
 def stop(proc: subprocess.Popen[bytes]) -> bool:
     assert proc.stdout is not None
     stdout = cast(io.BufferedReader, proc.stdout)
+    if expect(proc, [b"~]$", b"~]#"]) is None:
+        proc.kill()
+        _ = proc.wait()
+        return False
+
     send(proc, b"sudo systemctl poweroff\n")
     while True:
         data: bytes = stdout.read1(4096)
