@@ -9,8 +9,8 @@ RUN <<EOT
   apt-get update
   apt-get install -y --no-install-recommends \
     genisoimage \
-    libsdl2-2.0-0 \
     ovmf \
+    qemu-system-gui \
     qemu-system-x86 \
     qemu-utils
   apt-get clean

@@ -147,7 +147,11 @@ def command(args: Namespace) -> None:
                 "bash",
                 "-c",
                 shlex.join(
-                    ["cp", "/usr/share/OVMF/OVMF_VARS_4M.fd", "/workspace/OVMF_VARS_4M.fd"]
+                    [
+                        "cp",
+                        "/usr/share/OVMF/OVMF_VARS_4M.fd",
+                        "/workspace/OVMF_VARS_4M.fd",
+                    ]
                 )
                 + " && exec qemu-system-x86_64 "
                 + shlex.join(
