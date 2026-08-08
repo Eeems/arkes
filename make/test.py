@@ -97,12 +97,12 @@ def command(args: Namespace) -> None:
         )
         if not login(proc):
             print("boot-test: live iso never reached a shell", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not check(proc, "os validate --verbose"):
             print("boot-test: live iso failed os validate", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not check(
@@ -110,7 +110,7 @@ def command(args: Namespace) -> None:
             "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
         ):
             print("boot-test: failed to partition /dev/vda", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not check(
@@ -129,7 +129,7 @@ def command(args: Namespace) -> None:
             ),
         ):
             print("boot-test: os install failed", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not stop(proc):
@@ -164,12 +164,12 @@ def command(args: Namespace) -> None:
         )
         if not login(proc, b"root", b"live"):
             print("boot-test: installed system never reached a shell", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not check(proc, "os validate --verbose"):
             print("boot-test: installed system failed os validate", file=sys.stderr)
-            _ = stop(proc)
+            kill(proc)
             sys.exit(1)
 
         if not stop(proc):
@@ -184,7 +184,7 @@ def login(
     user: bytes = b"live",
     password: bytes = b"",
 ) -> bool:
-    match expect(proc, [b"login:", b"~]$", b"~]#"]):
+    match expect(proc, [b"login:", *PROMPTS]):
         case b"~]$" | b"~]#":
             return True
 
@@ -195,7 +195,7 @@ def login(
             print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
-    match expect(proc, [b"Password:", b"~]$", b"~]#"]):
+    match expect(proc, [b"Password:", *PROMPTS]):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -206,7 +206,7 @@ def login(
             print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect(proc, [b"~]$", b"~]#"]) is None:
+    if expect(proc, PROMPTS) is None:
         print("boot-test: never reached the shell prompt", file=sys.stderr)
         return False
 
@@ -222,14 +222,20 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
     stdin.flush()
 
 
+def read(proc: subprocess.Popen[bytes]) -> bytes:
+    assert proc.stdout is not None
+    stdout = cast(io.BufferedReader, proc.stdout)
+    data: bytes = stdout.read1(4096)
+    if not data:
+        return b""
+
+    bytes_to_stdout(data)
+    return data
+
+
 def stop(proc: subprocess.Popen[bytes]) -> bool:
     assert proc.stdout is not None
     stdout = cast(io.BufferedReader, proc.stdout)
-    if expect(proc, [b"~]$", b"~]#"]) is None:
-        proc.kill()
-        _ = proc.wait()
-        return False
-
     send(proc, b"sudo systemctl poweroff\n")
     while True:
         data: bytes = stdout.read1(4096)
@@ -241,22 +247,25 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     return proc.wait() == 0
 
 
+def kill(proc: subprocess.Popen[bytes]) -> None:
+    proc.kill()
+    _ = proc.wait()
+
+
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
-    assert proc.stdout is not None
-    stdout = cast(io.BufferedReader, proc.stdout)
     send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
     res: int = -1
     buffer: bytes = b""
+    prompt: int = -1
     while res == -1:
-        data: bytes = stdout.read1(4096)
+        data: bytes = read(proc)
         if not data:
             if proc.poll() is not None:
                 break
 
             continue
 
-        buffer = (buffer + data)[-(len(b"__RC__=") + 32) :]
-        bytes_to_stdout(data)
+        buffer += data
         pos: int = buffer.find(b"__RC__=")
         while pos != -1:
             newline: int = buffer.find(b"\n", pos)
@@ -266,6 +275,7 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
             value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
             if value.isdigit():
                 res = int(value)
+                prompt = newline + 1
                 break
 
             pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
@@ -274,21 +284,36 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
         print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
         return False
 
-    return res == 0
+    while True:
+        for pattern in PROMPTS:
+            if buffer.find(pattern, prompt) != -1:
+                return res == 0
+
+        data = read(proc)
+        if not data:
+            if proc.poll() is not None:
+                break
+
+            continue
+
+        buffer += data
+
+    print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
+    return False
+
+
+PROMPTS: list[bytes] = [b"~]$", b"~]#"]
 
 
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
     buffer: bytes = b""
     max_len: int = max(len(pattern) for pattern in patterns)
-    assert proc.stdout is not None
-    stdout = cast(io.BufferedReader, proc.stdout)
     while proc.poll() is None:
-        data: bytes = stdout.read1(4096)
+        data: bytes = read(proc)
         if not data:
             continue
 
         buffer = (buffer + data)[-(max_len + len(data)) :]
-        bytes_to_stdout(data)
         for pattern in patterns:
             if pattern in buffer:
                 return pattern
