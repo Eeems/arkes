@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "[system] Installing" "$@"
-install(){ chronic pacman -Syu --needed --noconfirm "$@"; }
+install() { chronic pacman -Syu --needed --noconfirm "$@"; }
 output=$(install "$@" 2>&1)
 retcode=$?
 set -e

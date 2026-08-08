@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+if chronic systemctl is-system-running --wait; then
+  exit 0
+fi
+
+# Work around bug in cosmic variant
+if systemctl is-failed systemd-vconsole-setup.service; then
+  systemctl reset-failed systemd-vconsole-setup.service
+  if chronic systemctl is-system-running --wait; then
+    exit 0
+  fi
+fi
+
+systemctl --failed --no-legend --no-pager --plain |
+  while read -r unit _; do
+    if [ -n "$unit" ]; then
+      echo "--- $unit ---"
+      systemctl status "$unit" --no-pager --no-legend || true
+    fi
+  done
+exit 1

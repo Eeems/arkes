@@ -31,7 +31,6 @@ RUN /usr/lib/system/package_layer \
   v4l2loopback-utils \
   v4l2loopback-dkms \
   pyenv \
-  spotify \
   podman-docker \
   podman-compose \
   tun2socks

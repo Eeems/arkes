@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ -d /ostree ]; then
+  exit 0
+fi
+
+end=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$end" ]; do
+  socket="$(compgen -G "$XDG_RUNTIME_DIR"/niri*.sock | head -n1 || true)"
+  if [ -n "$socket" ] && NIRI_SOCKET="$socket" niri msg version >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "timed out waiting for the niri session" >&2
+exit 1

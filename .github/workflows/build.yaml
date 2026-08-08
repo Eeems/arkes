@@ -10,6 +10,8 @@ on:
       - master
     paths:
       - .github/workflows/tool-builder.yaml
+      - .github/workflows/tool-niricfg.yaml
+      - .github/workflows/tool-iso-runner.yaml
       - .github/workflows/build.yaml
       - .github/workflows/build-variant.yaml
       - .github/workflows/iso.yaml
@@ -17,6 +19,7 @@ on:
       - ".github/actions/**"
       - "tools/dockerfile2llbjson/**"
       - "tools/builder/**"
+      - "tools/iso-runner/**"
       - "make/__main__.py"
       - "make/__init__.py"
       - "make/iso.py"
@@ -25,6 +28,8 @@ on:
       - "make/push.py"
       - "make/build.py"
       - "make/checkupdates.py"
+      - "make/iso-runner.py"
+      - "make/hash-iso-runner.py"
       - "make/manifest.py"
       - "make/check.py"
       - "make/workflow.py"
@@ -74,6 +79,14 @@ jobs:
   tool-niricfg:
     name: Build niricfg application
     uses: ./.github/workflows/tool-niricfg.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+  tool-iso-runner:
+    name: Build iso runner image
+    uses: ./.github/workflows/tool-iso-runner.yaml
     secrets: inherit
     permissions:
       contents: read
@@ -548,6 +561,7 @@ jobs:
     name: Generate iso for base
     needs:
       - builder
+      - tool-iso-runner
       - base
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -559,11 +573,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_atomic:
     name: Generate iso for atomic
     needs:
       - builder
+      - tool-iso-runner
       - atomic
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -575,11 +591,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_atomic-nvidia:
     name: Generate iso for atomic-nvidia
     needs:
       - builder
+      - tool-iso-runner
       - atomic-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -591,12 +609,14 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
 
   iso_base-slim:
     name: Generate iso for base-slim
     needs:
       - builder
+      - tool-iso-runner
       - base-slim
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -608,11 +628,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_cosmic:
     name: Generate iso for cosmic
     needs:
       - builder
+      - tool-iso-runner
       - cosmic
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -624,11 +646,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['cosmic'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_eeems:
     name: Generate iso for eeems
     needs:
       - builder
+      - tool-iso-runner
       - eeems
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -640,11 +664,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_eeems-nvidia:
     name: Generate iso for eeems-nvidia
     needs:
       - builder
+      - tool-iso-runner
       - eeems-nvidia
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -656,11 +682,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-nvidia'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_eeems-system76:
     name: Generate iso for eeems-system76
     needs:
       - builder
+      - tool-iso-runner
       - eeems-system76
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -672,11 +700,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-system76'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_gnome:
     name: Generate iso for gnome
     needs:
       - builder
+      - tool-iso-runner
       - gnome
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -688,11 +718,13 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
 
   iso_kde:
     name: Generate iso for kde
     needs:
       - builder
+      - tool-iso-runner
       - kde
     uses: ./.github/workflows/iso.yaml
     secrets: inherit
@@ -704,3 +736,4 @@ jobs:
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['kde'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}

@@ -18,6 +18,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 - `./make.py add-command <name>` - Create new commands from template
 - `./make.py config -p` - Show dependency chain and template mappings
 - `./make.py iso <variant>` - Build ISO locally for testing
+- `./make.py test <iso>` - Test built ISO
 - No separate test framework - use `./make.py check` for validation
 Website in the `web` folder has its own makefile that will generate the site if you run `make` or `make prod` from inside the `web` folder.
 
@@ -37,9 +38,10 @@ Templates create variant combinations using `-` separator:
 
 ## ISO Builds
 - ISO builds use separate workflow: `.github/workflows/iso.yaml`
-- Use `./make.py iso <variant>` for local ISO testing
+- Use `./make.py iso <variant>` for local ISO building
 - ISO-specific modifications go in specific overlay locations
 - Not all container modifications apply to ISO builds
+- Use `./make.py test <iso>` for testing a build iso
 
 ### ISO-Specific Modification Locations
 
@@ -48,11 +50,13 @@ Templates create variant combinations using `-` separator:
 - `overlay/base/usr/lib/system/setup_live_user` - Live user setup script
 - `overlay/base/usr/lib/system/create_live_bootloader` - Bootloader creation
 - `overlay/base/usr/lib/system/setup_live_user.d/` - Scripts run during live user setup
+- `overlay/base/usr/lib/system/validate.d/` - Scripts run during iso test
 
 #### Variant-Specific ISO Modifications
 - `overlay/{variant}/usr/lib/system/setup_live_user.d/` - Variant-specific live user setup
   - Example: `overlay/gnome/usr/lib/system/setup_live_user.d/01-gdm` for GDM autologin
   - Example: `overlay/kde/usr/lib/system/setup_live_user.d/01-sddm` for SDDM autologin
+- `overlay/{variant}/usr/lib/system/validate.d/` - Variant specific iso test scripts
 
 #### Important Notes
 - ISO modifications are separate from container overlay modifications

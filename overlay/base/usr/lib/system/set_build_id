@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-if [ -z $BUILD_ID ];then
+if [ -z $BUILD_ID ]; then
   BUILD_ID="$(date +'%Y-%m-%d').${VERSION_ID:-0}"
 fi
 ! [ -z $BUILD_ID ]

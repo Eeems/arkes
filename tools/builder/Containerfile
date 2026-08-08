@@ -50,6 +50,7 @@ RUN apt-get update \
     pkg-config \
     podman \
     python3-dev \
+    shfmt \
     skopeo \
     sudo \
     uidmap \
@@ -106,6 +107,15 @@ RUN apt-get update \
     /var/lib/apt/lists/* \
     /tmp/* \
     /var/tmp/*
+
+RUN cd /tmp \
+    && curl -fL -o actionlint.tar.gz \
+    https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+    && echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tar.gz" | \
+    sha256sum -c \
+    && tar -xzf actionlint.tar.gz -C /usr/local/bin actionlint \
+    && chmod +x /usr/local/bin/actionlint \
+    && rm actionlint.tar.gz
 
 RUN mkdir /github \
     && usermod --login runner "$(id -nu 1000)" \

@@ -1,0 +1,222 @@
+import os
+import subprocess
+import sys
+import tempfile
+from argparse import (
+    ArgumentParser,
+    Namespace,
+)
+from typing import (
+    Any,
+    cast,
+)
+
+from . import (
+    BUILDER,
+    podman_cmd,
+)
+from .ref import ref
+from .shell import shell
+
+kwds: dict[str, str] = {
+    "help": "Boot an iso in qemu",
+}
+
+
+def register(parser: ArgumentParser) -> None:
+    _ = parser.add_argument("iso", help="Path to the iso to boot")
+    _ = parser.add_argument(
+        "--graphical",
+        action="store_true",
+        help="Open a graphical window instead of the serial console",
+    )
+    _ = parser.add_argument(
+        "--branch",
+        default="iso-runner",
+        help="iso-runner image ref to use, defaults to iso-runner.",
+    )
+
+
+def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
+    args: list[str] = [
+        f"--volume={iso}:/iso:ro",
+        f"--volume={workspace}:/workspace",
+        "--security-opt=label=disable",
+    ]
+    if os.path.exists("/dev/kvm"):
+        args.append("--device=/dev/kvm")
+
+    if not graphical:
+        return args
+
+    runtime_dir: str | None = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime_dir and os.path.isdir(runtime_dir):
+        args.extend([f"--volume={runtime_dir}:{runtime_dir}"])
+
+    args.extend(
+        [
+            "--volume=/tmp/.X11-unix:/tmp/.X11-unix",
+            "--env=DISPLAY",
+            "--env=XDG_RUNTIME_DIR",
+            "--env=WAYLAND_DISPLAY",
+        ]
+    )
+    return args
+
+
+def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
+    data: bytes = subprocess.check_output(
+        podman_cmd(
+            "run",
+            "--rm",
+            f"--volume={iso}:/iso:ro",
+            f"{BUILDER}:{branch}",
+            "isoinfo",
+            "-R",
+            "-i",
+            "/iso",
+            "-x",
+            "/loader/entries/01-archiso-x86_64-linux.conf",
+        )
+    )
+    for line in data.decode("utf-8").splitlines():
+        for arg in line.split():
+            if arg.startswith("archisosearchuuid="):
+                value: str = arg.split("=", 1)[1]
+                assert value
+                return (
+                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
+                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", branch),
+                    value,
+                )
+
+    raise RuntimeError("Unable to find archisosearchuuid in the iso boot entry")
+
+
+def extract(iso: str, workspace: str, path: str, branch: str) -> str:
+    dest: str = os.path.join(workspace, os.path.basename(path))
+    with open(dest, "wb") as f:
+        _ = subprocess.run(
+            podman_cmd(
+                "run",
+                "--rm",
+                f"--volume={iso}:/iso:ro",
+                f"{BUILDER}:{branch}",
+                "isoinfo",
+                "-R",
+                "-i",
+                "/iso",
+                "-x",
+                path,
+            ),
+            stdout=f,
+            check=True,
+        )
+
+    return f"/workspace/{os.path.basename(path)}"
+
+
+def qemu_cmd(
+    kernel: str | None,
+    initrd: str | None,
+    uuid: str | None,
+    graphical: bool,
+    monitor: bool,
+    *,
+    disk: str | None = None,
+    uefi: bool = False,
+) -> list[str]:
+    kvm: bool = os.path.exists("/dev/kvm")
+    args: list[str] = [
+        "-machine",
+        "q35",
+        "-cpu",
+        "host" if kvm else "max",
+        "-accel",
+        "kvm" if kvm else "tcg",
+        "-m",
+        "4096",
+        "-smp",
+        "2",
+        "-audiodev",
+        "none,id=noaudio",
+    ]
+    if uefi:
+        args.extend(
+            [
+                "-drive",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
+                "-drive",
+                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+            ]
+        )
+
+    if disk is not None:
+        args.extend(["-drive", f"file={disk},if=virtio,format=qcow2"])
+
+    if kernel is not None and initrd is not None and uuid is not None:
+        args.extend(
+            [
+                "-drive",
+                "file=/iso,format=raw,media=cdrom,readonly=on",
+                "-kernel",
+                kernel,
+                "-initrd",
+                initrd,
+                "-append",
+                (
+                    "console=ttyS0,115200 "
+                    "archisobasedir=arkes "
+                    f"archisosearchuuid={uuid} "
+                    "copytoram=n cow_spacesize=2G"
+                ),
+            ]
+        )
+
+    if graphical:
+        args.extend(["-display", "sdl", "-vga", "std", "-serial", "none"])
+
+    else:
+        args.extend(["-nographic"])
+        if not monitor:
+            args.extend(["-monitor", "none"])
+
+    return args
+
+
+def command(args: Namespace) -> None:
+    iso: str = os.path.abspath(cast(str, args.iso))
+    if not os.path.exists(iso):
+        print(f"iso not found: {iso}", file=sys.stderr)
+        sys.exit(1)
+
+    graphical: bool = cast(bool, args.graphical)
+    branch: str = ref(cast(str, args.branch))
+    with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
+        sys.exit(
+            shell(
+                *podman_cmd(
+                    "run",
+                    "--rm",
+                    "-it",
+                    *qemu_args(iso, workspace, graphical),
+                    f"{BUILDER}:{branch}",
+                    "qemu-system-x86_64",
+                    *qemu_cmd(*extract_boot(iso, workspace, branch), graphical, True),
+                )
+            )
+        )
+
+
+if __name__ == "__main__":
+    kwds["description"] = kwds["help"]
+    del kwds["help"]
+    parser = ArgumentParser(
+        **cast(  # pyright: ignore[reportAny]
+            dict[str, Any],  # pyright: ignore[reportExplicitAny]
+            kwds,
+        ),
+    )
+    register(parser)
+    args = parser.parse_args()
+    command(args)

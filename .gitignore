@@ -3,3 +3,4 @@ __pycache__
 .venv/
 .trivy/
 tools/dockerfile2llbjson/dockerfile2llbjson
+.opencode/
