@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import traceback
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -17,7 +18,7 @@ from typing import (
 from . import (
     BUILDER,
     bytes_to_stdout,
-    execute,
+    podman,
     podman_cmd,
 )
 from .boot import (
@@ -62,29 +63,30 @@ def command(args: Namespace) -> None:
         if os.path.exists("/dev/kvm"):
             pod_args.append("--device=/dev/kvm")
 
-        execute(
-            podman_cmd(
-                "run",
-                "--rm",
-                *pod_args,
-                image,
-                "qemu-img",
-                "create",
-                "-f",
-                "qcow2",
-                "/workspace/disk.qcow2",
-                "32G",
-            ),
+        podman(
+            "run",
+            "--rm",
+            *pod_args,
+            image,
+            "qemu-img",
+            "create",
+            "-f",
+            "qcow2",
+            "/workspace/disk.qcow2",
+            "32G",
         )
         kernel, initrd, uuid = extract_boot(iso, workspace, branch)
         disk: str = "/workspace/disk.qcow2"
 
         # Phase 1: boot the iso, validate, install to the target disk.
+        cidfile: str = os.path.join(workspace, "phase1.cid")
         proc: subprocess.Popen[bytes] = subprocess.Popen(
             podman_cmd(
                 "run",
                 "--rm",
                 "-i",
+                "--cidfile",
+                cidfile,
                 *pod_args,
                 f"--volume={iso}:/iso:ro",
                 image,
@@ -95,53 +97,58 @@ def command(args: Namespace) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        if not login(proc):
-            print("boot-test: live iso never reached a shell", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
 
-        if not check(proc, "os validate --verbose"):
-            print("boot-test: live iso failed os validate", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+        try:
+            if not login(proc):
+                print("boot-test: live iso never reached a shell", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-        if not check(
-            proc,
-            "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
-        ):
-            print("boot-test: failed to partition /dev/vda", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+            if not check(proc, "os validate --verbose"):
+                print("boot-test: live iso failed os validate", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-        if not check(
-            proc,
-            shlex.join(
-                [
-                    "sudo",
-                    "os",
-                    "install",
-                    "--system-partition=/dev/vda2",
-                    "--boot-partition=/dev/vda1",
-                    "--format-partitions",
-                    "--password=live",
-                    "--kernel-commandline=console=ttyS0,115200",
-                ]
-            ),
-        ):
-            print("boot-test: os install failed", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+            if not check(
+                proc,
+                "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
+            ):
+                print("boot-test: failed to partition /dev/vda", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-        if not stop(proc):
-            print("boot-test: phase 1 shutdown failed", file=sys.stderr)
-            sys.exit(1)
+            if not check(
+                proc,
+                shlex.join(
+                    [
+                        "sudo",
+                        "os",
+                        "install",
+                        "--system-partition=/dev/vda2",
+                        "--boot-partition=/dev/vda1",
+                        "--format-partitions",
+                        "--password=live",
+                        "--kernel-commandline=console=ttyS0,115200",
+                    ]
+                ),
+            ):
+                print("boot-test: os install failed", file=sys.stderr)
+                error_exit(proc, cidfile)
+
+            if not stop(proc):
+                print("boot-test: phase 1 shutdown failed", file=sys.stderr)
+                sys.exit(1)
+
+        except (KeyboardInterrupt, Exception):
+            traceback.print_exc()
+            error_exit(proc, cidfile)
 
         # Phase 2: boot the installed disk (uefi, no iso) and validate.
+        cidfile = os.path.join(workspace, "phase2.cid")
         proc = subprocess.Popen(
             podman_cmd(
                 "run",
                 "--rm",
                 "-i",
+                "--cidfile",
+                cidfile,
                 *pod_args,
                 image,
                 "bash",
@@ -162,21 +169,35 @@ def command(args: Namespace) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        if not login(proc, b"root", b"live"):
-            print("boot-test: installed system never reached a shell", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
 
-        if not check(proc, "os validate --verbose"):
-            print("boot-test: installed system failed os validate", file=sys.stderr)
-            kill(proc)
-            sys.exit(1)
+        try:
+            if not login(proc, b"root", b"live"):
+                print(
+                    "boot-test: installed system never reached a shell",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
 
-        if not stop(proc):
-            print("boot-test: phase 2 shutdown failed", file=sys.stderr)
-            sys.exit(1)
+            if not check(proc, "os validate --verbose"):
+                print(
+                    "boot-test: installed system failed os validate",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            if not stop(proc):
+                print("boot-test: phase 2 shutdown failed", file=sys.stderr)
+                sys.exit(1)
+
+        except (KeyboardInterrupt, Exception):
+            traceback.print_exc()
+            error_exit(proc, cidfile)
 
     print("boot-test: validation passed", file=sys.stderr)
+
+
+def expect_prompt(proc: subprocess.Popen[bytes], *extras: bytes) -> bytes | None:
+    return expect(proc, [*extras, b"~]$", b"~]#"])
 
 
 def login(
@@ -184,7 +205,7 @@ def login(
     user: bytes = b"live",
     password: bytes = b"",
 ) -> bool:
-    match expect(proc, [b"login:", *PROMPTS]):
+    match expect_prompt(proc, b"login:"):
         case b"~]$" | b"~]#":
             return True
 
@@ -195,7 +216,7 @@ def login(
             print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
-    match expect(proc, [b"Password:", *PROMPTS]):
+    match expect_prompt(proc, b"Password:"):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -206,7 +227,7 @@ def login(
             print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect(proc, PROMPTS) is None:
+    if expect_prompt(proc) is None:
         print("boot-test: never reached the shell prompt", file=sys.stderr)
         return False
 
@@ -247,9 +268,23 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     return proc.wait() == 0
 
 
-def kill(proc: subprocess.Popen[bytes]) -> None:
+def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    try:
+        with open(cidfile) as f:
+            cid: str = f.read().strip()
+
+    except OSError:
+        cid = ""
+
+    if cid:
+        try:
+            podman("kill", cid)
+        except subprocess.CalledProcessError:
+            pass
+
     proc.kill()
     _ = proc.wait()
+    sys.exit(1)
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
@@ -285,7 +320,7 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
         return False
 
     while True:
-        for pattern in PROMPTS:
+        for pattern in [b"~]$", b"~]#"]:
             if buffer.find(pattern, prompt) != -1:
                 return res == 0
 
@@ -300,9 +335,6 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
     print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
     return False
-
-
-PROMPTS: list[bytes] = [b"~]$", b"~]#"]
 
 
 def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
