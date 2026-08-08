@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import traceback
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -17,7 +18,7 @@ from typing import (
 from . import (
     BUILDER,
     bytes_to_stdout,
-    execute,
+    podman,
     podman_cmd,
 )
 from .boot import (
@@ -62,29 +63,30 @@ def command(args: Namespace) -> None:
         if os.path.exists("/dev/kvm"):
             pod_args.append("--device=/dev/kvm")
 
-        execute(
-            podman_cmd(
-                "run",
-                "--rm",
-                *pod_args,
-                image,
-                "qemu-img",
-                "create",
-                "-f",
-                "qcow2",
-                "/workspace/disk.qcow2",
-                "32G",
-            ),
+        podman(
+            "run",
+            "--rm",
+            *pod_args,
+            image,
+            "qemu-img",
+            "create",
+            "-f",
+            "qcow2",
+            "/workspace/disk.qcow2",
+            "32G",
         )
         kernel, initrd, uuid = extract_boot(iso, workspace, branch)
         disk: str = "/workspace/disk.qcow2"
 
         # Phase 1: boot the iso, validate, install to the target disk.
+        cidfile: str = os.path.join(workspace, "phase1.cid")
         proc: subprocess.Popen[bytes] = subprocess.Popen(
             podman_cmd(
                 "run",
                 "--rm",
                 "-i",
+                "--cidfile",
+                cidfile,
                 *pod_args,
                 f"--volume={iso}:/iso:ro",
                 image,
@@ -99,24 +101,18 @@ def command(args: Namespace) -> None:
         try:
             if not login(proc):
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not check(proc, "os validate --verbose"):
                 print("boot-test: live iso failed os validate", file=sys.stderr)
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not check(
                 proc,
                 "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
             ):
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not check(
                 proc,
@@ -134,25 +130,25 @@ def command(args: Namespace) -> None:
                 ),
             ):
                 print("boot-test: os install failed", file=sys.stderr)
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not stop(proc):
                 print("boot-test: phase 1 shutdown failed", file=sys.stderr)
                 sys.exit(1)
 
         except KeyboardInterrupt:
-            proc.kill()
-            _ = proc.wait()
-            raise
+            traceback.print_exc()
+            error_exit(proc, cidfile)
 
         # Phase 2: boot the installed disk (uefi, no iso) and validate.
+        cidfile = os.path.join(workspace, "phase2.cid")
         proc = subprocess.Popen(
             podman_cmd(
                 "run",
                 "--rm",
                 "-i",
+                "--cidfile",
+                cidfile,
                 *pod_args,
                 image,
                 "bash",
@@ -174,34 +170,28 @@ def command(args: Namespace) -> None:
             stderr=subprocess.STDOUT,
         )
 
-        # Kill anything still running when ctrl-c lands mid-phase.
         try:
             if not login(proc, b"root", b"live"):
                 print(
                     "boot-test: installed system never reached a shell",
                     file=sys.stderr,
                 )
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not check(proc, "os validate --verbose"):
                 print(
                     "boot-test: installed system failed os validate",
                     file=sys.stderr,
                 )
-                proc.kill()
-                _ = proc.wait()
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
             if not stop(proc):
                 print("boot-test: phase 2 shutdown failed", file=sys.stderr)
                 sys.exit(1)
 
         except KeyboardInterrupt:
-            proc.kill()
-            _ = proc.wait()
-            raise
+            traceback.print_exc()
+            error_exit(proc, cidfile)
 
     print("boot-test: validation passed", file=sys.stderr)
 
@@ -276,6 +266,25 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
         bytes_to_stdout(data)
 
     return proc.wait() == 0
+
+
+def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    try:
+        with open(cidfile) as f:
+            cid: str = f.read().strip()
+
+    except OSError:
+        cid = ""
+
+    if cid:
+        try:
+            podman("kill", cid)
+        except subprocess.CalledProcessError:
+            pass
+
+    proc.kill()
+    _ = proc.wait()
+    sys.exit(1)
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
