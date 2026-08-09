@@ -65,7 +65,7 @@ Templates create variant combinations using `-` separator:
 
 ## Code Style Guidelines
 
-### Python (3.13)
+### Python
 - Use Ruff for formatting/linting, basedpyright for type checking.
 - Type hints required on all function signatures and variables.
 - Import order: standard library → third-party → local imports.
