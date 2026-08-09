@@ -98,7 +98,7 @@ def command(args: Namespace) -> None:
         cmd = [
             "gofmt",
             "-e",
-            *(["-w", "-l"] if fix else ["-d"]),
+            *(["-w"] if fix else ["-d"]),
             "tools/dockerfile2llbjson",
         ]
         gofmt_failed = False
