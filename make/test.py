@@ -134,7 +134,7 @@ def command(args: Namespace) -> None:
 
             if not stop(proc):
                 print("boot-test: phase 1 shutdown failed", file=sys.stderr)
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
         except KeyboardInterrupt, Exception:
             traceback.print_exc()
@@ -222,7 +222,7 @@ def command(args: Namespace) -> None:
 
             if not stop(proc):
                 print("boot-test: phase 2 shutdown failed", file=sys.stderr)
-                sys.exit(1)
+                error_exit(proc, cidfile)
 
         except KeyboardInterrupt, Exception:
             traceback.print_exc()

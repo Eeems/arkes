@@ -190,7 +190,13 @@ def command(args: Namespace) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(get_status(deployment, outputType, outputFormat))
+    status = get_status(deployment, outputType, outputFormat)
+    match outputFormat:
+        case OutputFormat.PlainText:
+            print(status)
+
+        case OutputFormat.Json:
+            print(json.dumps(status))
 
 
 if __name__ == "__main__":
