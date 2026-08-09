@@ -59,7 +59,7 @@ def get_status(
     deployment: Deployment,
     outputType: OutputType,
     outputFormat: OutputFormat,
-) -> str | dict[str, int | str]:
+) -> str | dict[str, int | str] | dict[str, str]:
     match outputType:
         case OutputType.Deployment:
             osInfo = deployment.os_info
@@ -98,7 +98,7 @@ def get_status(
         case OutputType.Packages:
             match outputFormat:
                 case OutputFormat.Json:
-                    return json.dumps({"packages": deployment.packages})
+                    return deployment.packages
 
                 case OutputFormat.PlainText:
                     return "\n".join(
@@ -108,7 +108,7 @@ def get_status(
         case OutputType.ImagePackages:
             match outputFormat:
                 case OutputFormat.Json:
-                    return json.dumps({"imagePackages": deployment.imagePackages})
+                    return deployment.imagePackages
 
                 case OutputFormat.PlainText:
                     return "\n".join(
