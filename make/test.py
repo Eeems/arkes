@@ -136,7 +136,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: phase 1 shutdown failed", file=sys.stderr)
                 sys.exit(1)
 
-        except (KeyboardInterrupt, Exception):
+        except KeyboardInterrupt, Exception:
             traceback.print_exc()
             error_exit(proc, cidfile)
 
@@ -185,11 +185,46 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
+            if not check(proc, "os upgrade --no-pull"):
+                print("boot-test: os upgrade failed", file=sys.stderr)
+                error_exit(proc, cidfile)
+
+            send(proc, b"sudo systemctl reboot\n")
+            if not login(proc, b"root", b"live"):
+                print(
+                    "boot-test: upgraded system never reached a shell",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            if not check(proc, "os validate --verbose"):
+                print(
+                    "boot-test: upgraded system failed os validate",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            if not check(
+                proc,
+                """os status --json | python -c '
+                import json
+                import sys
+                if len(json.load(sys.stdin)) != 2:
+                    sys.exit(1)
+                '""",
+            ):
+                print(
+                    "boot-test: upgrade did not create two deployments",
+                    file=sys.stderr,
+                )
+                _ = check(proc, "os status")
+                error_exit(proc, cidfile)
+
             if not stop(proc):
                 print("boot-test: phase 2 shutdown failed", file=sys.stderr)
                 sys.exit(1)
 
-        except (KeyboardInterrupt, Exception):
+        except KeyboardInterrupt, Exception:
             traceback.print_exc()
             error_exit(proc, cidfile)
 
