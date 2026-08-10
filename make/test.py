@@ -1,8 +1,10 @@
 import os
+import select
 import shlex
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 from argparse import (
     ArgumentParser,
@@ -191,6 +193,10 @@ def command(args: Namespace) -> None:
                 error_exit(proc, cidfile)
 
             send(proc, b"sudo systemctl reboot\n")
+            if expect(proc, [b"reboot: Restarting system"]) is None:
+                print("boot-test: reboot never started", file=sys.stderr)
+                error_exit(proc, cidfile)
+
             if not login(proc, b"root", b"live"):
                 print(
                     "boot-test: upgraded system never reached a shell",
@@ -232,8 +238,12 @@ def command(args: Namespace) -> None:
     print("boot-test: validation passed", file=sys.stderr)
 
 
-def expect_prompt(proc: subprocess.Popen[bytes], *extras: bytes) -> bytes | None:
-    return expect(proc, [*extras, b"~]$", b"~]#"])
+def expect_prompt(
+    proc: subprocess.Popen[bytes],
+    *extras: bytes,
+    timeout: float | None = None,
+) -> bytes | None:
+    return expect(proc, [*extras, b"~]$", b"~]#"], timeout)
 
 
 def login(
@@ -241,7 +251,7 @@ def login(
     user: bytes = b"live",
     password: bytes = b"",
 ) -> bool:
-    match expect_prompt(proc, b"login:"):
+    match expect_prompt(proc, b"login:", timeout=60):
         case b"~]$" | b"~]#":
             return True
 
@@ -252,7 +262,7 @@ def login(
             print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
-    match expect_prompt(proc, b"Password:"):
+    match expect_prompt(proc, b"Password:", timeout=60):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -263,7 +273,7 @@ def login(
             print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect_prompt(proc) is None:
+    if expect_prompt(proc, timeout=60) is None:
         print("boot-test: never reached the shell prompt", file=sys.stderr)
         return False
 
@@ -371,10 +381,28 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     return False
 
 
-def expect(proc: subprocess.Popen[bytes], patterns: list[bytes]) -> bytes | None:
+def expect(
+    proc: subprocess.Popen[bytes],
+    patterns: list[bytes],
+    timeout: float | None = None,
+) -> bytes | None:
+    assert proc.stdout is not None
     buffer: bytes = b""
     max_len: int = max(len(pattern) for pattern in patterns)
+    deadline: float | None = None
+    if timeout is not None:
+        deadline = time.monotonic() + timeout
+
     while proc.poll() is None:
+        if deadline is not None:
+            remaining: float = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+
+            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
+            if not readable:
+                return None
+
         data: bytes = read(proc)
         if not data:
             continue
