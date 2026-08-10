@@ -1,4 +1,3 @@
-import io
 import os
 import shlex
 import subprocess
@@ -96,6 +95,7 @@ def command(args: Namespace) -> None:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            bufsize=0,
         )
 
         try:
@@ -168,6 +168,7 @@ def command(args: Namespace) -> None:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            bufsize=0,
         )
 
         try:
@@ -280,8 +281,7 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
 
 def read(proc: subprocess.Popen[bytes]) -> bytes:
     assert proc.stdout is not None
-    stdout = cast(io.BufferedReader, proc.stdout)
-    data: bytes = stdout.read1(4096)
+    data: bytes = proc.stdout.read(4096)
     if not data:
         return b""
 
@@ -291,10 +291,9 @@ def read(proc: subprocess.Popen[bytes]) -> bytes:
 
 def stop(proc: subprocess.Popen[bytes]) -> bool:
     assert proc.stdout is not None
-    stdout = cast(io.BufferedReader, proc.stdout)
     send(proc, b"sudo systemctl poweroff\n")
     while True:
-        data: bytes = stdout.read1(4096)
+        data: bytes = proc.stdout.read(4096)
         if not data:
             break
 
