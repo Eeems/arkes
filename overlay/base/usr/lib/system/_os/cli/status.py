@@ -138,8 +138,6 @@ def get_index(index: int) -> int:
 
 
 def command(args: Namespace) -> None:
-    idx = cast(int | None, args.deployment)
-    asJson = cast(bool, args.json)
     outputType = OutputType.Deployment
     if cast(bool, args.packages):
         outputType = OutputType.Packages
@@ -154,7 +152,10 @@ def command(args: Namespace) -> None:
 
         outputType = OutputType.ImagePackages
 
-    outputFormat = OutputFormat.Json if asJson else OutputFormat.PlainText
+    outputFormat = (
+        OutputFormat.Json if cast(bool, args.json) else OutputFormat.PlainText
+    )
+    idx = cast(int | None, args.deployment)
     if idx is None:
         if outputType != OutputType.Deployment:
             print(
