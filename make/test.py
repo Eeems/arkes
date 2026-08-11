@@ -1,9 +1,11 @@
+import atexit
 import os
 import select
 import shlex
 import subprocess
 import sys
 import tempfile
+import termios
 import time
 import traceback
 from argparse import (
@@ -57,6 +59,7 @@ def command(args: Namespace) -> None:
         "iso-runner-tmp",
     )
     os.makedirs(data_dir, exist_ok=True)
+    atexit.register(clear_stdin)
     with tempfile.TemporaryDirectory(prefix="iso-runner-", dir=data_dir) as workspace:
         pod_args: list[str] = [
             f"--volume={workspace}:/workspace",
@@ -313,6 +316,14 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     return proc.wait() == 0
 
 
+def clear_stdin() -> None:
+    fd = sys.stdin.fileno()
+    if not os.isatty(fd):
+        return
+
+    termios.tcflush(fd, termios.TCIFLUSH)
+
+
 def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
     try:
         with open(cidfile) as f:
@@ -334,9 +345,9 @@ def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
-    res: int = -1
-    buffer: bytes = b""
-    prompt: int = -1
+    res = -1
+    buffer = b""
+    prompt = -1
     while res == -1:
         data: bytes = read(proc)
         if not data:
@@ -388,7 +399,7 @@ def expect(
     timeout: float | None = None,
 ) -> bytes | None:
     assert proc.stdout is not None
-    buffer: bytes = b""
+    buffer = b""
     max_len: int = max(len(pattern) for pattern in patterns)
     deadline: float | None = None
     if timeout is not None:
