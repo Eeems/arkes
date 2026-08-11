@@ -121,7 +121,9 @@ def iso() -> str:
             _ = f.truncate()
             _ = f.write(content.replace("%UUID%", uuid))
 
-    execute("mksquashfs", ROOTFS_PATH, "archiso/arkes/x86_64/airootfs.sfs")
+    execute(
+        "mksquashfs", ROOTFS_PATH, "archiso/arkes/x86_64/airootfs.sfs", "-comp", "zstd"
+    )
     _ = shutil.copy2(os.path.join(ROOTFS_PATH, "etc/system/efiboot.img"), "efiboot.img")
     shutil.rmtree(ROOTFS_PATH)
 

@@ -1,9 +1,12 @@
+import json
 import sys
 from argparse import (
     ArgumentParser,
     Namespace,
 )
 from concurrent.futures import ThreadPoolExecutor
+from enum import IntEnum, auto
+from functools import partial
 from typing import cast
 
 from ..ostree import (
@@ -34,35 +37,83 @@ def register(parser: ArgumentParser) -> None:
         dest="imagePackages",
         help="Display the packages insalled in the image used in this deployment",
     )
+    _ = parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output status as json",
+    )
+
+
+class OutputType(IntEnum):
+    Deployment = auto()
+    Packages = auto()
+    ImagePackages = auto()
+
+
+class OutputFormat(IntEnum):
+    PlainText = auto()
+    Json = auto()
 
 
 def get_status(
-    deployment: Deployment, showPackages: bool = False, showImagePackages: bool = False
-) -> str:
-    if showPackages:
-        return "\n".join([f"{k}: {v}" for k, v in deployment.packages.items()])
+    deployment: Deployment,
+    outputType: OutputType,
+    outputFormat: OutputFormat,
+) -> str | dict[str, int | str] | dict[str, str]:
+    match outputType:
+        case OutputType.Deployment:
+            osInfo = deployment.os_info
+            version = osInfo.get("VERSION", "0")
+            version_id = osInfo.get("VERSION_ID", "0")
+            build_id = osInfo.get("BUILD_ID", "0")
+            match outputFormat:
+                case OutputFormat.Json:
+                    return {
+                        "index": deployment.index,
+                        "image": deployment.image,
+                        "version": f"{version}.{version_id}",
+                        "build": build_id,
+                        "stateroot": deployment.stateroot,
+                        "type": deployment.type,
+                        "pinned": deployment.pinned,
+                        "unlocked": deployment.unlocked,
+                    }
 
-    if showImagePackages:
-        return "\n".join([f"{k}: {v}" for k, v in deployment.imagePackages.items()])
+                case OutputFormat.PlainText:
+                    status = f"{deployment.index}: {deployment.image}"
+                    if deployment.type:
+                        status += f" ({deployment.type})"
 
-    osInfo = deployment.os_info
-    version = osInfo.get("VERSION", "0")
-    version_id = osInfo.get("VERSION_ID", "0")
-    build_id = osInfo.get("BUILD_ID", "0")
-    status = f"{deployment.index}: {deployment.image}"
-    if deployment.type:
-        status += f" ({deployment.type})"
+                    if deployment.pinned:
+                        status += " (pinned)"
 
-    if deployment.pinned:
-        status += " (pinned)"
+                    status += f"\n  Version:   {version}.{version_id}"
+                    status += f"\n  Build:     {build_id}"
+                    status += f"\n  Stateroot: {deployment.stateroot}"
+                    if deployment.unlocked and deployment.unlocked != "none":
+                        status += f"\n  Unlocked:  {deployment.unlocked}"
 
-    status += f"\n  Version:   {version}.{version_id}"
-    status += f"\n  Build:     {build_id}"
-    status += f"\n  Stateroot: {deployment.stateroot}"
-    if deployment.unlocked and deployment.unlocked != "none":
-        status += f"\n  Unlocked:  {deployment.unlocked}"
+                    return status
 
-    return status
+        case OutputType.Packages:
+            match outputFormat:
+                case OutputFormat.Json:
+                    return deployment.packages
+
+                case OutputFormat.PlainText:
+                    return "\n".join(
+                        [f"{k}: {v}" for k, v in deployment.packages.items()]
+                    )
+
+        case OutputType.ImagePackages:
+            match outputFormat:
+                case OutputFormat.Json:
+                    return deployment.imagePackages
+
+                case OutputFormat.PlainText:
+                    return "\n".join(
+                        [f"{k}: {v}" for k, v in deployment.imagePackages.items()]
+                    )
 
 
 class InvalidIndex(Exception):
@@ -87,23 +138,48 @@ def get_index(index: int) -> int:
 
 
 def command(args: Namespace) -> None:
-    idx = cast(int | None, args.deployment)
-    showPackages = cast(bool, args.packages)
-    showImagePackages = cast(bool, args.imagePackages)
-    if idx is None:
-        if showPackages or showImagePackages:
+    outputType = OutputType.Deployment
+    if cast(bool, args.packages):
+        outputType = OutputType.Packages
+
+    if cast(bool, args.imagePackages):
+        if outputType != OutputType.Deployment:
             print(
-                "Error: --packages and --image-packages are only valid when a deployment has been selected"
+                "--packages and --image-packages cannot be specified at the same time",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        outputType = OutputType.ImagePackages
+
+    outputFormat = (
+        OutputFormat.Json if cast(bool, args.json) else OutputFormat.PlainText
+    )
+    idx = cast(int | None, args.deployment)
+    if idx is None:
+        if outputType != OutputType.Deployment:
+            print(
+                "--packages and --image-packages are only valid when a deployment has been selected",
+                file=sys.stderr,
             )
             sys.exit(1)
 
         with ThreadPoolExecutor(max_workers=50) as exc:
-            for status in exc.map(get_status, deployments()):
-                print(status)
+            statuses = exc.map(
+                partial(get_status, outputType=outputType, outputFormat=outputFormat),
+                deployments(),
+            )
+            match outputFormat:
+                case OutputFormat.Json:
+                    print(json.dumps(list(statuses)))
+
+                case OutputFormat.PlainText:
+                    for status in statuses:
+                        print(status)
 
         return
 
-    if showPackages and not is_root():
+    if outputType == OutputType.Packages and not is_root():
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
@@ -115,7 +191,13 @@ def command(args: Namespace) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(get_status(deployment, showPackages, showImagePackages))
+    status = get_status(deployment, outputType, outputFormat)
+    match outputFormat:
+        case OutputFormat.PlainText:
+            print(status)
+
+        case OutputFormat.Json:
+            print(json.dumps(status))
 
 
 if __name__ == "__main__":
