@@ -13,6 +13,7 @@ from argparse import (
 from typing import (
     IO,
     Any,
+    NoReturn,
     cast,
 )
 
@@ -312,7 +313,7 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     return proc.wait() == 0
 
 
-def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
     try:
         with open(cidfile) as f:
             cid: str = f.read().strip()
