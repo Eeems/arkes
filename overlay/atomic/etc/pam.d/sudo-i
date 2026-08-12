@@ -1,0 +1,7 @@
+auth    required        pam_env.so
+auth    [success=1 default=ignore]      pam_succeed_if.so quiet tty !~ ?*
+auth    sufficient      pam_fprintd.so try_first_pass likeauth nullok
+auth    sufficient      pam_unix.so
+account required        pam_unix.so
+session required        pam_limits.so
+session required        pam_unix.so
