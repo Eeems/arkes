@@ -7,6 +7,7 @@ RUN \
   FONT=ter-124n \
   LANGUAGE=en_CA \
   ENCODING=UTF-8 \
+  WIRELESS_REGDOM=CA \
   /usr/lib/system/setup_machine
 
 # RUN /usr/lib/system/add_pacman_repository \

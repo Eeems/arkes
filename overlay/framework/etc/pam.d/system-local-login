@@ -1,0 +1,7 @@
+#%PAM-1.0
+
+auth      include    system-login
+auth      sufficient pam_fprintd.so try_first_pass likeauth nullok
+account   include    system-login
+password  include    system-login
+session   include    system-login

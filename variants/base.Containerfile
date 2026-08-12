@@ -10,54 +10,55 @@ RUN <<EOT
   set -e
   /usr/lib/system/package_layer \
     base \
-    nano \
-    micro \
-    sudo-rs \
-    tmux \
-    less \
-    htop \
-    fastfetch \
     bluez \
     broadcom-wl-dkms \
+    btrfs-progs \
+    colordiff \
+    debugedit \
+    distrobox \
+    dkms \
+    dmidecode \
+    dosfstools \
+    e2fsprogs \
+    efibootmgr \
+    exfatprogs \
+    fakeroot \
+    fastfetch \
+    flatpak \
+    fuse-overlayfs \
+    git \
+    grub \
+    htop \
+    less \
     linux-firmware \
     linux-zen \
     linux-zen-headers \
-    networkmanager \
-    fuse-overlayfs \
-    podman \
-    efibootmgr \
-    grub \
-    flatpak \
-    ostree \
-    xorriso \
+    micro \
     mtools \
-    rsync \
-    dmidecode \
-    squashfs-tools \
-    btrfs-progs \
-    e2fsprogs \
-    exfatprogs \
+    nano \
+    networkmanager \
     ntfs-3g \
-    xfsprogs \
-    dosfstools \
-    git \
-    colordiff \
-    fakeroot \
-    debugedit \
-    terminus-font \
-    pv \
     nvme-cli \
-    run-parts \
-    skopeo \
+    ostree \
     pacman-contrib \
-    python-pyxattr \
-    python-requests \
+    podman \
+    pv \
+    python-dbus \
     python-podman \
     python-progressbar \
-    python-dbus \
-    distrobox \
+    python-pyxattr \
+    python-requests \
+    rsync \
+    run-parts \
+    skopeo \
+    squashfs-tools \
+    sudo-rs \
+    terminus-font \
+    tmux \
+    wireless-regdb \
     xdelta3 \
-    dkms
+    xfsprogs \
+    xorriso
   rm /usr/bin/su
   ln -s /usr/bin/su{-rs,}
   ln -s /usr/bin/sudo{-rs,}

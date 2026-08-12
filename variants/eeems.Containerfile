@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # x-name=Eeems
 # x-depends=atomic
-# x-templates=nvidia,system76
+# x-templates=nvidia,system76,framework
 # x-clean
 ARG HASH
 

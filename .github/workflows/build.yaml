@@ -145,6 +145,7 @@ jobs:
       - base-slim
       - cosmic
       - eeems
+      - eeems-framework
       - eeems-nvidia
       - eeems-system76
       - gnome
@@ -289,6 +290,23 @@ jobs:
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
       digest: ${{ needs['atomic'].outputs.digest }}
+      cleanup: true
+
+  eeems-framework:
+    name: Build eeems/arkes:eeems-framework image
+    needs:
+      - builder
+      - eeems
+    uses: ./.github/workflows/build-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-framework
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+      updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
+      artifact: eeems
+      digest: ${{ needs['eeems'].outputs.digest }}
       cleanup: true
 
   eeems-nvidia:
@@ -489,6 +507,22 @@ jobs:
       digest: ${{ needs['eeems'].outputs.digest }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
+  scan_eeems-framework:
+    name: Scan image for eeems-framework
+    if: github.event_name != 'pull_request' || fromJson(needs['eeems-framework'].outputs.updates)
+    needs:
+      - builder
+      - eeems-framework
+    uses: ./.github/workflows/scan.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-framework
+      push: ${{ github.event_name != 'pull_request' }}
+      artifact: ${{ fromJson(needs['eeems-framework'].outputs.updates) && 'eeems-framework' || '' }}
+      digest: ${{ needs['eeems-framework'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
   scan_eeems-nvidia:
     name: Scan image for eeems-nvidia
     if: github.event_name != 'pull_request' || fromJson(needs['eeems-nvidia'].outputs.updates)
@@ -662,6 +696,24 @@ jobs:
       artifact: eeems
       digest: ${{ needs['eeems'].outputs.digest }}
       pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates) }}
+      push: ${{ github.event_name != 'pull_request' }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+      iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
+
+  iso_eeems-framework:
+    name: Generate iso for eeems-framework
+    needs:
+      - builder
+      - tool-iso-runner
+      - eeems-framework
+    uses: ./.github/workflows/iso.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-framework
+      artifact: eeems-framework
+      digest: ${{ needs['eeems-framework'].outputs.digest }}
+      pull: ${{ github.event_name != 'pull_request' && fromJson(needs['eeems-framework'].outputs.updates) }}
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
