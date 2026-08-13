@@ -6,6 +6,7 @@ FROM arkes:${BASE_VARIANT_ID}
 
 RUN /usr/lib/system/package_layer \
   fprintd \
-  framework-system
+  framework-system \
+  usbutils
 
 COPY overlay/framework /
