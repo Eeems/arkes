@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: cd web && make prod
       - name: Save website
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: "web/dist/"
   deploy:
