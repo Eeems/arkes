@@ -77,7 +77,9 @@ post)
   # Verify the fingerprint reader came back after rebinding
   lsusb -d "$GOODIX_ID" >/dev/null 2>&1 || fail "$GOODIX_ID not present after rebind"
   # Restart fprintd so it picks up the reader again
-  systemctl try-restart fprintd.service
+  if ! systemctl --no-block try-restart fprintd.service; then
+    log "ERROR: failed to queue restart of fprintd.service"
+  fi
   log "Goodix reader restored after resume"
   ;;
 esac
