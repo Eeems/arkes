@@ -4,6 +4,7 @@ set -e
 # Rebind the xHCI controller of the Goodix fingerprint reader after resume.
 
 GOODIX_ID="27c6:609c"
+CONTROLLER_FILE="/run/goodix-xhci-controller"
 DRIVER_PATH="/sys/bus/pci/drivers/xhci_hcd"
 
 log() {
@@ -16,47 +17,67 @@ fail() {
 }
 
 case "$1" in
+pre)
+  # The device is present before suspend, so record its parent xHCI controller
+  for dir in /sys/bus/usb/devices/*/; do
+    if [ "$(cat "$dir/idVendor" 2>/dev/null)" != "${GOODIX_ID%:*}" ] ||
+      [ "$(cat "$dir/idProduct" 2>/dev/null)" != "${GOODIX_ID#*:}" ]; then
+      continue
+    fi
+    path=$(readlink -f "$dir")
+    while [ "$path" != "/" ]; do
+      case "$(basename "$path")" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f].[0-9a-f])
+        controller=$(basename "$path")
+        break
+        ;;
+      esac
+      path=$(dirname "$path")
+    done
+    break
+  done
+  if [ -n "$controller" ]; then
+    echo "$controller" >"$CONTROLLER_FILE"
+    log "recorded Goodix xHCI controller $controller"
+  else
+    rm -f "$CONTROLLER_FILE"
+    log "cannot discover Goodix xHCI controller for $GOODIX_ID"
+  fi
+  ;;
 post)
   # Give the system a moment to resume normally
   sleep 2
-
-  # Check if the fingerprint reader is missing
-  if ! lsusb -d "$GOODIX_ID" >/dev/null 2>&1; then
-    log "Goodix missing after resume, resetting xHCI controller"
-
-    # Known xHCI controller BDFs per CPU vendor (AMD: 0000:c1:00.4, Intel: 0000:00:14.0)
-    case "$(grep -m1 '^vendor_id' /proc/cpuinfo)" in
-    *AuthenticAMD*) pci_func="0000:c1:00.4" ;;
-    *GenuineIntel*) pci_func="0000:00:14.0" ;;
-    *)
-      log "unsupported CPU vendor, skipping rebind"
-      exit 0
-      ;;
-    esac
-    [ -e "/sys/bus/pci/devices/$pci_func" ] || {
-      log "xHCI controller $pci_func not present, skipping rebind"
-      exit 0
-    }
-
-    # Unbind and rebind the controller, checking each step
-    [ -w "$DRIVER_PATH/unbind" ] || fail "cannot write to $DRIVER_PATH/unbind"
-    [ -w "$DRIVER_PATH/bind" ] || fail "cannot write to $DRIVER_PATH/bind"
-    echo "$pci_func" >"$DRIVER_PATH/unbind" || fail "failed to unbind $pci_func"
-    sleep 1
-    echo "$pci_func" >"$DRIVER_PATH/bind" || {
-      # Retry once so the controller is not left detached
-      sleep 1
-      echo "$pci_func" >"$DRIVER_PATH/bind" || fail "failed to rebind $pci_func"
-    }
-    sleep 2
-
-    # Verify the fingerprint reader came back after rebinding
-    lsusb -d "$GOODIX_ID" >/dev/null 2>&1 || fail "$GOODIX_ID not present after rebind"
-
-    # Restart fprintd so it picks up the reader again
-    systemctl try-restart fprintd.service
-
-    log "Goodix reader restored after resume"
+  # Use the controller recorded before suspend, skipping if unavailable
+  controller=$(cat "$CONTROLLER_FILE" 2>/dev/null) || :
+  [ -n "$controller" ] || {
+    log "no recorded xHCI controller, skipping rebind"
+    exit 0
+  }
+  [ -e "/sys/bus/pci/devices/$controller" ] || {
+    log "xHCI controller $controller not present, skipping rebind"
+    exit 0
+  }
+  # Nothing to do when the reader came back on its own
+  if lsusb -d "$GOODIX_ID" >/dev/null 2>&1; then
+    log "Goodix reader present, skipping rebind"
+    exit 0
   fi
+  log "Goodix missing after resume, resetting xHCI controller"
+  # Unbind and rebind the controller, checking each step
+  [ -w "$DRIVER_PATH/unbind" ] || fail "cannot write to $DRIVER_PATH/unbind"
+  [ -w "$DRIVER_PATH/bind" ] || fail "cannot write to $DRIVER_PATH/bind"
+  echo "$controller" >"$DRIVER_PATH/unbind" || fail "failed to unbind $controller"
+  sleep 1
+  echo "$controller" >"$DRIVER_PATH/bind" || {
+    # Retry once so the controller is not left detached
+    sleep 1
+    echo "$controller" >"$DRIVER_PATH/bind" || fail "failed to rebind $controller"
+  }
+  sleep 2
+  # Verify the fingerprint reader came back after rebinding
+  lsusb -d "$GOODIX_ID" >/dev/null 2>&1 || fail "$GOODIX_ID not present after rebind"
+  # Restart fprintd so it picks up the reader again
+  systemctl try-restart fprintd.service
+  log "Goodix reader restored after resume"
   ;;
 esac
