@@ -182,8 +182,9 @@ class Object(dbus.service.Object):
                 )
                 self.upgrade_stderr(b"[system] Done\n")
                 self.upgrade_progress(100)
-                self.upgrade_status("success")
-                self.notify_all("System upgrade complete, reboot required", "upgrade")
+
+            self.upgrade_status("success")
+            self.notify_all("System upgrade complete, reboot required", "upgrade")
 
         except BaseException as e:
             self.upgrade_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())
@@ -444,8 +445,9 @@ class Object(dbus.service.Object):
                 )
                 self.build_stderr(b"[system] Done\n")
                 self.build_progress(100)
-                self.build_status("success")
-                self.notify_all("System image built successfully", "build")
+
+            self.build_status("success")
+            self.notify_all("System image built successfully", "build")
 
         except BaseException as e:
             self.build_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())

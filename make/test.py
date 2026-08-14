@@ -213,17 +213,30 @@ def command(args: Namespace) -> None:
                     exit 1
                   fi
                   wait $pid
-                  exit $?
+                  rc=$?
+                  if [ $rc -eq 0 ] && ! systemd-inhibit --list --no-legend --no-pager |
+                    awk '/^os-daemon[[:space:]]/ {found=1} END {exit found}'; then
+                    echo "Inhibitor was not released" >&2
+                    exit 1
+                  fi
+                  exit $rc
                 )""",
             ):
                 print(
-                    "boot-test: os upgrade failed or did not hold inhibitor",
+                    "boot-test: os upgrade failed or inhibitor not held/released",
                     file=sys.stderr,
                 )
                 error_exit(proc, cidfile)
 
             send(proc, b"sudo systemctl reboot\n")
-            if expect(proc, [b"reboot: Restarting system"]) is None:
+            match = expect(
+                proc,
+                [
+                    b"reboot: Restarting system",
+                    b"Operation inhibited",
+                ],
+            )
+            if match != b"reboot: Restarting system":
                 print("boot-test: reboot never started", file=sys.stderr)
                 error_exit(proc, cidfile)
 
