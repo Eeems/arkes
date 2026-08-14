@@ -10,13 +10,23 @@ from typing import override
 import progressbar
 
 
-def bytes_to_stdout(line: bytes) -> None:
-    _ = sys.stdout.buffer.write(line)
+def bytes_to_stdout(line: bytes | str) -> None:
+    if isinstance(line, str):
+        _ = sys.stdout.write(line)
+
+    else:
+        _ = sys.stdout.buffer.write(line)
+
     _ = sys.stdout.flush()
 
 
-def bytes_to_stderr(line: bytes) -> None:
-    _ = sys.stderr.buffer.write(line)
+def bytes_to_stderr(line: bytes | str) -> None:
+    if isinstance(line, str):
+        _ = sys.stderr.write(line)
+
+    else:
+        _ = sys.stderr.buffer.write(line)
+
     _ = sys.stderr.flush()
 
 

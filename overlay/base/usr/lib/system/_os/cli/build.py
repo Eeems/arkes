@@ -34,7 +34,7 @@ def register(parser: ArgumentParser) -> None:
 
 def command(args: Namespace) -> None:
     quiet = cast(bool, args.quiet)
-    if cast(bool, args.noProgress) or not sys.stdin.isatty():
+    if cast(bool, args.noProgress) or not sys.stderr.isatty():
         build(
             onstdout=noop if quiet else lambda x: print(x, end=""),
             onstderr=noop if quiet else lambda x: print_stderr(x, end=""),
