@@ -136,7 +136,7 @@ def command(args: Namespace) -> None:
         if [x for x in updates if x.startswith(f"{image} ")]:
             pull(onstdout=onstdout, onstderr=onstderr)
 
-    if cast(bool, args.noProgress) or not sys.stdout.isatty():
+    if cast(bool, args.noProgress) or not sys.stderr.isatty():
         upgrade()
         return
 
