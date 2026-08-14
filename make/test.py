@@ -197,18 +197,23 @@ def command(args: Namespace) -> None:
             if not check(
                 proc,
                 """(
-                    os upgrade --no-pull &
-                    UP_PID=$!
-                    RC=1
-                    while kill -0 $UP_PID 2>/dev/null; do
-                        if systemd-inhibit --list --no-legend --no-pager | awk '/^os-daemon[[:space:]]/ {found=1} END {exit !found}';then
-                            RC=0
-                            break
-                        fi
-                        sleep 1
-                    done
-                    wait $UP_PID
-                    exit $((RC + $?))
+                  os upgrade --no-pull &
+                  pid=$!
+                  found=0
+                  while kill -0 $pid 2>/dev/null; do
+                    if systemd-inhibit --list --no-legend --no-pager |
+                      awk '/^os-daemon[[:space:]]/ {found=1} END {exit !found}'; then
+                      found=1
+                      break
+                    fi
+                    sleep 1
+                  done
+                  if [ $found -eq 0 ]; then
+                    echo "No inhibitor was created" >&2
+                    exit 1
+                  fi
+                  wait $pid
+                  exit $?
                 )""",
             ):
                 print(
