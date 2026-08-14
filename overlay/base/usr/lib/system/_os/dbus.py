@@ -12,12 +12,15 @@ from gi.repository import (  # pyright: ignore[reportMissingTypeStubs]
     GLib,  # pyright:ignore [reportUnknownVariableType,reportAttributeAccessIssue]
 )
 
-from .console import print_stderr
+from .console import (
+    bytes_to_stderr,
+    bytes_to_stdout,
+)
 
 
 def checkupdates(
     force: bool = False,
-    onstderr: Callable[[str], None] = print_stderr,
+    onstderr: Callable[[str], None] = bytes_to_stderr,
 ) -> list[str]:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -56,8 +59,8 @@ def checkupdates(
 
 
 def pull(
-    onstdout: Callable[[str], None] = print,
-    onstderr: Callable[[str], None] = print_stderr,
+    onstdout: Callable[[str], None] = bytes_to_stdout,
+    onstderr: Callable[[str], None] = bytes_to_stderr,
 ) -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -71,7 +74,7 @@ def pull(
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
     def on_status(status: str) -> None:
-        onstderr(f"Status: {status}")
+        onstderr(f"Status: {status}\n")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
@@ -104,8 +107,8 @@ def pull_available() -> bool:
 
 
 def upgrade(
-    onstdout: Callable[[str], None] = print,
-    onstderr: Callable[[str], None] = print_stderr,
+    onstdout: Callable[[str], None] = bytes_to_stdout,
+    onstderr: Callable[[str], None] = bytes_to_stderr,
     onprogress: Callable[[int], None] = lambda _: None,
 ) -> None:
     DBusGMainLoop(set_as_default=True)
@@ -120,7 +123,7 @@ def upgrade(
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
     def on_status(status: str) -> None:
-        onstderr(f"Status: {status}")
+        onstderr(f"Status: {status}\n")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]
@@ -154,8 +157,8 @@ def upgrade_status() -> str:
 
 
 def build(
-    onstdout: Callable[[str], None] = print,
-    onstderr: Callable[[str], None] = print_stderr,
+    onstdout: Callable[[str], None] = bytes_to_stdout,
+    onstderr: Callable[[str], None] = bytes_to_stderr,
     onprogress: Callable[[int], None] = lambda _: None,
 ) -> None:
     DBusGMainLoop(set_as_default=True)
@@ -170,7 +173,7 @@ def build(
     loop = GLib.MainLoop()  # pyright:ignore [reportUnknownMemberType,reportUnknownVariableType]
 
     def on_status(status: str) -> None:
-        onstderr(f"Status: {status}")
+        onstderr(f"Status: {status}\n")
         setattr(on_status, "status", status)
         if status in ["error", "success"]:
             loop.quit()  # pyright:ignore [reportUnknownMemberType]

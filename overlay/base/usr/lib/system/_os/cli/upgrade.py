@@ -129,14 +129,14 @@ def command(args: Namespace) -> None:
         onstderr: Callable[[str], None] = (
             noop if quiet else lambda x: print_stderr(x, end="")
         )
-        onstderr("Checking for updates...")
+        onstderr("Checking for updates...\n")
 
         updates = checkupdates(onstderr=onstderr)
         image = baseImage()
         if [x for x in updates if x.startswith(f"{image} ")]:
             pull(onstdout=onstdout, onstderr=onstderr)
 
-    if cast(bool, args.noProgress) or not sys.stdin.isatty():
+    if cast(bool, args.noProgress) or not sys.stdout.isatty():
         upgrade()
         return
 

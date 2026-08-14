@@ -30,6 +30,7 @@ from ..podman import (
 from ..system import (
     baseImage,
     checkupdates,
+    inhibit,
     system_kernelCommandLine,
 )
 
@@ -131,52 +132,58 @@ class Object(dbus.service.Object):
     def _upgrade(self, sender: str) -> None | bool:
         self.notify_all("Starting system upgrade", "upgrade")
         try:
-            self.upgrade_stderr(b"PROGRESS 1/5 Building system:latest\n")
-            if not os.path.exists("/ostree"):
-                self.upgrade_stderr(b"OSTree repo missing")
-                self.upgrade_status("error")
-                self.notify_all("System upgrade failed", "upgrade")
-                return
+            with inhibit(
+                what="sleep:shutdown",
+                who="os-daemon",
+                why="System upgrade in progress",
+                mode="block",
+            ):
+                self.upgrade_stderr(b"PROGRESS 1/5 Building system:latest\n")
+                if not os.path.exists("/ostree"):
+                    self.upgrade_stderr(b"OSTree repo missing")
+                    self.upgrade_status("error")
+                    self.notify_all("System upgrade failed", "upgrade")
+                    return
 
-            if not os.path.exists(SYSTEM_PATH):
-                os.makedirs(SYSTEM_PATH, exist_ok=True)
+                if not os.path.exists(SYSTEM_PATH):
+                    os.makedirs(SYSTEM_PATH, exist_ok=True)
 
-            def onerror(msg: str) -> None:
-                self.upgrade_status("error")
-                self.upgrade_stderr(f"Build failed: {msg}\n".encode())
-                self._upgrade_event.set()
+                def onerror(msg: str) -> None:
+                    self.upgrade_status("error")
+                    self.upgrade_stderr(f"Build failed: {msg}\n".encode())
+                    self._upgrade_event.set()
 
-            self.build(lambda: None, onerror, sender)
-            while self._build_status == "pending":
-                _ = self._upgrade_event.wait()
-                self._upgrade_event.clear()
+                self.build(lambda: None, onerror, sender)
+                while self._build_status == "pending":
+                    _ = self._upgrade_event.wait()
+                    self._upgrade_event.clear()
 
-            if self._build_status == "error":
-                self.upgrade_status("error")
-                self.notify_all("System upgrade failed", "upgrade")
-                return
+                if self._build_status == "error":
+                    self.upgrade_status("error")
+                    self.notify_all("System upgrade failed", "upgrade")
+                    return
 
-            self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")
-            commit_export(
-                onstdout=self.upgrade_stdout,
-                onstderr=self.upgrade_stderr,
-            )
-            self.upgrade_stderr(b"PROGRESS 3/5 Pruning ostree\n")
-            prune(onstdout=self.upgrade_stdout, onstderr=self.upgrade_stderr)
-            self.upgrade_stderr(b"PROGRESS 4/5 Deploying ostree\n")
-            deploy(
-                onstdout=self.upgrade_stdout,
-                onstderr=self.upgrade_stderr,
-            )
-            self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
-            update_grub_config(
-                onstdout=self.upgrade_stdout,
-                onstderr=self.upgrade_stderr,
-            )
-            self.upgrade_stderr(b"[system] Done\n")
-            self.upgrade_progress(100)
-            self.upgrade_status("success")
-            self.notify_all("System upgrade complete, reboot required", "upgrade")
+                self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")
+                commit_export(
+                    onstdout=self.upgrade_stdout,
+                    onstderr=self.upgrade_stderr,
+                )
+                self.upgrade_stderr(b"PROGRESS 3/5 Pruning ostree\n")
+                prune(onstdout=self.upgrade_stdout, onstderr=self.upgrade_stderr)
+                self.upgrade_stderr(b"PROGRESS 4/5 Deploying ostree\n")
+                deploy(
+                    onstdout=self.upgrade_stdout,
+                    onstderr=self.upgrade_stderr,
+                )
+                self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
+                update_grub_config(
+                    onstdout=self.upgrade_stdout,
+                    onstderr=self.upgrade_stderr,
+                )
+                self.upgrade_stderr(b"[system] Done\n")
+                self.upgrade_progress(100)
+                self.upgrade_status("success")
+                self.notify_all("System upgrade complete, reboot required", "upgrade")
 
         except BaseException as e:
             self.upgrade_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())
@@ -424,15 +431,21 @@ class Object(dbus.service.Object):
     def _build(self) -> None | bool:
         self.notify_all("Building system image", "build")
         try:
-            build(
-                buildArgs={"KARGS": system_kernelCommandLine()},
-                onstdout=self.build_stdout,
-                onstderr=self.build_stderr,
-            )
-            self.build_stderr(b"[system] Done\n")
-            self.build_progress(100)
-            self.build_status("success")
-            self.notify_all("System image built successfully", "build")
+            with inhibit(
+                what="sleep:shutdown",
+                who="os-daemon",
+                why="System image build in progress",
+                mode="block",
+            ):
+                build(
+                    buildArgs={"KARGS": system_kernelCommandLine()},
+                    onstdout=self.build_stdout,
+                    onstderr=self.build_stderr,
+                )
+                self.build_stderr(b"[system] Done\n")
+                self.build_progress(100)
+                self.build_status("success")
+                self.notify_all("System image built successfully", "build")
 
         except BaseException as e:
             self.build_stderr(f"Exception: {e}\n{traceback.format_exc()}".encode())

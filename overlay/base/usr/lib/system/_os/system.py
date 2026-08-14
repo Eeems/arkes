@@ -5,7 +5,8 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from glob import iglob
 from hashlib import sha256
 from select import select
@@ -15,6 +16,7 @@ from typing import (
     cast,
 )
 
+import dbus  # pyright:ignore [reportMissingTypeStubs]
 import xattr  # pyright:ignore [reportMissingTypeStubs]
 
 from . import SYSTEM_PATH
@@ -584,6 +586,41 @@ def delete(glob: str) -> None:
 
 def is_root() -> bool:
     return os.geteuid() == 0
+
+
+@contextmanager
+def inhibit(
+    what: str,
+    who: str,
+    why: str,
+    mode: str,
+) -> Generator[int | None]:
+    try:
+        fd = cast(
+            int,
+            dbus.Interface(
+                dbus.SystemBus().get_object(  # pyright:ignore [reportUnknownMemberType]
+                    "org.freedesktop.login1",
+                    "/org/freedesktop/login1",
+                ),
+                "org.freedesktop.login1.Manager",
+            )
+            .Inhibit(  # pyright:ignore [reportUnknownMemberType, reportUnknownVariableType]
+                what, who, why, mode
+            )
+            .take(),
+        )
+
+    except dbus.exceptions.DBusException as e:
+        bytes_to_stderr(f"Failed to acquire inhibitor: {e}\n".encode())
+        yield None
+        return
+
+    try:
+        yield fd
+
+    finally:
+        os.close(fd)
 
 
 def wait_for_processes(

@@ -192,8 +192,29 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            if not check(proc, "os upgrade --no-pull"):
-                print("boot-test: os upgrade failed", file=sys.stderr)
+            # Run the upgrade in the background while verifying that the
+            # os-daemon holds a logind inhibitor lock for its duration.
+            if not check(
+                proc,
+                """(
+                    os upgrade --no-pull &
+                    UP_PID=$!
+                    RC=1
+                    while kill -0 $UP_PID 2>/dev/null; do
+                        if systemd-inhibit --list --no-legend --no-pager | awk '/^os-daemon[[:space:]]/ {found=1} END {exit !found}';then
+                            RC=0
+                            break
+                        fi
+                        sleep 1
+                    done
+                    wait $UP_PID
+                    exit $((RC + $?))
+                )""",
+            ):
+                print(
+                    "boot-test: os upgrade failed or did not hold inhibitor",
+                    file=sys.stderr,
+                )
                 error_exit(proc, cidfile)
 
             send(proc, b"sudo systemctl reboot\n")
