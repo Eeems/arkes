@@ -17,6 +17,7 @@ RUN /usr/lib/system/package_layer \
   flatpak-xdg-utils \
   fuzzel \
   fwupd \
+  fprintd \
   gamescope \
   ghostty \
   gnome-disk-utility \

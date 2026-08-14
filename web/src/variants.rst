@@ -30,6 +30,7 @@ All variants are extensions of the base variant:
        base_slim [label="base-slim"];
        cosmic [label="cosmic"];
        eeems [label="eeems"];
+       eeems_framework [label="eeems-framework"];
        eeems_nvidia [label="eeems-nvidia"];
        eeems_system76 [label="eeems-system76"];
        gnome [label="gnome"];
@@ -43,6 +44,7 @@ All variants are extensions of the base variant:
        base -> base_slim;
        base -> cosmic;
        atomic -> eeems;
+       eeems -> eeems_framework;
        eeems -> eeems_nvidia;
        eeems -> eeems_system76;
        base -> gnome;
@@ -109,3 +111,8 @@ eeems-system76
 ~~~~~~~~~~~~~~~
 
 Based on the eeems variant. It adds `System76 <https://system76.com/>`_ drivers and tools.
+
+eeems-framework
+~~~~~~~~~~~~~~~
+
+Based on the eeems variant. It adds `Framework <https://frame.work/>`_ drivers and tools.

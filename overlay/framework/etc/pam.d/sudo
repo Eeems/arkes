@@ -1,0 +1,8 @@
+auth    required        pam_env.so
+auth    sufficient      pam_unix.so try_first_pass likeauth
+auth    [success=1 default=ignore]      pam_succeed_if.so quiet tty !~ ?*
+auth    sufficient      pam_fprintd.so max-tries=1 timeout=10
+auth    required        pam_deny.so
+account required        pam_unix.so
+session required        pam_limits.so
+session required        pam_unix.so
