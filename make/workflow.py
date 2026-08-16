@@ -251,6 +251,7 @@ def command(args: Namespace) -> None:
             '      - "make/hash-iso-runner.py"',
             '      - "make/manifest.py"',
             '      - "make/check.py"',
+            '      - "make/test.py"',
             '      - "make/workflow.py"',
             '      - "overlay/**"',
             '      - "templates/**"',
