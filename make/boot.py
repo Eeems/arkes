@@ -205,6 +205,16 @@ def qemu_cmd(
     return args
 
 
+def workspace_path() -> str:
+    data_dir = os.path.join(
+        os.environ.get("XDG_DATA_HOME")
+        or os.path.join(os.path.expanduser("~"), ".local", "share"),
+        "iso-runner-tmp",
+    )
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
+
+
 def command(args: Namespace) -> None:
     iso: str = os.path.abspath(cast(str, args.iso))
     if not os.path.exists(iso):
@@ -213,31 +223,13 @@ def command(args: Namespace) -> None:
 
     graphical: bool = cast(bool, args.graphical)
     branch: str = ref(cast(str, args.branch))
-    data_dir = os.path.join(
-        os.environ.get("XDG_DATA_HOME")
-        or os.path.join(os.path.expanduser("~"), ".local", "share"),
-        "iso-runner-tmp",
-    )
-    os.makedirs(data_dir, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="iso-runner-", dir=data_dir) as workspace:
+    with tempfile.TemporaryDirectory(
+        prefix="iso-runner-", dir=workspace_path()
+    ) as workspace:
         image: str = f"{BUILDER}:{branch}"
         kernel, initrd, uuid = extract_boot(iso, workspace, branch)
-        if cast(bool, args.install):
-            atexit.register(clear_stdin)
-            sys.exit(
-                install_and_boot(
-                    iso,
-                    workspace,
-                    image=image,
-                    graphical=graphical,
-                    kernel=kernel,
-                    initrd=initrd,
-                    uuid=uuid,
-                )
-            )
-
-        sys.exit(
-            shell(
+        if not cast(bool, args.install):
+            res = shell(
                 *podman_cmd(
                     "run",
                     "--rm",
@@ -248,125 +240,126 @@ def command(args: Namespace) -> None:
                     *qemu_cmd(kernel, initrd, uuid, graphical, True),
                 )
             )
+            if res:
+                sys.exit(res)
+
+            return
+
+        _ = atexit.register(clear_stdin)
+        pod_args: list[str] = [
+            f"--volume={workspace}:/workspace",
+            "--security-opt=label=disable",
+        ]
+        if os.path.exists("/dev/kvm"):
+            pod_args.append("--device=/dev/kvm")
+
+        podman(
+            "run",
+            "--rm",
+            *pod_args,
+            image,
+            "qemu-img",
+            "create",
+            "-f",
+            "qcow2",
+            "/workspace/disk.qcow2",
+            "32G",
+        )
+        disk: str = "/workspace/disk.qcow2"
+
+        # Phase 1: boot the iso and install to the target disk.
+        cidfile: str = os.path.join(workspace, "phase1.cid")
+        proc: subprocess.Popen[bytes] = subprocess.Popen(
+            podman_cmd(
+                "run",
+                "--rm",
+                "-i",
+                "--cidfile",
+                cidfile,
+                *pod_args,
+                f"--volume={iso}:/iso:ro",
+                image,
+                "qemu-system-x86_64",
+                *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
+            ),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
         )
 
+        try:
+            if not login(proc):
+                print("boot: live iso never reached a shell", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-def install_and_boot(
-    iso: str,
-    workspace: str,
-    *,
-    image: str,
-    graphical: bool,
-    kernel: str,
-    initrd: str,
-    uuid: str,
-) -> int:
-    pod_args: list[str] = [
-        f"--volume={workspace}:/workspace",
-        "--security-opt=label=disable",
-    ]
-    if os.path.exists("/dev/kvm"):
-        pod_args.append("--device=/dev/kvm")
+            if not partition_disk(proc):
+                print("boot: failed to partition /dev/vda", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-    podman(
-        "run",
-        "--rm",
-        *pod_args,
-        image,
-        "qemu-img",
-        "create",
-        "-f",
-        "qcow2",
-        "/workspace/disk.qcow2",
-        "32G",
-    )
-    disk: str = "/workspace/disk.qcow2"
+            if not install(proc):
+                print("boot: os install failed", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-    # Phase 1: boot the iso and install to the target disk.
-    cidfile: str = os.path.join(workspace, "phase1.cid")
-    proc: subprocess.Popen[bytes] = subprocess.Popen(
-        podman_cmd(
-            "run",
-            "--rm",
-            "-i",
-            "--cidfile",
-            cidfile,
-            *pod_args,
-            f"--volume={iso}:/iso:ro",
-            image,
-            "qemu-system-x86_64",
-            *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
-        ),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=0,
-    )
+            if not stop(proc):
+                print("boot: install shutdown failed", file=sys.stderr)
+                error_exit(proc, cidfile)
 
-    try:
-        if not login(proc):
-            print("boot: live iso never reached a shell", file=sys.stderr)
+        except KeyboardInterrupt, Exception:
+            traceback.print_exc()
             error_exit(proc, cidfile)
 
-        if not check(
-            proc,
-            "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
-        ):
-            print("boot: failed to partition /dev/vda", file=sys.stderr)
-            error_exit(proc, cidfile)
+        clear_stdin()
+        if graphical:
+            pod_args.extend(graphical_args())
 
-        if not check(
-            proc,
-            shlex.join(
-                [
-                    "sudo",
-                    "os",
-                    "install",
-                    "--system-partition=/dev/vda2",
-                    "--boot-partition=/dev/vda1",
-                    "--format-partitions",
-                    "--password=live",
-                    "--kernel-commandline=console=ttyS0,115200",
-                ]
+        res = shell(
+            *podman_cmd(
+                "run",
+                "--rm",
+                "-it",
+                *pod_args,
+                image,
+                "bash",
+                "-c",
+                shlex.join(
+                    [
+                        "cp",
+                        "/usr/share/OVMF/OVMF_VARS_4M.fd",
+                        "/workspace/OVMF_VARS_4M.fd",
+                    ]
+                )
+                + " && exec qemu-system-x86_64 "
+                + shlex.join(
+                    qemu_cmd(None, None, None, graphical, True, disk=disk, uefi=True)
+                ),
             ),
-        ):
-            print("boot: os install failed", file=sys.stderr)
-            error_exit(proc, cidfile)
+        )
+        if res:
+            sys.exit(res)
 
-        if not stop(proc):
-            print("boot: install shutdown failed", file=sys.stderr)
-            error_exit(proc, cidfile)
 
-    except KeyboardInterrupt, Exception:
-        traceback.print_exc()
-        error_exit(proc, cidfile)
+def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
+    return check(
+        proc,
+        "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
+    )
 
-    # Phase 2: boot the installed disk and drop into the console.
-    clear_stdin()
-    phase2_args: list[str] = pod_args
-    if graphical:
-        phase2_args = [*pod_args, *graphical_args()]
 
-    return shell(
-        *podman_cmd(
-            "run",
-            "--rm",
-            "-it",
-            *phase2_args,
-            image,
-            "bash",
-            "-c",
-            shlex.join(
-                [
-                    "cp",
-                    "/usr/share/OVMF/OVMF_VARS_4M.fd",
-                    "/workspace/OVMF_VARS_4M.fd",
-                ]
-            )
-            + " && exec qemu-system-x86_64 "
-            + shlex.join(
-                qemu_cmd(None, None, None, graphical, True, disk=disk, uefi=True)
-            ),
+def install(proc: subprocess.Popen[bytes]) -> bool:
+    return check(
+        proc,
+        shlex.join(
+            [
+                "sudo",
+                "os",
+                "install",
+                "--system-partition=/dev/vda2",
+                "--boot-partition=/dev/vda1",
+                "--format-partitions",
+                "--password=live",
+                "--kernel-commandline=console=ttyS0,115200",
+            ]
         ),
     )
 
@@ -392,7 +385,6 @@ def login(
             send(proc, user + b"\n")
 
         case _:
-            print("boot-test: never reached a login prompt", file=sys.stderr)
             return False
 
     match expect_prompt(proc, b"Password:", timeout=60):
@@ -403,14 +395,9 @@ def login(
             return True
 
         case _:
-            print("boot-test: never reached the shell prompt", file=sys.stderr)
             return False
 
-    if expect_prompt(proc, timeout=60) is None:
-        print("boot-test: never reached the shell prompt", file=sys.stderr)
-        return False
-
-    return True
+    return expect_prompt(proc, timeout=60) is not None
 
 
 def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
@@ -424,7 +411,7 @@ def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
 
 def read(proc: subprocess.Popen[bytes]) -> bytes:
     assert proc.stdout is not None
-    data: bytes = proc.stdout.read(4096)
+    data = cast(IO[bytes], proc.stdout).read(4096)
     if not data:
         return b""
 
@@ -436,7 +423,7 @@ def stop(proc: subprocess.Popen[bytes]) -> bool:
     assert proc.stdout is not None
     send(proc, b"sudo systemctl poweroff\n")
     while True:
-        data: bytes = proc.stdout.read(4096)
+        data = cast(IO[bytes], proc.stdout).read(4096)
         if not data:
             break
 
@@ -501,7 +488,6 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
             pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
 
     if res == -1:
-        print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
         return False
 
     while True:
@@ -518,7 +504,6 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
 
         buffer += data
 
-    print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
     return False
 
 

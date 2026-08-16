@@ -25,10 +25,13 @@ from .boot import (
     error_exit,
     expect,
     extract_boot,
+    install,
     login,
+    partition_disk,
     qemu_cmd,
     send,
     stop,
+    workspace_path,
 )
 from .ref import ref
 
@@ -54,14 +57,10 @@ def command(args: Namespace) -> None:
 
     branch: str = ref(cast(str, args.branch))
     image: str = f"{BUILDER}:{branch}"
-    data_dir = os.path.join(
-        os.environ.get("XDG_DATA_HOME")
-        or os.path.join(os.path.expanduser("~"), ".local", "share"),
-        "iso-runner-tmp",
-    )
-    os.makedirs(data_dir, exist_ok=True)
-    atexit.register(clear_stdin)
-    with tempfile.TemporaryDirectory(prefix="iso-runner-", dir=data_dir) as workspace:
+    _ = atexit.register(clear_stdin)
+    with tempfile.TemporaryDirectory(
+        prefix="iso-runner-", dir=workspace_path()
+    ) as workspace:
         pod_args: list[str] = [
             f"--volume={workspace}:/workspace",
             "--security-opt=label=disable",
@@ -114,28 +113,11 @@ def command(args: Namespace) -> None:
                 print("boot-test: live iso failed os validate", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not check(
-                proc,
-                "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
-            ):
+            if not partition_disk(proc):
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not check(
-                proc,
-                shlex.join(
-                    [
-                        "sudo",
-                        "os",
-                        "install",
-                        "--system-partition=/dev/vda2",
-                        "--boot-partition=/dev/vda1",
-                        "--format-partitions",
-                        "--password=live",
-                        "--kernel-commandline=console=ttyS0,115200",
-                    ]
-                ),
-            ):
+            if not install(proc):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 
