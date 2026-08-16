@@ -16,10 +16,12 @@ on:
       - .github/workflows/build-variant.yaml
       - .github/workflows/iso.yaml
       - .github/workflows/manifest.yaml
+      - .github/workflows/scan.yaml
       - ".github/actions/**"
       - "tools/dockerfile2llbjson/**"
       - "tools/builder/**"
       - "tools/iso-runner/**"
+      - "tools/niricfg/**"
       - "make/__main__.py"
       - "make/__init__.py"
       - "make/iso.py"
@@ -27,6 +29,7 @@ on:
       - "make/pull.py"
       - "make/push.py"
       - "make/build.py"
+      - "make/builder.py"
       - "make/checkupdates.py"
       - "make/hash.py"
       - "make/rootfs.py"
@@ -34,10 +37,13 @@ on:
       - "make/hash-builder.py"
       - "make/hash-iso-runner.py"
       - "make/hash-niricfg.py"
+      - "make/niricfg.py"
       - "make/manifest.py"
       - "make/check.py"
       - "make/ref.py"
       - "make/test.py"
+      - "make/boot.py"
+      - "make/shell.py"
       - "make/variants.py"
       - "make/workflow.py"
       - "overlay/**"
