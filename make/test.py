@@ -117,7 +117,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not install(proc):
+            if not install(proc, False):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 

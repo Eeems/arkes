@@ -65,6 +65,12 @@ def register(parser: ArgumentParser) -> None:
         dest="formatPartitions",
         help="Format the partitions before installing",
     )
+    _ = parser.add_argument(
+        "--fast-install",
+        action="store_true",
+        dest="fastInstall",
+        help="Don't copy the system and base images as part of the install",
+    )
     _ = parser.add_argument("--password", default=None, help="New root password")
     _ = parser.add_argument(
         "--package", action="append", help="Extra package to install", default=[]
@@ -81,18 +87,20 @@ def command(args: Namespace) -> None:
         packages += ["man-pages", "man-db", "git"]
 
     install(
-        cast(str, args.branch),
-        cast(str, args.sysroot),
-        cast(str | None, args.dev_sys),
-        cast(str | None, args.dev_boot),
-        cast(str, args.kernelCommandline),
-        cast(bool, args.formatPartitions),
-        cast(str, args.password),
-        packages,
+        branch=cast(str, args.branch),
+        sysroot=cast(str, args.sysroot),
+        dev_sys=cast(str | None, args.dev_sys),
+        dev_boot=cast(str | None, args.dev_boot),
+        kernelCommandline=cast(str, args.kernelCommandline),
+        formatPartitions=cast(bool, args.formatPartitions),
+        password=cast(str, args.password),
+        extraPackages=packages,
+        fastInstall=cast(bool, args.fastInstall),
     )
 
 
-def install(  # noqa: PLR0917
+def install(
+    *,
     branch: str = "system",
     sysroot: str = "/mnt",
     dev_sys: str | None = None,
@@ -101,6 +109,7 @@ def install(  # noqa: PLR0917
     formatPartitions: bool = False,
     password: str | None = None,
     extraPackages: list[str] | None = None,
+    fastInstall: bool = False,
 ) -> None:
     if os.path.exists("/ostree"):
         print("Cannot install on existing system")
@@ -197,43 +206,45 @@ def install(  # noqa: PLR0917
         sysroot=sysroot,
     )
 
-    tmp = os.path.join(sysroot, ".tmp")
-    os.mkdir(tmp)
-    execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
-    exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
-    storage = os.path.join(
-        sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
-    )
-    execute(
-        "bash",
-        "-c",
-        " | ".join(
-            [
-                shlex.join(
-                    podman_cmd(
-                        "save",
-                        "--multi-image-archive",
-                        "system:latest",
-                        baseImage(),
-                    )
-                ),
-                shlex.join(
-                    [
-                        "podman",
-                        f"--root={storage}",
-                        "--runroot=/tmp/podman-runroot",
-                        "--storage-driver=overlay",
-                        "--events-backend=file",
-                        "load",
-                    ]
-                ),
-            ]
-        ),
-    )
-    os.unlink(os.path.join(storage, "db.sql"))
-    atexit.unregister(exitFunc1)
-    execute("umount", "/var/tmp")  # noqa: S108
-    os.rmdir(tmp)
+    if not fastInstall:
+        tmp = os.path.join(sysroot, ".tmp")
+        os.mkdir(tmp)
+        execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
+        exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
+        storage = os.path.join(
+            sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
+        )
+        execute(
+            "bash",
+            "-c",
+            " | ".join(
+                [
+                    shlex.join(
+                        podman_cmd(
+                            "save",
+                            "--multi-image-archive",
+                            "system:latest",
+                            baseImage(),
+                        )
+                    ),
+                    shlex.join(
+                        [
+                            "podman",
+                            f"--root={storage}",
+                            "--runroot=/tmp/podman-runroot",
+                            "--storage-driver=overlay",
+                            "--events-backend=file",
+                            "load",
+                        ]
+                    ),
+                ]
+            ),
+        )
+        os.unlink(os.path.join(storage, "db.sql"))
+        atexit.unregister(exitFunc1)
+        execute("umount", "/var/tmp")  # noqa: S108
+        os.rmdir(tmp)
+
     execute("umount", "--recursive", sysroot)
 
 

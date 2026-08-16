@@ -46,6 +46,12 @@ def register(parser: ArgumentParser) -> None:
         help="Install the iso to a disk first, then drop into the installed system console",
     )
     _ = parser.add_argument(
+        "--fast-install",
+        action="store_true",
+        dest="fastInstall",
+        help="Install the iso to a disk with --fast-install first, then drop into the installed system console",
+    )
+    _ = parser.add_argument(
         "--branch",
         default="iso-runner",
         help="iso-runner image ref to use, defaults to iso-runner.",
@@ -216,19 +222,20 @@ def workspace_path() -> str:
 
 
 def command(args: Namespace) -> None:
-    iso: str = os.path.abspath(cast(str, args.iso))
+    iso = os.path.abspath(cast(str, args.iso))
     if not os.path.exists(iso):
         print(f"iso not found: {iso}", file=sys.stderr)
         sys.exit(1)
 
-    graphical: bool = cast(bool, args.graphical)
-    branch: str = ref(cast(str, args.branch))
+    graphical = cast(bool, args.graphical)
+    branch = ref(cast(str, args.branch))
+    fastInstall = cast(bool, args.fastInstall)
     with tempfile.TemporaryDirectory(
         prefix="iso-runner-", dir=workspace_path()
     ) as workspace:
-        image: str = f"{BUILDER}:{branch}"
+        image = f"{BUILDER}:{branch}"
         kernel, initrd, uuid = extract_boot(iso, workspace, branch)
-        if not cast(bool, args.install):
+        if not cast(bool, args.install) and not fastInstall:
             res = shell(
                 *podman_cmd(
                     "run",
@@ -297,7 +304,7 @@ def command(args: Namespace) -> None:
                 print("boot: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not install(proc):
+            if not install(proc, fastInstall):
                 print("boot: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 
@@ -346,7 +353,7 @@ def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
     )
 
 
-def install(proc: subprocess.Popen[bytes]) -> bool:
+def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
     return check(
         proc,
         shlex.join(
@@ -359,6 +366,7 @@ def install(proc: subprocess.Popen[bytes]) -> bool:
                 "--format-partitions",
                 "--password=live",
                 "--kernel-commandline=console=ttyS0,115200",
+                *(["--fast-install"] if fastInstall else []),
             ]
         ),
     )
