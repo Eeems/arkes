@@ -230,7 +230,8 @@ if os.path.exists(DIGEST_CACHE_PATH):
                 assert isinstance(digest, str)
                 future: Future[str] = Future()
                 future.set_result(digest)
-                _image_digests[image] = future
+                with _image_digests_lock:
+                    _image_digests[image] = future
 
         except Exception as e:
             print(f"Failed to load digest cache: {e}", file=sys.stderr)
@@ -252,14 +253,14 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
             _image_digests_write_cache(image, digest)
             return digest
 
+        except PermissionError, AssertionError:
+            raise
+
         except Exception as ex:
             e = ex
             if isinstance(e, subprocess.CalledProcessError) and e.returncode == 2:
                 # Exit early, image cannot be found
                 break
-
-            if isinstance(e, AssertionError):
-                raise
 
             sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 
@@ -288,7 +289,9 @@ def _image_digests_write_cache(image: str, digest: str) -> None:
         image = image_qualified_name(image)
         future: Future[str] = Future()
         future.set_result(digest)
-        _image_digests[image] = future
+        with _image_digests_lock:
+            _image_digests[image] = future
+
         tries = 0
         while True:
             try:

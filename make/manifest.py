@@ -169,8 +169,14 @@ def command(args: Namespace) -> None:
 
             print(f"Containerfile: {tmppath}")
             raise
+
         if cast(bool, args.push):
-            podman("push", image)
+            podman(
+                "push",
+                "--retry=10",
+                "--retry-delay=5s",
+                image,
+            )
 
 
 def _assertkind(tag: str, expected_kind: str) -> None:
