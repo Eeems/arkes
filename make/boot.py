@@ -1,18 +1,28 @@
+import atexit
 import os
+import select
+import shlex
 import subprocess
 import sys
 import tempfile
+import termios
+import time
+import traceback
 from argparse import (
     ArgumentParser,
     Namespace,
 )
 from typing import (
+    IO,
     Any,
+    NoReturn,
     cast,
 )
 
 from . import (
     BUILDER,
+    bytes_to_stdout,
+    podman,
     podman_cmd,
 )
 from .ref import ref
@@ -29,6 +39,11 @@ def register(parser: ArgumentParser) -> None:
         "--graphical",
         action="store_true",
         help="Open a graphical window instead of the serial console",
+    )
+    _ = parser.add_argument(
+        "--install",
+        action="store_true",
+        help="Install the iso to a disk first, then drop into the installed system console",
     )
     _ = parser.add_argument(
         "--branch",
@@ -49,6 +64,12 @@ def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
     if not graphical:
         return args
 
+    args.extend(graphical_args())
+    return args
+
+
+def graphical_args() -> list[str]:
+    args: list[str] = []
     runtime_dir: str | None = os.environ.get("XDG_RUNTIME_DIR")
     if runtime_dir and os.path.isdir(runtime_dir):
         args.extend([f"--volume={runtime_dir}:{runtime_dir}"])
@@ -192,7 +213,29 @@ def command(args: Namespace) -> None:
 
     graphical: bool = cast(bool, args.graphical)
     branch: str = ref(cast(str, args.branch))
-    with tempfile.TemporaryDirectory(prefix="iso-runner-") as workspace:
+    data_dir = os.path.join(
+        os.environ.get("XDG_DATA_HOME")
+        or os.path.join(os.path.expanduser("~"), ".local", "share"),
+        "iso-runner-tmp",
+    )
+    os.makedirs(data_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="iso-runner-", dir=data_dir) as workspace:
+        image: str = f"{BUILDER}:{branch}"
+        kernel, initrd, uuid = extract_boot(iso, workspace, branch)
+        if cast(bool, args.install):
+            atexit.register(clear_stdin)
+            sys.exit(
+                install_and_boot(
+                    iso,
+                    workspace,
+                    image=image,
+                    graphical=graphical,
+                    kernel=kernel,
+                    initrd=initrd,
+                    uuid=uuid,
+                )
+            )
+
         sys.exit(
             shell(
                 *podman_cmd(
@@ -200,12 +243,317 @@ def command(args: Namespace) -> None:
                     "--rm",
                     "-it",
                     *qemu_args(iso, workspace, graphical),
-                    f"{BUILDER}:{branch}",
+                    image,
                     "qemu-system-x86_64",
-                    *qemu_cmd(*extract_boot(iso, workspace, branch), graphical, True),
+                    *qemu_cmd(kernel, initrd, uuid, graphical, True),
                 )
             )
         )
+
+
+def install_and_boot(
+    iso: str,
+    workspace: str,
+    *,
+    image: str,
+    graphical: bool,
+    kernel: str,
+    initrd: str,
+    uuid: str,
+) -> int:
+    pod_args: list[str] = [
+        f"--volume={workspace}:/workspace",
+        "--security-opt=label=disable",
+    ]
+    if os.path.exists("/dev/kvm"):
+        pod_args.append("--device=/dev/kvm")
+
+    podman(
+        "run",
+        "--rm",
+        *pod_args,
+        image,
+        "qemu-img",
+        "create",
+        "-f",
+        "qcow2",
+        "/workspace/disk.qcow2",
+        "32G",
+    )
+    disk: str = "/workspace/disk.qcow2"
+
+    # Phase 1: boot the iso and install to the target disk.
+    cidfile: str = os.path.join(workspace, "phase1.cid")
+    proc: subprocess.Popen[bytes] = subprocess.Popen(
+        podman_cmd(
+            "run",
+            "--rm",
+            "-i",
+            "--cidfile",
+            cidfile,
+            *pod_args,
+            f"--volume={iso}:/iso:ro",
+            image,
+            "qemu-system-x86_64",
+            *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
+        ),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=0,
+    )
+
+    try:
+        if not login(proc):
+            print("boot: live iso never reached a shell", file=sys.stderr)
+            error_exit(proc, cidfile)
+
+        if not check(
+            proc,
+            "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
+        ):
+            print("boot: failed to partition /dev/vda", file=sys.stderr)
+            error_exit(proc, cidfile)
+
+        if not check(
+            proc,
+            shlex.join(
+                [
+                    "sudo",
+                    "os",
+                    "install",
+                    "--system-partition=/dev/vda2",
+                    "--boot-partition=/dev/vda1",
+                    "--format-partitions",
+                    "--password=live",
+                    "--kernel-commandline=console=ttyS0,115200",
+                ]
+            ),
+        ):
+            print("boot: os install failed", file=sys.stderr)
+            error_exit(proc, cidfile)
+
+        if not stop(proc):
+            print("boot: install shutdown failed", file=sys.stderr)
+            error_exit(proc, cidfile)
+
+    except KeyboardInterrupt, Exception:
+        traceback.print_exc()
+        error_exit(proc, cidfile)
+
+    # Phase 2: boot the installed disk and drop into the console.
+    clear_stdin()
+    phase2_args: list[str] = pod_args
+    if graphical:
+        phase2_args = [*pod_args, *graphical_args()]
+
+    return shell(
+        *podman_cmd(
+            "run",
+            "--rm",
+            "-it",
+            *phase2_args,
+            image,
+            "bash",
+            "-c",
+            shlex.join(
+                [
+                    "cp",
+                    "/usr/share/OVMF/OVMF_VARS_4M.fd",
+                    "/workspace/OVMF_VARS_4M.fd",
+                ]
+            )
+            + " && exec qemu-system-x86_64 "
+            + shlex.join(
+                qemu_cmd(None, None, None, graphical, True, disk=disk, uefi=True)
+            ),
+        ),
+    )
+
+
+def expect_prompt(
+    proc: subprocess.Popen[bytes],
+    *extras: bytes,
+    timeout: float | None = None,
+) -> bytes | None:
+    return expect(proc, [*extras, b"~]$", b"~]#"], timeout)
+
+
+def login(
+    proc: subprocess.Popen[bytes],
+    user: bytes = b"live",
+    password: bytes = b"",
+) -> bool:
+    match expect_prompt(proc, b"login:", timeout=60):
+        case b"~]$" | b"~]#":
+            return True
+
+        case b"login:":
+            send(proc, user + b"\n")
+
+        case _:
+            print("boot-test: never reached a login prompt", file=sys.stderr)
+            return False
+
+    match expect_prompt(proc, b"Password:", timeout=60):
+        case b"Password:":
+            send(proc, password + b"\n")
+
+        case b"~]$" | b"~]#":
+            return True
+
+        case _:
+            print("boot-test: never reached the shell prompt", file=sys.stderr)
+            return False
+
+    if expect_prompt(proc, timeout=60) is None:
+        print("boot-test: never reached the shell prompt", file=sys.stderr)
+        return False
+
+    return True
+
+
+def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
+    stdin: IO[bytes] | None = proc.stdin
+    if stdin is None:
+        raise RuntimeError("stdin is None")
+
+    _ = stdin.write(data)
+    stdin.flush()
+
+
+def read(proc: subprocess.Popen[bytes]) -> bytes:
+    assert proc.stdout is not None
+    data: bytes = proc.stdout.read(4096)
+    if not data:
+        return b""
+
+    bytes_to_stdout(data)
+    return data
+
+
+def stop(proc: subprocess.Popen[bytes]) -> bool:
+    assert proc.stdout is not None
+    send(proc, b"sudo systemctl poweroff\n")
+    while True:
+        data: bytes = proc.stdout.read(4096)
+        if not data:
+            break
+
+        bytes_to_stdout(data)
+
+    return proc.wait() == 0
+
+
+def clear_stdin() -> None:
+    fd = sys.stdin.fileno()
+    if not os.isatty(fd):
+        return
+
+    termios.tcflush(fd, termios.TCIFLUSH)
+
+
+def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
+    try:
+        with open(cidfile) as f:
+            cid: str = f.read().strip()
+
+    except OSError:
+        cid = ""
+
+    if cid:
+        try:
+            podman("kill", cid)
+        except subprocess.CalledProcessError:
+            pass
+
+    proc.kill()
+    _ = proc.wait()
+    sys.exit(1)
+
+
+def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
+    send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
+    res = -1
+    buffer = b""
+    prompt = -1
+    while res == -1:
+        data: bytes = read(proc)
+        if not data:
+            if proc.poll() is not None:
+                break
+
+            continue
+
+        buffer += data
+        pos: int = buffer.find(b"__RC__=")
+        while pos != -1:
+            newline: int = buffer.find(b"\n", pos)
+            if newline == -1:
+                break
+
+            value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
+            if value.isdigit():
+                res = int(value)
+                prompt = newline + 1
+                break
+
+            pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
+
+    if res == -1:
+        print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
+        return False
+
+    while True:
+        for pattern in [b"~]$", b"~]#"]:
+            if buffer.find(pattern, prompt) != -1:
+                return res == 0
+
+        data = read(proc)
+        if not data:
+            if proc.poll() is not None:
+                break
+
+            continue
+
+        buffer += data
+
+    print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
+    return False
+
+
+def expect(
+    proc: subprocess.Popen[bytes],
+    patterns: list[bytes],
+    timeout: float | None = None,
+) -> bytes | None:
+    assert proc.stdout is not None
+    buffer = b""
+    max_len: int = max(len(pattern) for pattern in patterns)
+    deadline: float | None = None
+    if timeout is not None:
+        deadline = time.monotonic() + timeout
+
+    while proc.poll() is None:
+        if deadline is not None:
+            remaining: float = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+
+            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
+            if not readable:
+                return None
+
+        data: bytes = read(proc)
+        if not data:
+            continue
+
+        buffer = (buffer + data)[-(max_len + len(data)) :]
+        for pattern in patterns:
+            if pattern in buffer:
+                return pattern
+
+    return None
 
 
 if __name__ == "__main__":

@@ -1,33 +1,34 @@
 import atexit
 import os
-import select
 import shlex
 import subprocess
 import sys
 import tempfile
-import termios
-import time
 import traceback
 from argparse import (
     ArgumentParser,
     Namespace,
 )
 from typing import (
-    IO,
     Any,
-    NoReturn,
     cast,
 )
 
 from . import (
     BUILDER,
-    bytes_to_stdout,
     podman,
     podman_cmd,
 )
 from .boot import (
+    check,
+    clear_stdin,
+    error_exit,
+    expect,
     extract_boot,
+    login,
     qemu_cmd,
+    send,
+    stop,
 )
 from .ref import ref
 
@@ -279,191 +280,6 @@ def command(args: Namespace) -> None:
             error_exit(proc, cidfile)
 
     print("boot-test: validation passed", file=sys.stderr)
-
-
-def expect_prompt(
-    proc: subprocess.Popen[bytes],
-    *extras: bytes,
-    timeout: float | None = None,
-) -> bytes | None:
-    return expect(proc, [*extras, b"~]$", b"~]#"], timeout)
-
-
-def login(
-    proc: subprocess.Popen[bytes],
-    user: bytes = b"live",
-    password: bytes = b"",
-) -> bool:
-    match expect_prompt(proc, b"login:", timeout=60):
-        case b"~]$" | b"~]#":
-            return True
-
-        case b"login:":
-            send(proc, user + b"\n")
-
-        case _:
-            print("boot-test: never reached a login prompt", file=sys.stderr)
-            return False
-
-    match expect_prompt(proc, b"Password:", timeout=60):
-        case b"Password:":
-            send(proc, password + b"\n")
-
-        case b"~]$" | b"~]#":
-            return True
-
-        case _:
-            print("boot-test: never reached the shell prompt", file=sys.stderr)
-            return False
-
-    if expect_prompt(proc, timeout=60) is None:
-        print("boot-test: never reached the shell prompt", file=sys.stderr)
-        return False
-
-    return True
-
-
-def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
-    stdin: IO[bytes] | None = proc.stdin
-    if stdin is None:
-        raise RuntimeError("stdin is None")
-
-    _ = stdin.write(data)
-    stdin.flush()
-
-
-def read(proc: subprocess.Popen[bytes]) -> bytes:
-    assert proc.stdout is not None
-    data: bytes = proc.stdout.read(4096)
-    if not data:
-        return b""
-
-    bytes_to_stdout(data)
-    return data
-
-
-def stop(proc: subprocess.Popen[bytes]) -> bool:
-    assert proc.stdout is not None
-    send(proc, b"sudo systemctl poweroff\n")
-    while True:
-        data: bytes = proc.stdout.read(4096)
-        if not data:
-            break
-
-        bytes_to_stdout(data)
-
-    return proc.wait() == 0
-
-
-def clear_stdin() -> None:
-    fd = sys.stdin.fileno()
-    if not os.isatty(fd):
-        return
-
-    termios.tcflush(fd, termios.TCIFLUSH)
-
-
-def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
-    try:
-        with open(cidfile) as f:
-            cid: str = f.read().strip()
-
-    except OSError:
-        cid = ""
-
-    if cid:
-        try:
-            podman("kill", cid)
-        except subprocess.CalledProcessError:
-            pass
-
-    proc.kill()
-    _ = proc.wait()
-    sys.exit(1)
-
-
-def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
-    send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
-    res = -1
-    buffer = b""
-    prompt = -1
-    while res == -1:
-        data: bytes = read(proc)
-        if not data:
-            if proc.poll() is not None:
-                break
-
-            continue
-
-        buffer += data
-        pos: int = buffer.find(b"__RC__=")
-        while pos != -1:
-            newline: int = buffer.find(b"\n", pos)
-            if newline == -1:
-                break
-
-            value: bytes = buffer[pos + len(b"__RC__=") : newline].strip()
-            if value.isdigit():
-                res = int(value)
-                prompt = newline + 1
-                break
-
-            pos = buffer.find(b"__RC__=", pos + len(b"__RC__="))
-
-    if res == -1:
-        print(f"boot-test: command did not return: {cmd}", file=sys.stderr)
-        return False
-
-    while True:
-        for pattern in [b"~]$", b"~]#"]:
-            if buffer.find(pattern, prompt) != -1:
-                return res == 0
-
-        data = read(proc)
-        if not data:
-            if proc.poll() is not None:
-                break
-
-            continue
-
-        buffer += data
-
-    print(f"boot-test: shell did not return after: {cmd}", file=sys.stderr)
-    return False
-
-
-def expect(
-    proc: subprocess.Popen[bytes],
-    patterns: list[bytes],
-    timeout: float | None = None,
-) -> bytes | None:
-    assert proc.stdout is not None
-    buffer = b""
-    max_len: int = max(len(pattern) for pattern in patterns)
-    deadline: float | None = None
-    if timeout is not None:
-        deadline = time.monotonic() + timeout
-
-    while proc.poll() is None:
-        if deadline is not None:
-            remaining: float = deadline - time.monotonic()
-            if remaining <= 0:
-                return None
-
-            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
-            if not readable:
-                return None
-
-        data: bytes = read(proc)
-        if not data:
-            continue
-
-        buffer = (buffer + data)[-(max_len + len(data)) :]
-        for pattern in patterns:
-            if pattern in buffer:
-                return pattern
-
-    return None
 
 
 if __name__ == "__main__":
