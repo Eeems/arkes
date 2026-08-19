@@ -18,6 +18,7 @@ from datetime import (
     datetime,
     timedelta,
 )
+from time import sleep
 from typing import (
     Any,
     cast,
@@ -170,13 +171,20 @@ def command(args: Namespace) -> None:
             print(f"Containerfile: {tmppath}")
             raise
 
-        if cast(bool, args.push):
-            podman(
-                "push",
-                "--retry=10",
-                "--retry-delay=5s",
-                image,
-            )
+        if not cast(bool, args.push):
+            return
+
+        for attempt in range(10):
+            try:
+                podman("push", image)
+                return
+
+            except Exception as ex:
+                e = ex
+                sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
+
+        assert e is not None
+        raise e
 
 
 def _assertkind(tag: str, expected_kind: str) -> None:
