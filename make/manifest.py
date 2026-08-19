@@ -174,6 +174,7 @@ def command(args: Namespace) -> None:
         if not cast(bool, args.push):
             return
 
+        e: Exception | None = None
         for attempt in range(10):
             try:
                 podman("push", image)
