@@ -27,6 +27,7 @@ from typing import (
 from . import (
     REPO,
     _os,  # pyright: ignore[reportPrivateUsage, reportPrivateLocalImportUsage]
+    bytes_to_stderr,
     chronic,
     escape_label,
     image_digest_cached,
@@ -175,14 +176,34 @@ def command(args: Namespace) -> None:
             return
 
         e: Exception | None = None
+        stderr: bytes = b""
+
+        def onstderr(line: bytes) -> None:
+            nonlocal stderr
+            stderr += line
+            bytes_to_stderr(line)
+
         for attempt in range(10):
+            stderr = b""
             try:
-                podman("push", image)
+                podman("push", image, onstderr=onstderr)
                 return
+
+            except AssertionError:
+                raise
+
+            except subprocess.CalledProcessError as ex:
+                e = ex
+                if (
+                    b"unauthorized: access to the requested resource is not authorized"
+                    in stderr
+                ):
+                    raise
 
             except Exception as ex:
                 e = ex
-                sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
+
+            sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 
         assert e is not None
         raise e

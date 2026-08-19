@@ -256,13 +256,16 @@ def _remote_image_digest(image: str, skip_manifest: bool = False) -> str:
         except PermissionError, AssertionError:
             raise
 
-        except Exception as ex:
+        except subprocess.CalledProcessError as ex:
             e = ex
-            if isinstance(e, subprocess.CalledProcessError) and e.returncode == 2:
+            if e.returncode == 2:
                 # Exit early, image cannot be found
                 break
 
-            sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
+        except Exception as ex:
+            e = ex
+
+        sleep(1.0 * (2**attempt))  # pyright: ignore[reportAny]
 
     assert e is not None
     raise e
