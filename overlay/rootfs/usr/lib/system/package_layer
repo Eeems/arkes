@@ -14,6 +14,9 @@ for var in "$@"; do
   --rm)
     type=rm
     ;;
+  --add)
+    type=packages
+    ;;
   *)
     case "$type" in
     packages)
