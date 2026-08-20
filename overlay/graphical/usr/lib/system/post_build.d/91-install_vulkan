@@ -1,4 +1,5 @@
 #!/bin/bash
+echo "[system] Checking hardware"
 vendors=$(for f in /sys/bus/pci/devices/*/class; do
   case "$(cat "$f")" in
   0x030000 | 0x030200 | 0x038000) # VGA / 3D / display controller
