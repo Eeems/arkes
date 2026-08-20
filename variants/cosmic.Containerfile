@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.4
 # x-name=COSMIC
-# x-depends=base
+# x-depends=graphical
 ARG HASH
 
-FROM arkes:base
+FROM arkes:graphical
 
 RUN /usr/lib/system/package_layer \
   cosmic \

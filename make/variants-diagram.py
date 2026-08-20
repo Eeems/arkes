@@ -72,13 +72,6 @@ def generate_graphviz_diagram() -> str:
                 "is_template_variant": True,
             }
 
-    # Add rootfs manually (it's not in variants config)
-    all_variants["rootfs"] = {
-        "depends": None,
-        "templates": [],
-        "is_template_variant": False,
-    }
-
     # Generate graphviz dot content
     dot_lines = [
         "digraph variant_hierarchy {",
@@ -101,7 +94,7 @@ def generate_graphviz_diagram() -> str:
     for variant_name in sorted(all_variants.keys()):
         variant_data = all_variants[variant_name]
         depends = cast(str | None, variant_data["depends"])
-        if depends:
+        if depends and depends in all_variants:
             from_node = depends.replace("-", "_")
             to_node = variant_name.replace("-", "_")
             dot_lines.append(f"    {from_node} -> {to_node};")

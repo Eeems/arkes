@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.4
 # x-name=Atomic
-# x-depends=base
+# x-depends=graphical
 # x-templates=nvidia
 ARG HASH
 
-FROM arkes:base
+FROM arkes:graphical
 
 RUN /usr/lib/system/package_layer \
   adw-gtk-theme \
@@ -44,7 +44,6 @@ RUN /usr/lib/system/package_layer \
   system-config-printer \
   ttf-dejavu-nerd \
   ttf-roboto-mono-nerd \
-  vulkan-swrast \
   waybar \
   xdg-desktop-portal-gnome \
   xwayland-satellite \

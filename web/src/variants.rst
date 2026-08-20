@@ -34,21 +34,21 @@ All variants are extensions of the base variant:
        eeems_nvidia [label="eeems-nvidia"];
        eeems_system76 [label="eeems-system76"];
        gnome [label="gnome"];
+       graphical [label="graphical"];
        kde [label="kde"];
-       rootfs [label="rootfs"];
 
-       base -> atomic;
+       graphical -> atomic;
        atomic -> atomic_nvidia;
-       rootfs -> base;
        base -> base_rolling;
        base -> base_slim;
-       base -> cosmic;
+       graphical -> cosmic;
        atomic -> eeems;
        eeems -> eeems_framework;
        eeems -> eeems_nvidia;
        eeems -> eeems_system76;
-       base -> gnome;
-       base -> kde;
+       graphical -> gnome;
+       base -> graphical;
+       graphical -> kde;
    }
 
 ..
@@ -71,6 +71,11 @@ base-rolling
 ~~~~~~~~~~~~
 
 The base image, but changed to use the normal rolling release of Arch Linux. If you use this variant, you will need to make sure your containerfile has a step that runs `pacman -Syu --needed --noconfirm` before installing any other packages. You will also want to adjust your pacman mirrorlist as the one that ships with the image was automatically generated based on where the image was built.
+
+graphical
+~~~~~~~~~
+
+This variant contains the essential packages that graphical variants need.
 
 atomic
 ~~~~~~~
