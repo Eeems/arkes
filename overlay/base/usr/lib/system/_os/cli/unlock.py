@@ -8,6 +8,7 @@ from typing import (
     cast,
 )
 
+from ..ostree import update_grub_config
 from ..system import (
     execute,
     is_root,
@@ -30,10 +31,13 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     argv: list[str] = []
-    if cast(bool, args.hotfix):
+    hotfix = cast(bool, args.hotfix)
+    if hotfix:
         argv.append("--hotfix")
 
     execute("ostree", "admin", "unlock", *argv)
+    if hotfix:
+        update_grub_config()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+#!/bin/bash
+echo "[system] Checking hardware"
+vendors=$(for f in /sys/bus/pci/devices/*/class; do
+  case "$(cat "$f")" in
+  0x030000 | 0x030200 | 0x038000) # VGA / 3D / display controller
+    cat "${f%/class}/vendor"
+    ;;
+  esac
+done | sort -u)
+packages=()
+for vendor in $vendors; do
+  case "$vendor" in
+  0x1002) packages+=(vulkan-radeon lib32-vulkan-radeon) ;; # AMD
+  0x8086) packages+=(vulkan-intel lib32-vulkan-intel) ;;   # Intel
+  0x10de)                                                  # NVIDIA
+    if ! pacman -Q nvidia-utils >/dev/null 2>&1; then
+      packages+=(vulkan-nouveau lib32-vulkan-nouveau)
+    fi
+    ;;
+  esac
+done
+if [ ${#packages[@]} -gt 0 ]; then
+  echo "[system] Installing vulkan"
+  chronic /usr/lib/system/package_layer "${packages[@]}"
+fi

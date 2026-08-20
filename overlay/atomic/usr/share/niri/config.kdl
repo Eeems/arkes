@@ -21,6 +21,7 @@ layout {
         offset x=0 y=5
         color "#0007"
     }
+    background-color "transparent"
 }
 input {
     keyboard {
@@ -30,6 +31,16 @@ input {
         tap
         natural-scroll
         tap-button-map "left-right-middle"
+    }
+}
+overview {
+    zoom 0.75
+    workspace-shadow {
+        on
+        softness 0
+        color "black"
+        spread 3
+        offset x=0 y=0
     }
 }
 
@@ -48,15 +59,11 @@ spawn-at-startup "dex" "--autostart" "--environment" "niri"
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
 layer-rule {
-    match namespace="^wallpaper$"
-    geometry-corner-radius 100
+    match namespace="^awww-daemon$"
+    place-within-backdrop true
 }
 layer-rule {
-    match namespace="waybar"
-}
-layer-rule {
-    match namespace="^notifications$"
-
+    match namespace="^swaync-(control-center|notification-window)$"
     block-out-from "screencast"
 }
 
@@ -76,6 +83,23 @@ window-rule {
     open-fullscreen false
     default-column-width { proportion 1.0; }
     default-window-height { proportion 1.0; }
+}
+window-rule {
+    match is-window-cast-target=true
+    focus-ring {
+        active-color "#f38ba8"
+        inactive-color "#7d0d2d"
+    }
+    border {
+        inactive-color "#7d0d2d"
+    }
+    shadow {
+        color "#7d0d2d70"
+    }
+    tab-indicator {
+        active-color "#f38ba8"
+        inactive-color "#7d0d2d"
+    }
 }
 
 environment {
