@@ -23,6 +23,9 @@ RUN <<EOT
 EOT
 
 # Base tools needed for installation
+# All the possible filesystems
+# All the possible microcode
+# sections are separated by --add and should be alphabeically sorted inside those section
 RUN /usr/lib/system/package_layer \
   arch-install-scripts \
   edk2-shell \
@@ -34,28 +37,24 @@ RUN /usr/lib/system/package_layer \
   mkinitcpio-archiso \
   mtools \
   qemu-guest-agent \
-  syslinux
-
-# All the possible filesystems
-RUN /usr/lib/system/package_layer \
+  syslinux \
+  --add \
+  apfsprogs \
+  bcachefs-dkms \
+  bcachefs-tools \
   btrfs-progs \
   dosfstools \
+  e2fsprogs \
   exfatprogs \
   f2fs-tools \
-  e2fsprogs \
   jfsutils \
+  linux-apfs-rw-dkms \
   mtd-utils \
   nilfs-utils \
   ntfs-3g \
   udftools \
   xfsprogs \
-  bcachefs-tools \
-  apfsprogs \
-  bcachefs-dkms \
-  linux-apfs-rw-dkms
-
-# All the possible microcode
-RUN /usr/lib/system/package_layer \
+  --add \
   amd-ucode \
   intel-ucode
 
@@ -80,7 +79,9 @@ RUN <<EOT
     "[Install]" \
     "WantedBy=multi-user.target" \
   > /etc/systemd/system/resize-cowspace.service
-  systemctl enable resize-cowspace.service
+  systemctl enable \
+    resize-cowspace.service \
+    serial-getty@ttyS0.service
 EOT
 
 # Fix buildah bug

@@ -1,6 +1,5 @@
 import atexit
 import os
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -24,7 +23,6 @@ from .boot import (
     clear_stdin,
     error_exit,
     expect,
-    extract_boot,
     install,
     login,
     partition_disk,
@@ -80,7 +78,15 @@ def command(args: Namespace) -> None:
             "/workspace/disk.qcow2",
             "32G",
         )
-        kernel, initrd, uuid = extract_boot(iso, workspace, branch)
+        podman(
+            "run",
+            "--rm",
+            *pod_args,
+            image,
+            "bash",
+            "-c",
+            "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
+        )
         disk: str = "/workspace/disk.qcow2"
 
         # Phase 1: boot the iso, validate, install to the target disk.
@@ -96,7 +102,7 @@ def command(args: Namespace) -> None:
                 f"--volume={iso}:/iso:ro",
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
+                *qemu_cmd(graphical=False, monitor=False, disk=disk, cdrom=True),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -115,6 +121,13 @@ def command(args: Namespace) -> None:
 
             if not partition_disk(proc):
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
+                error_exit(proc, cidfile)
+
+            if not check(proc, "sbctl status"):
+                print(
+                    "boot-test: efivars not mounted, cannot install with secure boot",
+                    file=sys.stderr,
+                )
                 error_exit(proc, cidfile)
 
             if not install(proc, False):
@@ -140,19 +153,8 @@ def command(args: Namespace) -> None:
                 cidfile,
                 *pod_args,
                 image,
-                "bash",
-                "-c",
-                shlex.join(
-                    [
-                        "cp",
-                        "/usr/share/OVMF/OVMF_VARS_4M.fd",
-                        "/workspace/OVMF_VARS_4M.fd",
-                    ]
-                )
-                + " && exec qemu-system-x86_64 "
-                + shlex.join(
-                    qemu_cmd(None, None, None, False, False, disk=disk, uefi=True)
-                ),
+                "qemu-system-x86_64",
+                *qemu_cmd(graphical=False, monitor=False, disk=disk),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
