@@ -75,7 +75,7 @@ The base image, but changed to use the normal rolling release of Arch Linux. If 
 atomic
 ~~~~~~~
 
-This variant provides an opinionated modern Wayland-based desktop environment featuring the Niri tiling window manager. It provides a clean, efficient desktop experience.
+This variant provides an opinionated Wayland-based desktop environment featuring the Niri tiling window manager.
 
 atomic-nvidia
 ~~~~~~~~~~~~~
@@ -103,7 +103,7 @@ eeems
 Based on atomic, this includes `Eeems' personal pacman repositories <https://repo.eeems.codes/>`_ and various development tools and tweaks that are used for his systems.
 
 eeems-nvidia
-~~~~~~~~~~~
+~~~~~~~~~~~~
 
 Based on the eeems variant. It adds the `NVIDIA <https://wiki.archlinux.org/title/NVIDIA>`_ open drivers.
 

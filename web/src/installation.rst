@@ -51,7 +51,7 @@ Installation Process
    - Set root password (prompted if not provided)
    - Generate fstab and system configuration
 
-5. Reboot
+4. Reboot
 
 Post-Installation
 -----------------

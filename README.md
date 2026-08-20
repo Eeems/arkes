@@ -65,6 +65,6 @@ RUN /usr/lib/system/set_variant
    - All five LABEL entries for os-release and Open Containers spec compliance
    - Final `RUN /usr/lib/system/set_variant` call
 
-- Use `/usr/lib/system/package_layer` for package installation with `--aur` flag for AUR packages.
+- Use `/usr/lib/system/package_layer` for package installation with the `--aur` flag for AUR packages.
 - The `COPY overlay/myvariant /` step requires creating the `overlay/myvariant` folder and is only necessary if you have files to overlay.
 - The `# x-templates=nvidia,slim` metadata header will automatically generate `myvariant-nvidia` and `myvariant-slim` subvariants.
