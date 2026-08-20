@@ -21,6 +21,7 @@ from ..ostree import (
     deploy,
     deployments,
     ostree,
+    update_bootloader,
     update_grub_config,
 )
 from ..podman import (
@@ -71,6 +72,12 @@ def register(parser: ArgumentParser) -> None:
         dest="fastInstall",
         help="Don't copy the system and base images as part of the install",
     )
+    _ = parser.add_argument(
+        "--secure-boot",
+        action="store_true",
+        dest="secureBoot",
+        help="Generate secure boot keys, register them, and sign the boot files",
+    )
     _ = parser.add_argument("--password", default=None, help="New root password")
     _ = parser.add_argument(
         "--package", action="append", help="Extra package to install", default=[]
@@ -96,6 +103,7 @@ def command(args: Namespace) -> None:
         password=cast(str, args.password),
         extraPackages=packages,
         fastInstall=cast(bool, args.fastInstall),
+        secureBoot=cast(bool, args.secureBoot),
     )
 
 
@@ -110,6 +118,7 @@ def install(
     password: str | None = None,
     extraPackages: list[str] | None = None,
     fastInstall: bool = False,
+    secureBoot: bool = False,
 ) -> None:
     if os.path.exists("/ostree"):
         print("Cannot install on existing system")
@@ -178,8 +187,6 @@ def install(
         f"--efi-directory={sysroot}/boot/efi",
         f"--boot-directory={sysroot}/boot/efi/EFI",
         f"--bootloader-id={OS_NAME}",
-        "--removable",
-        dev_boot,
     )
     sysPath = [
         x.path
@@ -199,9 +206,24 @@ def install(
     execute(
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
+    deployment = list(deployments(sysroot))[0]
+    if secureBoot:
+        chroot(
+            deployment,
+            """
+            set -e
+            mkdir /var/lib
+            export ESP_PATH=/boot/efi
+            sbctl create-keys
+            sbctl enroll-keys -m
+            """,
+            sysroot=sysroot,
+        )
+
     update_grub_config(sysroot)
+    update_bootloader(sysroot)
     chroot(
-        list(deployments(sysroot))[0],
+        deployment,
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
         sysroot=sysroot,
     )
@@ -242,10 +264,12 @@ def install(
         )
         os.unlink(os.path.join(storage, "db.sql"))
         atexit.unregister(exitFunc1)
+        os.sync()
         execute("umount", "/var/tmp")  # noqa: S108
         os.rmdir(tmp)
 
-    execute("umount", "--recursive", sysroot)
+    os.sync()
+    execute("umount", "--lazy", "--recursive", sysroot)
 
 
 if __name__ == "__main__":

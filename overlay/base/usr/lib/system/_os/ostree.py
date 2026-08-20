@@ -499,6 +499,51 @@ def update_grub_config(
     os.replace(grub_cfg_new, grub_cfg)
 
 
+def update_bootloader(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+
+    deployment = next(iter(deployments(sysroot)), None)
+    if deployment is None:
+        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
+
+    if not os.path.isfile(
+        os.path.join(
+            sysroot,
+            "ostree/deploy",
+            deployment.stateroot,
+            "var/lib/sbctl/keys/db/db.key",
+        )
+    ):
+        return
+
+    script = """
+    set -e
+    grub-mkstandalone \\
+        --format=x86_64-efi \\
+        --sbat=/usr/share/grub/sbat.csv \\
+        --output=/boot/efi/EFI/GRUB/grubx64.efi \\
+        /boot/efi/EFI/grub/grub.cfg
+    mkdir -p /boot/efi/EFI/BOOT
+    cp -f /boot/efi/EFI/GRUB/grubx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+    export ESP_PATH=/boot/efi
+    sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+    """
+    if sysroot == "/":
+        execute("bash", "-c", script, onstdout=onstdout, onstderr=onstderr)
+
+    else:
+        chroot(
+            deployment,
+            script,
+            sysroot=sysroot,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+
 def chroot(
     deployment: Deployment,
     cmd: str,
@@ -524,21 +569,49 @@ def chroot(
         onstdout=onstdout,
         onstderr=onstderr,
     )
-    for i in ["sysroot/ostree", "boot"]:
-        execute(
-            "mount",
-            "--make-rslave",
-            os.path.join(deployment.path, i),
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
 
+    execute(
+        "mount",
+        "--mkdir",
+        "--rbind",
+        os.path.join(sysroot, "ostree/deploy", deployment.stateroot, "var"),
+        os.path.join(deployment.path, "var"),
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
     for i in ["dev", "proc", "sys"]:
         execute(
             "mount",
             "-o",
             "bind",
             f"/{i}",
+            os.path.join(deployment.path, i),
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    efivars: bool = os.path.exists("/sys/firmware/efi/efivars")
+    if efivars:
+        efivars_path = os.path.join(deployment.path, "sys/firmware/efi/efivars")
+        execute(
+            "mount",
+            "--mkdir",
+            "--rbind",
+            "/sys/firmware/efi/efivars",
+            efivars_path,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+
+    for i in [
+        "sysroot/ostree",
+        "boot",
+        "var",
+        *(["sys/firmware/efi/efivars"] if efivars else []),
+    ]:
+        execute(
+            "mount",
+            "--make-rslave",
             os.path.join(deployment.path, i),
             onstdout=onstdout,
             onstderr=onstderr,
@@ -554,18 +627,23 @@ def chroot(
         onstderr=onstderr,
     )
     os.sync()
-    for i in ["sys", "proc", "dev"]:
+    for i in [
+        "sysroot/ostree",
+        "boot",
+        "var",
+        *(["sys/firmware/efi/efivars"] if efivars else []),
+    ]:
         execute(
             "umount",
+            "--recursive",
             os.path.join(deployment.path, i),
             onstdout=onstdout,
             onstderr=onstderr,
         )
 
-    for i in ["sysroot/ostree", "boot"]:
+    for i in ["sys", "proc", "dev"]:
         execute(
             "umount",
-            "--recursive",
             os.path.join(deployment.path, i),
             onstdout=onstdout,
             onstderr=onstderr,

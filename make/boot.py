@@ -1,7 +1,6 @@
 import atexit
 import os
 import select
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -52,6 +51,12 @@ def register(parser: ArgumentParser) -> None:
         help="Install the iso to a disk with --fast-install first, then drop into the installed system console",
     )
     _ = parser.add_argument(
+        "--add-disk",
+        action="store_true",
+        dest="addDisk",
+        help="Attach a blank disk to the vm, defaults to true with --install or --fast-install",
+    )
+    _ = parser.add_argument(
         "--branch",
         default="iso-runner",
         help="iso-runner image ref to use, defaults to iso-runner.",
@@ -91,67 +96,12 @@ def graphical_args() -> list[str]:
     return args
 
 
-def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
-    data: bytes = subprocess.check_output(
-        podman_cmd(
-            "run",
-            "--rm",
-            f"--volume={iso}:/iso:ro",
-            f"{BUILDER}:{branch}",
-            "isoinfo",
-            "-R",
-            "-i",
-            "/iso",
-            "-x",
-            "/loader/entries/01-archiso-x86_64-linux.conf",
-        )
-    )
-    for line in data.decode("utf-8").splitlines():
-        for arg in line.split():
-            if arg.startswith("archisosearchuuid="):
-                value: str = arg.split("=", 1)[1]
-                assert value
-                return (
-                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
-                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", branch),
-                    value,
-                )
-
-    raise RuntimeError("Unable to find archisosearchuuid in the iso boot entry")
-
-
-def extract(iso: str, workspace: str, path: str, branch: str) -> str:
-    dest: str = os.path.join(workspace, os.path.basename(path))
-    with open(dest, "wb") as f:
-        _ = subprocess.run(
-            podman_cmd(
-                "run",
-                "--rm",
-                f"--volume={iso}:/iso:ro",
-                f"{BUILDER}:{branch}",
-                "isoinfo",
-                "-R",
-                "-i",
-                "/iso",
-                "-x",
-                path,
-            ),
-            stdout=f,
-            check=True,
-        )
-
-    return f"/workspace/{os.path.basename(path)}"
-
-
 def qemu_cmd(
-    kernel: str | None,
-    initrd: str | None,
-    uuid: str | None,
+    *,
     graphical: bool,
     monitor: bool,
-    *,
     disk: str | None = None,
-    uefi: bool = False,
+    cdrom: bool = False,
 ) -> list[str]:
     kvm: bool = os.path.exists("/dev/kvm")
     args: list[str] = [
@@ -167,38 +117,17 @@ def qemu_cmd(
         "2",
         "-audiodev",
         "none,id=noaudio",
+        "-drive",
+        "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+        "-drive",
+        "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
     ]
-    if uefi:
-        args.extend(
-            [
-                "-drive",
-                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
-                "-drive",
-                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
-            ]
-        )
 
     if disk is not None:
         args.extend(["-drive", f"file={disk},if=virtio,format=qcow2"])
 
-    if kernel is not None and initrd is not None and uuid is not None:
-        args.extend(
-            [
-                "-drive",
-                "file=/iso,format=raw,media=cdrom,readonly=on",
-                "-kernel",
-                kernel,
-                "-initrd",
-                initrd,
-                "-append",
-                (
-                    "console=ttyS0,115200 "
-                    "archisobasedir=arkes "
-                    f"archisosearchuuid={uuid} "
-                    "copytoram=n cow_spacesize=2G"
-                ),
-            ]
-        )
+    if cdrom:
+        args.extend(["-drive", "file=/iso,format=raw,media=cdrom,readonly=on"])
 
     if graphical:
         args.extend(["-display", "sdl", "-vga", "std", "-serial", "none"])
@@ -230,12 +159,40 @@ def command(args: Namespace) -> None:
     graphical = cast(bool, args.graphical)
     branch = ref(cast(str, args.branch))
     fastInstall = cast(bool, args.fastInstall)
+    _install = fastInstall or cast(bool, args.install)
+    addDisk = _install or cast(bool, args.addDisk)
     with tempfile.TemporaryDirectory(
         prefix="iso-runner-", dir=workspace_path()
     ) as workspace:
         image = f"{BUILDER}:{branch}"
-        kernel, initrd, uuid = extract_boot(iso, workspace, branch)
-        if not cast(bool, args.install) and not fastInstall:
+        podman(
+            "run",
+            "--rm",
+            f"--volume={workspace}:/workspace",
+            "--security-opt=label=disable",
+            image,
+            "bash",
+            "-c",
+            "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
+        )
+        disk: str | None = None
+        if addDisk:
+            podman(
+                "run",
+                "--rm",
+                f"--volume={workspace}:/workspace",
+                "--security-opt=label=disable",
+                image,
+                "qemu-img",
+                "create",
+                "-f",
+                "qcow2",
+                "/workspace/disk.qcow2",
+                "32G",
+            )
+            disk = "/workspace/disk.qcow2"
+
+        if not _install:
             res = shell(
                 *podman_cmd(
                     "run",
@@ -244,7 +201,7 @@ def command(args: Namespace) -> None:
                     *qemu_args(iso, workspace, graphical),
                     image,
                     "qemu-system-x86_64",
-                    *qemu_cmd(kernel, initrd, uuid, graphical, True),
+                    *qemu_cmd(graphical=graphical, monitor=True, disk=disk, cdrom=True),
                 )
             )
             if res:
@@ -260,20 +217,6 @@ def command(args: Namespace) -> None:
         if os.path.exists("/dev/kvm"):
             pod_args.append("--device=/dev/kvm")
 
-        podman(
-            "run",
-            "--rm",
-            *pod_args,
-            image,
-            "qemu-img",
-            "create",
-            "-f",
-            "qcow2",
-            "/workspace/disk.qcow2",
-            "32G",
-        )
-        disk: str = "/workspace/disk.qcow2"
-
         # Phase 1: boot the iso and install to the target disk.
         cidfile: str = os.path.join(workspace, "phase1.cid")
         proc: subprocess.Popen[bytes] = subprocess.Popen(
@@ -287,7 +230,7 @@ def command(args: Namespace) -> None:
                 f"--volume={iso}:/iso:ro",
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(kernel, initrd, uuid, False, False, disk=disk, uefi=False),
+                *qemu_cmd(graphical=False, monitor=False, disk=disk, cdrom=True),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -327,19 +270,8 @@ def command(args: Namespace) -> None:
                 "-it",
                 *pod_args,
                 image,
-                "bash",
-                "-c",
-                shlex.join(
-                    [
-                        "cp",
-                        "/usr/share/OVMF/OVMF_VARS_4M.fd",
-                        "/workspace/OVMF_VARS_4M.fd",
-                    ]
-                )
-                + " && exec qemu-system-x86_64 "
-                + shlex.join(
-                    qemu_cmd(None, None, None, graphical, True, disk=disk, uefi=True)
-                ),
+                "qemu-system-x86_64",
+                *qemu_cmd(graphical=graphical, monitor=True, disk=disk),
             ),
         )
         if res:
@@ -356,19 +288,20 @@ def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
 def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
     return check(
         proc,
-        shlex.join(
-            [
-                "sudo",
-                "os",
-                "install",
-                "--system-partition=/dev/vda2",
-                "--boot-partition=/dev/vda1",
-                "--format-partitions",
-                "--password=live",
-                "--kernel-commandline=console=ttyS0,115200",
-                *(["--fast-install"] if fastInstall else []),
-            ]
-        ),
+        f"""(
+          set -e
+          sudo os install \\
+            --system-partition=/dev/vda2 \\
+            --boot-partition=/dev/vda1 \\
+            --format-partitions \\
+            --password=live \\
+            --kernel-commandline=console=ttyS0,115200 \\
+            {"--fast-install" if fastInstall else ""} \\
+            $(mountpoint -q /sys/firmware/efi/efivars && echo --secure-boot)
+          sudo mount /dev/vda1 /mnt
+          sudo sed -i 's/^set timeout=.*/set timeout=0/' /mnt/EFI/grub/grub.cfg
+          sudo umount /mnt
+        )""",
     )
 
 
