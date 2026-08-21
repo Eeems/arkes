@@ -290,6 +290,8 @@ def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
         proc,
         f"""(
           set -e
+          echo "RUN sed -i 's/#GRUB_TERMINAL_OUTPUT/GRUB_TERMINAL_OUTPUT/' /etc/default/grub" | \\
+            sudo tee --append /etc/system/Systemfile
           sudo os install \\
             --system-partition=/dev/vda2 \\
             --boot-partition=/dev/vda1 \\
