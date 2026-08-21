@@ -519,15 +519,16 @@ def update_bootloader(
     ):
         return
 
-    script = """
+    script = f"""
     set -e
     grub-mkstandalone \\
+        --disable-shim-lock \\
         --format=x86_64-efi \\
         --sbat=/usr/share/grub/sbat.csv \\
-        --output=/boot/efi/EFI/GRUB/grubx64.efi \\
-        /boot/efi/EFI/grub/grub.cfg
+        --output=/boot/efi/EFI/{OS_NAME}/grubx64.efi \\
+        boot/grub/grub.cfg=/boot/efi/EFI/grub/grub.cfg
     mkdir -p /boot/efi/EFI/BOOT
-    cp -f /boot/efi/EFI/GRUB/grubx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+    cp -f /boot/efi/EFI/{OS_NAME}/grubx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
     export ESP_PATH=/boot/efi
     sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
     """
