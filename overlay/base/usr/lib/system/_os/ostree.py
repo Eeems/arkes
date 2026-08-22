@@ -329,15 +329,30 @@ class Deployment:
             onstderr=onstderr,
         )
         with ExitStack() as stack:
-            stack.enter_context(
-                _mount(
-                    os.path.join(sysroot, "boot/efi"),
-                    os.path.join(self.path, "boot/efi"),
-                    rbind=True,
+            partition = (
+                subprocess.check_output(
+                    [
+                        "findmnt",
+                        "--noheadings",
+                        "--output",
+                        "SOURCE",
+                        "--target",
+                        sysroot,
+                    ]
                 )
+                .decode()
+                .strip()
+                .split("[", 1)[0]
             )
             stack.enter_context(
-                _mount("/sysroot", os.path.join(self.path, "sysroot"), rbind=True)
+                _mount(partition, os.path.join(self.path, "sysroot"), rbind=True)
+            )
+            stack.enter_context(
+                _mount(
+                    os.path.join(sysroot, "sysroot/boot/efi"),
+                    os.path.join(self.path, "sysroot/boot/efi"),
+                    rbind=True,
+                )
             )
             stack.enter_context(
                 _mount(
@@ -695,25 +710,13 @@ def update_bootloader(
     if deployment is None:
         raise RuntimeError(f"No deployments found in sysroot {sysroot}")
 
-    def execute_(script: str) -> None:
-        if sysroot == "/":
-            execute(
-                "bash",
-                "-c",
-                script,
-                onstdout=onstdout,
-                onstderr=onstderr,
-            )
-
-        else:
-            deployment.chroot(
-                script,
-                sysroot=sysroot,
-                onstdout=onstdout,
-                onstderr=onstderr,
-            )
-
-    execute_("bootctl update --esp-path=/boot/efi")
+    chroot = partial(
+        deployment.chroot,
+        sysroot=sysroot,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    chroot("bootctl update --esp-path=/sysroot/boot/efi")
     if not os.path.isfile(
         os.path.join(
             sysroot,
@@ -724,8 +727,10 @@ def update_bootloader(
     ):
         return
 
-    execute_("""
-    set -e
-    export ESP_PATH=/boot/efi
-    sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
-    """)
+    chroot(
+        """
+        set -e
+        export ESP_PATH=/boot/efi
+        sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+        """
+    )
