@@ -32,6 +32,7 @@ find /usr/lib/modules -name vmlinuz | while read -r vmlinuz; do
 done
 find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d | while read -r dir; do
   mv /boot/uki.efi "$dir/uki.efi"
+  mv /boot/initramfs-linux-zen.img "$dir/initramfs.img"
   rm -f "$dir/vmlinuz"
   break
 done
