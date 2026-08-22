@@ -20,7 +20,7 @@ from ..ostree import (
     deploy,
     prune,
     update_bootloader,
-    update_grub_config,
+    update_loader_entries,
 )
 from ..podman import (
     build,
@@ -177,10 +177,7 @@ class Object(dbus.service.Object):
                     onstderr=self.upgrade_stderr,
                 )
                 self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
-                update_grub_config(
-                    onstdout=self.upgrade_stdout,
-                    onstderr=self.upgrade_stderr,
-                )
+                update_loader_entries()
                 update_bootloader(
                     onstdout=self.upgrade_stdout,
                     onstderr=self.upgrade_stderr,

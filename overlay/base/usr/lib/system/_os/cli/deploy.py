@@ -7,7 +7,7 @@ from typing import cast
 
 from ..ostree import (
     deploy,
-    update_grub_config,
+    update_loader_entries,
 )
 from ..system import is_root
 
@@ -24,7 +24,7 @@ def command(args: Namespace) -> None:
 
     sysroot = cast(str, args.sysroot)
     deploy(cast(str, args.branch), sysroot)
-    update_grub_config(sysroot)
+    update_loader_entries(sysroot)
 
 
 if __name__ == "__main__":

@@ -385,11 +385,7 @@ def current_deployment() -> Deployment:
     return Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
 
-def update_grub_config(
-    sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,
-    onstderr: Callable[[bytes], None] = bytes_to_stderr,
-) -> None:
+def update_loader_entries(sysroot: str = "/") -> None:
     sysroot = os.path.normpath(sysroot)
     deployments_by_key: dict[tuple[str, str, int], Deployment] = {
         (deployment.stateroot, deployment.checksum, deployment.serial): deployment
@@ -460,54 +456,28 @@ def update_grub_config(
     for path, _ in staged:
         os.replace(f"{path}.new", path)
 
-    grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
-    grub_cfg_new = f"{grub_cfg}.new"
-    deployment = next(iter(deployments(sysroot)), None)
-    if deployment is None:
-        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
-
-    if sysroot == "/":
-        execute(
-            "grub-mkconfig",
-            "-o",
-            grub_cfg_new,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    else:
-        chroot(
-            deployment,
-            shlex.join(
-                [
-                    "grub-mkconfig",
-                    "-o",
-                    os.path.join("/", os.path.relpath(grub_cfg_new, sysroot)),
-                ]
-            ),
-            sysroot=sysroot,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    execute(
-        "grub-script-check",
-        grub_cfg_new,
-        onstdout=onstdout,
-        onstderr=onstderr,
-    )
-    os.replace(grub_cfg_new, grub_cfg)
-
 
 def update_bootloader(
     sysroot: str = "/",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
-
     deployment = next(iter(deployments(sysroot)), None)
     if deployment is None:
         raise RuntimeError(f"No deployments found in sysroot {sysroot}")
+
+    script = "bootctl update"
+    if sysroot == "/":
+        execute("bash", "-c", script, onstdout=onstdout, onstderr=onstderr)
+
+    else:
+        chroot(
+            deployment,
+            script,
+            sysroot=sysroot,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
 
     if not os.path.isfile(
         os.path.join(
@@ -519,15 +489,8 @@ def update_bootloader(
     ):
         return
 
-    script = f"""
+    script = """
     set -e
-    grub-mkstandalone \\
-        --format=x86_64-efi \\
-        --sbat=/usr/share/grub/sbat.csv \\
-        --output=/boot/efi/EFI/{OS_NAME}/grubx64.efi \\
-        boot/grub/grub.cfg=/boot/efi/EFI/grub/grub.cfg
-    mkdir -p /boot/efi/EFI/BOOT
-    cp -f /boot/efi/EFI/{OS_NAME}/grubx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
     export ESP_PATH=/boot/efi
     sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
     """

@@ -22,7 +22,7 @@ from ..ostree import (
     deployments,
     ostree,
     update_bootloader,
-    update_grub_config,
+    update_loader_entries,
 )
 from ..podman import (
     build,
@@ -182,11 +182,9 @@ def install(
     )
     deploy(branch, sysroot)
     execute(
-        "grub-install",
-        "--target=x86_64-efi",
-        f"--efi-directory={sysroot}/boot/efi",
-        f"--boot-directory={sysroot}/boot/efi/EFI",
-        f"--bootloader-id={OS_NAME}",
+        "bootctl",
+        "install",
+        f"--esp-path={sysroot}/boot/efi",
     )
     sysPath = [
         x.path
@@ -220,7 +218,7 @@ def install(
             sysroot=sysroot,
         )
 
-    update_grub_config(sysroot)
+    update_loader_entries(sysroot)
     update_bootloader(sysroot)
     chroot(
         deployment,

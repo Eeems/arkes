@@ -27,7 +27,6 @@ RUN <<EOT
     flatpak \
     fuse-overlayfs \
     git \
-    grub \
     htop \
     less \
     linux-firmware \
@@ -78,8 +77,7 @@ RUN <<EOT
   mkdir /var/home
   /usr/lib/system/package_layer \
     --aur \
-    localepurge \
-    shim-signed
+    localepurge
   rmdir /var/home
 EOT
 

@@ -288,10 +288,7 @@ def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
 def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
     return check(
         proc,
-        f"""(
-          set -e
-          echo "RUN sed -i 's/#GRUB_TERMINAL_OUTPUT/GRUB_TERMINAL_OUTPUT/' /etc/default/grub" | \\
-            sudo tee --append /etc/system/Systemfile
+        f"""
           sudo os install \\
             --system-partition=/dev/vda2 \\
             --boot-partition=/dev/vda1 \\
@@ -300,10 +297,7 @@ def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
             --kernel-commandline=console=ttyS0,115200 \\
             {"--fast-install" if fastInstall else ""} \\
             $(mountpoint -q /sys/firmware/efi/efivars && echo --secure-boot)
-          sudo mount /dev/vda1 /mnt
-          sudo sed -i 's/^set timeout=.*/set timeout=0/' /mnt/EFI/grub/grub.cfg
-          sudo umount /mnt
-        )""",
+        """,
     )
 
 

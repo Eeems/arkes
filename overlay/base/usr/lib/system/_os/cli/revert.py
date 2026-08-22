@@ -10,7 +10,7 @@ from typing import (
 
 from ..ostree import (
     undeploy,
-    update_grub_config,
+    update_loader_entries,
 )
 from ..system import is_root
 
@@ -27,7 +27,7 @@ def command(_: Namespace) -> None:
         sys.exit(1)
 
     undeploy(0)
-    update_grub_config()
+    update_loader_entries()
 
 
 if __name__ == "__main__":
