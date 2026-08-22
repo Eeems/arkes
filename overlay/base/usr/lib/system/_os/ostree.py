@@ -329,7 +329,7 @@ class Deployment:
             onstderr=onstderr,
         )
         with ExitStack() as stack:
-            partition = (
+            sysroot_partition = (
                 subprocess.check_output(
                     [
                         "findmnt",
@@ -345,14 +345,25 @@ class Deployment:
                 .split("[", 1)[0]
             )
             stack.enter_context(
-                _mount(partition, os.path.join(self.path, "sysroot"), rbind=True)
+                _mount(sysroot_partition, os.path.join(self.path, "sysroot"))
+            )
+            boot_partition = (
+                subprocess.check_output(
+                    [
+                        "findmnt",
+                        "--noheadings",
+                        "--output",
+                        "SOURCE",
+                        "--target",
+                        os.path.join(sysroot, "boot/efi"),
+                    ]
+                )
+                .decode()
+                .strip()
+                .split("[", 1)[0]
             )
             stack.enter_context(
-                _mount(
-                    os.path.join(sysroot, "sysroot/boot/efi"),
-                    os.path.join(self.path, "sysroot/boot/efi"),
-                    rbind=True,
-                )
+                _mount(boot_partition, os.path.join(self.path, "sysroot/boot/efi"))
             )
             stack.enter_context(
                 _mount(
@@ -362,7 +373,9 @@ class Deployment:
                 )
             )
             for i in ["dev", "proc", "sys"]:
-                stack.enter_context(_mount(f"/{i}", os.path.join(self.path, i)))
+                stack.enter_context(
+                    _mount(f"/{i}", os.path.join(self.path, i), bind=True)
+                )
 
             if os.path.exists("/sys/firmware/efi/efivars"):
                 stack.enter_context(
@@ -730,7 +743,7 @@ def update_bootloader(
     chroot(
         """
         set -e
-        export ESP_PATH=/boot/efi
+        export ESP_PATH=/sysroot/boot/efi
         sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
         """
     )

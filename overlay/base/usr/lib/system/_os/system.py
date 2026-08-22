@@ -185,13 +185,15 @@ def mount(
     target: str,
     *,
     rbind: bool = False,
+    bind: bool = False,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> Generator[None]:
     execute_ = partial(execute, onstdout=onstdout, onstderr=onstderr)
     execute_(
         "mount",
-        *(["--rbind"] if rbind else ["-o", "bind"]),
+        *(["--rbind"] if rbind else []),
+        *(["-o", "bind"] if bind else []),
         source,
         target,
     )
