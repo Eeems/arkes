@@ -329,45 +329,32 @@ class Deployment:
             onstderr=onstderr,
         )
         with ExitStack() as stack:
-            enter = stack.enter_context
-            enter(
+            stack.enter_context(
                 _mount(
-                    os.path.join(sysroot, "boot"),
-                    os.path.join(self.path, "boot"),
+                    os.path.join(sysroot, "boot/efi"),
+                    os.path.join(self.path, "boot/efi"),
                     rbind=True,
-                    mkdir=True,
-                    rslave=True,
                 )
             )
-            enter(
-                _mount(
-                    os.path.join(sysroot, "ostree"),
-                    os.path.join(self.path, "sysroot/ostree"),
-                    rbind=True,
-                    mkdir=True,
-                    rslave=True,
-                )
+            stack.enter_context(
+                _mount("/sysroot", os.path.join(self.path, "sysroot"), rbind=True)
             )
-            enter(
+            stack.enter_context(
                 _mount(
                     os.path.join(sysroot, "ostree/deploy", self.stateroot, "var"),
                     os.path.join(self.path, "var"),
                     rbind=True,
-                    mkdir=True,
-                    rslave=True,
                 )
             )
             for i in ["dev", "proc", "sys"]:
-                enter(_mount(f"/{i}", os.path.join(self.path, i)))
+                stack.enter_context(_mount(f"/{i}", os.path.join(self.path, i)))
 
             if os.path.exists("/sys/firmware/efi/efivars"):
-                enter(
+                stack.enter_context(
                     _mount(
                         "/sys/firmware/efi/efivars",
                         os.path.join(self.path, "sys/firmware/efi/efivars"),
                         rbind=True,
-                        mkdir=True,
-                        rslave=True,
                     )
                 )
 

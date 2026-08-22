@@ -185,22 +185,19 @@ def mount(
     target: str,
     *,
     rbind: bool = False,
-    mkdir: bool = False,
-    rslave: bool = False,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> Generator[None]:
     execute_ = partial(execute, onstdout=onstdout, onstderr=onstderr)
     execute_(
         "mount",
-        *(["--mkdir"] if mkdir else []),
         *(["--rbind"] if rbind else ["-o", "bind"]),
         source,
         target,
     )
 
     try:
-        if rslave:
+        if rbind:
             try:
                 execute_("mount", "--make-rslave", target)
 
