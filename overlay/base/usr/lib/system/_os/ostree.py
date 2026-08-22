@@ -708,18 +708,25 @@ def update_bootloader(
     if deployment is None:
         raise RuntimeError(f"No deployments found in sysroot {sysroot}")
 
-    script = f"bootctl update --esp-path='{sysroot}/boot/efi'"
-    if sysroot == "/":
-        execute("bash", "-c", script, onstdout=onstdout, onstderr=onstderr)
+    def execute_(script: str) -> None:
+        if sysroot == "/":
+            execute(
+                "bash",
+                "-c",
+                script,
+                onstdout=onstdout,
+                onstderr=onstderr,
+            )
 
-    else:
-        deployment.chroot(
-            script,
-            sysroot=sysroot,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
+        else:
+            deployment.chroot(
+                script,
+                sysroot=sysroot,
+                onstdout=onstdout,
+                onstderr=onstderr,
+            )
 
+    execute_("bootctl update --esp-path=/boot/efi")
     if not os.path.isfile(
         os.path.join(
             sysroot,
@@ -730,18 +737,8 @@ def update_bootloader(
     ):
         return
 
-    script = """
+    execute_("""
     set -e
     export ESP_PATH=/boot/efi
     sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
-    """
-    if sysroot == "/":
-        execute("bash", "-c", script, onstdout=onstdout, onstderr=onstderr)
-
-    else:
-        deployment.chroot(
-            script,
-            sysroot=sysroot,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
+    """)
