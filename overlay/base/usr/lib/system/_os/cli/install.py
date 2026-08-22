@@ -179,11 +179,7 @@ def install(
         """,
     )
     deployment = deploy(branch, sysroot)
-    execute(
-        "bootctl",
-        "install",
-        f"--esp-path={sysroot}/boot/efi",
-    )
+    execute("bootctl", "install", f"--esp-path={sysroot}/boot/efi")
     sysPath = [
         x.path
         for x in os.scandir(os.path.join(sysroot, f"ostree/deploy/{OS_NAME}/deploy"))
