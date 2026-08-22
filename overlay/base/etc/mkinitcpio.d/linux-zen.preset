@@ -1,6 +1,6 @@
 PRESETS=('ostree')
 
-ALL_kver='/boot/vmlinuz-linux-zen'
+ALL_kernels='/boot/vmlinuz-linux-zen'
 ostree_config='/etc/mkinitcpio.conf.d/ostree.conf'
 ostree_uki="/boot/uki.efi"
 ostree_options="$(cat /etc/system/commandline)"

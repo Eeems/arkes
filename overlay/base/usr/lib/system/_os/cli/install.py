@@ -203,7 +203,7 @@ def install(
             """
             set -e
             mkdir /var/lib
-            export ESP_PATH=/boot/efi
+            export ESP_PATH=/sysroot/boot/efi
             sbctl create-keys
             sbctl enroll-keys -m
             """,
