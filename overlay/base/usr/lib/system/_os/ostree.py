@@ -522,7 +522,6 @@ def update_bootloader(
     script = f"""
     set -e
     grub-mkstandalone \\
-        --disable-shim-lock \\
         --format=x86_64-efi \\
         --sbat=/usr/share/grub/sbat.csv \\
         --output=/boot/efi/EFI/{OS_NAME}/grubx64.efi \\
