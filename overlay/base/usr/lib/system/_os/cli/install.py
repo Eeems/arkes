@@ -16,10 +16,8 @@ from typing import (
 
 from .. import OS_NAME
 from ..ostree import (
-    chroot,
     commit_export,
     deploy,
-    deployments,
     ostree,
     update_bootloader,
     update_loader_entries,
@@ -180,7 +178,7 @@ def install(
         rm -rf /var/*
         """,
     )
-    deploy(branch, sysroot)
+    deployment = deploy(branch, sysroot)
     execute(
         "bootctl",
         "install",
@@ -204,10 +202,8 @@ def install(
     execute(
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
-    deployment = list(deployments(sysroot))[0]
     if secureBoot:
-        chroot(
-            deployment,
+        deployment.chroot(
             """
             set -e
             mkdir /var/lib
@@ -219,9 +215,8 @@ def install(
         )
 
     update_loader_entries(sysroot)
-    update_bootloader(sysroot)
-    chroot(
-        deployment,
+    update_bootloader(sysroot, deployment=deployment)
+    deployment.chroot(
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
         sysroot=sysroot,
     )

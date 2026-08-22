@@ -1,12 +1,12 @@
 # pyright: reportUnnecessaryTypeIgnoreComment=false
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from functools import partial
 from glob import iglob
 from hashlib import sha256
 from select import select
@@ -19,8 +19,10 @@ from typing import (
 import dbus  # pyright:ignore [reportMissingTypeStubs]
 import xattr  # pyright:ignore [reportMissingTypeStubs]
 
-from . import SYSTEM_PATH
-from .console import bytes_to_stderr, bytes_to_stdout
+from .console import (
+    bytes_to_stderr,
+    bytes_to_stdout,
+)
 
 
 def file_hash(file: str) -> str:
@@ -54,7 +56,7 @@ def baseImage(systemFile: str = "/etc/system/Systemfile") -> str:
     return results[0]
 
 
-def _execute(cmd: str) -> int:
+def _execute(cmd: str) -> int:  # pyright: ignore[reportUnusedFunction]
     status = os.system(cmd)  # noqa: S605  # pyright: ignore[reportDeprecated]
     return os.waitstatus_to_exitcode(status)
 
@@ -177,6 +179,48 @@ def execute_pipe(
     return p.returncode
 
 
+@contextmanager
+def mount(
+    source: str,
+    target: str,
+    *,
+    rbind: bool = False,
+    mkdir: bool = False,
+    rslave: bool = False,
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> Generator[None]:
+    execute_ = partial(execute, onstdout=onstdout, onstderr=onstderr)
+    execute_(
+        "mount",
+        *(["--mkdir"] if mkdir else []),
+        *(["--rbind"] if rbind else ["-o", "bind"]),
+        source,
+        target,
+    )
+
+    try:
+        if rslave:
+            try:
+                execute_("mount", "--make-rslave", target)
+
+            except subprocess.CalledProcessError as e:
+                # rslave failed: the mount is still in the source's peer group.
+                # Sever propagation so the umount cannot leak into host mounts.
+                onstderr(f"Failed to make {target} rslave: {e}\n".encode())
+                execute_("mount", "--make-rprivate", target)
+                raise
+
+        yield
+
+    finally:
+        try:
+            execute_("umount", *(["--recursive"] if rbind else []), target)
+
+        except subprocess.CalledProcessError as e:
+            onstderr(f"Failed to umount {target}: {e}\n".encode())
+
+
 def system_kernelCommandLine() -> str:
     if os.path.exists("/etc/system/commandline"):
         with open("/etc/system/commandline") as f:
@@ -223,9 +267,10 @@ def checkupdates(image: str | None = None) -> list[str]:
         )
 
     system_updates: list[str] = []
+    deployment = current_deployment()
     try:
         system_updates = (
-            in_nspawn_system_output(
+            deployment.nspawn_output(
                 "bash",
                 "-ec",
                 "\n".join(
@@ -264,7 +309,6 @@ def checkupdates(image: str | None = None) -> list[str]:
         pkg, ver = line.split(" ", 1)
         remote_pkgs[pkg] = ver
 
-    deployment = current_deployment()
     image_packages = deployment.imagePackages
     deployment_packages = deployment.packages
     local_pkgs = image_packages or deployment_packages
@@ -352,7 +396,7 @@ def checkupdates(image: str | None = None) -> list[str]:
                 'rm -rf "$error_dir"',
             ]
             output = (
-                in_nspawn_system_output(
+                deployment.nspawn_output(
                     "sh",
                     "-ec",
                     "\n".join(packages_script),
@@ -394,184 +438,6 @@ def checkupdates(image: str | None = None) -> list[str]:
         ]
         + [f"{k} - -> {additions[k]}" for k in sorted(additions.keys())]
         + [f"{k} {removals[k]} -> -" for k in sorted(removals.keys())]
-    )
-
-
-def in_nspawn_system_cmd(
-    *args: str,
-    quiet: bool = False,
-    deployment: object | None = None,  # ostree.Deployment
-    binds: list[str] | None = None,
-    overlays: list[str] | None = None,
-    etc: str = "ro",
-    home: str = "ro",
-    var: str = "ro",
-) -> list[str]:
-    from .ostree import (  # noqa: PLC0415
-        Deployment,
-        current_deployment,
-    )
-
-    _ostree_root = ""
-    if os.path.exists("/ostree") and os.path.isdir("/ostree"):
-        _ostree = "/ostree"
-        if not os.path.exists(SYSTEM_PATH):
-            os.makedirs(SYSTEM_PATH, exist_ok=True)
-
-        if not os.path.exists(f"{SYSTEM_PATH}/ostree"):
-            os.symlink("/ostree", f"{SYSTEM_PATH}/ostree")
-
-    else:
-        _ostree = f"{SYSTEM_PATH}/ostree"
-        os.makedirs(_ostree, exist_ok=True)
-        repo = os.path.join(_ostree, "repo")
-        _ostree_root = f"{SYSTEM_PATH}/"
-        from .ostree import ostree  # noqa: PLC0415
-
-        setattr(ostree, "repo", repo)
-        if not os.path.exists(repo):
-            ostree("init")
-
-    cache = "/var/cache/pacman"
-    if not os.path.exists(cache):
-        os.makedirs(cache, exist_ok=True)
-
-    deployment = cast(Deployment | None, deployment)
-    if deployment is None:
-        deployment = current_deployment()
-
-    if binds is None:
-        binds = []
-
-    if overlays is None:
-        overlays = []
-
-    if etc == "rw":
-        etc = "bind"
-
-    match etc:
-        case "overlay":
-            overlays.append("+/etc::/etc")
-
-        case "bind":
-            binds.append("/etc")
-
-        case "ro":
-            pass
-
-        case _:
-            raise NotImplementedError(f"Unknown etc setting: {etc}")
-
-    if home == "rw":
-        home = "bind"
-
-    match home:
-        case "overlay":
-            overlays.append("+/var/home::/var/home")
-
-        case "bind":
-            binds.append("/var/home")
-
-        case "ro":
-            pass
-
-        case _:
-            raise NotImplementedError(f"Unknown home setting: {home}")
-
-    if var == "rw":
-        var = "bind"
-
-    match var:
-        case "overlay":
-            overlays.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var::/var")
-
-        case "bind":
-            binds.append("/var")
-
-        case "ro":
-            binds.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
-
-        case _:
-            raise NotImplementedError(f"Unknown var setting: {var}")
-
-    os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
-    # TODO overlay /usr/lib/pacman somehow
-    return [
-        "systemd-nspawn",
-        "--as-pid2",
-        "--pipe",
-        "--volatile=state",
-        "--link-journal=no",
-        "--directory=/sysroot",
-        "--resolv-conf=off",
-        *(["--quiet"] if quiet else []),
-        f"--bind={SYSTEM_PATH}:{SYSTEM_PATH}",
-        "--bind=/boot:/boot",
-        "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
-        f"--bind={cache}",
-        *[f"--bind={x}" for x in binds],
-        *[f"--overlay={x}" for x in overlays],
-        f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
-        *args,
-    ]
-
-
-def in_nspawn_system(
-    *args: str,
-    check: bool = False,
-    quiet: bool = False,
-    deployment: object | None = None,  # ostree.Deployment
-    binds: list[str] | None = None,
-    overlays: list[str] | None = None,
-    etc: str = "ro",
-    home: str = "ro",
-    var: str = "ro",
-) -> int:
-    if not is_root():
-        raise RuntimeError("in_nspawn_system can only be called as root")
-
-    cmd = in_nspawn_system_cmd(
-        *args,
-        quiet=quiet,
-        deployment=deployment,
-        binds=binds,
-        overlays=overlays,
-        etc=etc,
-        home=home,
-        var=var,
-    )
-    ret = _execute(shlex.join(cmd))
-    if ret and check:
-        raise subprocess.CalledProcessError(ret, cmd, None, None)
-
-    return ret
-
-
-def in_nspawn_system_output(
-    *args: str,
-    quiet: bool = False,
-    deployment: object | None = None,  # ostree.Deployment
-    binds: list[str] | None = None,
-    overlays: list[str] | None = None,
-    etc: str = "ro",
-    home: str = "ro",
-    var: str = "ro",
-) -> bytes:
-    if not is_root():
-        raise RuntimeError("in_nspawn_system_output can only be called as root")
-
-    return subprocess.check_output(
-        in_nspawn_system_cmd(
-            *args,
-            quiet=quiet,
-            deployment=deployment,
-            binds=binds,
-            overlays=overlays,
-            etc=etc,
-            home=home,
-            var=var,
-        ),
-        stderr=subprocess.DEVNULL if quiet else None,
     )
 
 
