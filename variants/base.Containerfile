@@ -78,7 +78,8 @@ RUN <<EOT
   mkdir /var/home
   /usr/lib/system/package_layer \
     --aur \
-    localepurge
+    localepurge \
+    shim-signed
   rmdir /var/home
 EOT
 
