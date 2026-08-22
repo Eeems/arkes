@@ -9,10 +9,8 @@ from typing import (
 )
 
 from ..console import shell
-from ..system import (
-    in_nspawn_system_cmd,
-    is_root,
-)
+from ..ostree import in_nspawn_system_cmd
+from ..system import is_root
 
 kwds = {"help": "Open a console of the booted system in a temporary container."}
 

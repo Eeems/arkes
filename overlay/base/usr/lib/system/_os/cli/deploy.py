@@ -23,7 +23,7 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     sysroot = cast(str, args.sysroot)
-    deploy(cast(str, args.branch), sysroot)
+    _ = deploy(cast(str, args.branch), sysroot)
     update_loader_entries(sysroot)
 
 
