@@ -710,6 +710,18 @@ def update_loader_entries(sysroot: str = "/") -> None:
     for path, _ in staged:
         os.replace(f"{path}.new", path)
 
+    efi_entries_dir = os.path.join(sysroot, "boot/efi/loader/entries")
+    os.makedirs(efi_entries_dir, exist_ok=True)
+    execute(
+        "rsync",
+        "--archive",
+        "--delete-after",
+        "--include=ostree-*.conf",
+        "--exclude=*",
+        f"{entries_dir}/.",
+        f"{efi_entries_dir}/.",
+    )
+
 
 def update_bootloader(
     sysroot: str = "/",

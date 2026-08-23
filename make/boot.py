@@ -397,7 +397,7 @@ def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
-    send(proc, f"{cmd} 2>&1; echo __RC__=$?\n".encode())
+    send(proc, f"{cmd.strip()} 2>&1; echo __RC__=$?\n".encode())
     res = -1
     buffer = b""
     prompt = -1
