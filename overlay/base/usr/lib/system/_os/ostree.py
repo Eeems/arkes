@@ -12,6 +12,7 @@ from contextlib import ExitStack
 from datetime import datetime
 from functools import partial
 from glob import iglob
+from itertools import chain
 from typing import cast
 
 import gi  # pyright: ignore[reportMissingTypeStubs]
@@ -187,6 +188,10 @@ class Deployment:
         return self.deployment.get_csum()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
+    def checksum_str(self) -> str:
+        return f"{self.checksum}.{self.serial}" if self.serial else str(self.checksum)
+
+    @property
     def stateroot(self) -> str:
         return self.deployment.get_osname()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
@@ -243,12 +248,6 @@ class Deployment:
     @property
     def index(self) -> int:
         return self.deployment.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-
-    @property
-    def index_str(self) -> str:
-        return (
-            f"{self.index}.{self.serial}" if self.serial else str(self.index)
-        )
 
     @property
     def path(self) -> str:
@@ -718,13 +717,25 @@ def loader_entries(sysroot: str) -> Generator[tuple[str, dict[str, str], Deploym
 
 def update_loader_entries(sysroot: str = "/") -> None:
     sysroot = os.path.normpath(sysroot)
-    staged: list[tuple[str, list[str]]] = []
-    for path, props, deployment in loader_entries(sysroot):
+    staged: set[str] = set()
+    binaries: set[str] = set()
+    entries_dir = os.path.join(sysroot, "boot/efi/loader/entries")
+    os.makedirs(entries_dir, exist_ok=True)
+    os.makedirs(os.path.join(sysroot, "boot/efi/EFI/Linux"), exist_ok=True)
+    next_deployment: Deployment | None = None
+    for _path, props, deployment in loader_entries(sysroot):
+        if not deployment.index:
+            next_deployment = deployment
+
+        name = f"arkes-{deployment.checksum_str}.efi"
+        output = f"/sysroot/boot/efi/EFI/Linux/{name}"
+        ukiPath = os.path.join(sysroot, "boot/efi/EFI/Linux", name)
+        binaries.add(ukiPath)
         os_info = deployment.os_info
         version = os_info.get("VERSION", "0")
         version_id = os_info.get("VERSION_ID", "0")
         title = (
-            f"{deployment.index_str}: {deployment.image} {version}.{version_id} "
+            f"{deployment.index}: {deployment.image} {version}.{version_id} "
             f"[{deployment.stateroot}]"
         )
         for char in "'\"$\\\n\r":
@@ -733,36 +744,16 @@ def update_loader_entries(sysroot: str = "/") -> None:
                     f"Unsafe character {char!r} found in boot title: {title!r}"
                 )
 
-        with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
+        entryPath = os.path.join(entries_dir, f"arkes-{deployment.checksum_str}.conf")
+        with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
+            _ = f.write(f"title {title}\n")
+            _ = f.write(f"version {version_id}\n")
+            _ = f.write(f"uki /EFI/Linux/{name}\n")
 
-        for i, line in enumerate(lines):
-            if line.startswith("title "):
-                lines[i] = f"title {title}\n"
-                break
+        staged.add(entryPath)
+        if os.path.isfile(ukiPath):
+            continue
 
-        else:
-            lines.append(f"title {title}\n")
-
-        staged.append((path, lines))
-
-    for path, lines in staged:
-        with open(f"{path}.new", "w", encoding="utf-8") as f:
-            f.writelines(lines)
-
-    for path, _ in staged:
-        os.replace(f"{path}.new", path)
-
-    names: set[str] = set()
-    for path, props, deployment in loader_entries(sysroot):
-        index = (
-            f"{deployment.index}.{deployment.serial}"
-            if deployment.serial
-            else deployment.index
-        )
-        name = f"arkes-{deployment.os_info.get('VERSION_ID', '0')}-{index}.efi"
-        output = f"/sysroot/boot/efi/EFI/Linux/{name}"
-        names.add(name)
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
         ) as cmdlineFile:
@@ -797,13 +788,21 @@ def update_loader_entries(sysroot: str = "/") -> None:
 
             deployment.chroot("\n".join(commands), sysroot=sysroot)
 
-    efi_linux_dir = os.path.join(sysroot, "sysroot/boot/efi/EFI/Linux")
-    os.makedirs(efi_linux_dir, exist_ok=True)
-    for ukiPath in iglob(os.path.join(efi_linux_dir, "arkes-*.efi")):
-        if os.path.basename(ukiPath) in names:
-            continue
+    assert next_deployment is not None
+    for file in staged:
+        os.replace(f"{file}.new", file)
 
-        os.unlink(ukiPath)
+    for file in chain(
+        iglob(os.path.join(sysroot, "boot/efi/EFI/Linux", "arkes-*.efi")),
+        iglob(os.path.join(sysroot, "boot/efi/loader/entries", "arkes-*.conf")),
+    ):
+        if file not in binaries | staged:
+            os.unlink(file)
+
+    next_deployment.chroot(
+        f"bootctl --esp-path=/sysroot/boot/efi set-default 'arkes-{next_deployment.checksum_str}.conf'",
+        sysroot=sysroot,
+    )
 
 
 def update_bootloader(
