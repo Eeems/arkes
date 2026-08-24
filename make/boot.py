@@ -282,7 +282,7 @@ def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
     return check(
         proc,
         "printf 'g\\nn\\n\\n\\n+512M\\nt\\n\\n1\\nn\\n\\n\\n\\nw\\n' | sudo fdisk /dev/vda",
-    )
+    ) and check(proc, "udevadm settle")
 
 
 def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:

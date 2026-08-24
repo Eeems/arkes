@@ -144,9 +144,7 @@ def install(
         print("Boot partition must be specified")
         sys.exit(1)
 
-    if (
-        subprocess.check_output(["lsblk", "-no", "pttype", dev_boot]).strip() != b"gpt"
-    ):
+    if subprocess.check_output(["lsblk", "-no", "pttype", dev_boot]).strip() != b"gpt":
         print(f"Boot partition {dev_boot} is not on a GPT disk", file=sys.stderr)
         sys.exit(1)
 

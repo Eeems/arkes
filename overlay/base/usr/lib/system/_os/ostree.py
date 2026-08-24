@@ -719,18 +719,17 @@ def update_loader_entries(sysroot: str = "/") -> None:
     sysroot = os.path.normpath(sysroot)
     staged: set[str] = set()
     binaries: set[str] = set()
-    entries_dir = os.path.join(sysroot, "boot/efi/loader/entries")
+    efi_path = os.path.join(sysroot, "boot/efi")
+    entries_dir = os.path.join(efi_path, "loader/entries")
     os.makedirs(entries_dir, exist_ok=True)
-    os.makedirs(os.path.join(sysroot, "boot/efi/EFI/Linux"), exist_ok=True)
+    efi_linux_path = os.path.join(efi_path, "EFI/arkes")
+    os.makedirs(efi_linux_path, exist_ok=True)
     next_deployment: Deployment | None = None
     for _path, props, deployment in loader_entries(sysroot):
         if not deployment.index:
             next_deployment = deployment
 
         name = f"arkes-{deployment.checksum_str}.efi"
-        output = f"/sysroot/boot/efi/EFI/Linux/{name}"
-        ukiPath = os.path.join(sysroot, "boot/efi/EFI/Linux", name)
-        binaries.add(ukiPath)
         os_info = deployment.os_info
         version = os_info.get("VERSION", "0")
         version_id = os_info.get("VERSION_ID", "0")
@@ -748,9 +747,11 @@ def update_loader_entries(sysroot: str = "/") -> None:
         with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
             _ = f.write(f"title {title}\n")
             _ = f.write(f"version {version_id}\n")
-            _ = f.write(f"uki /EFI/Linux/{name}\n")
+            _ = f.write(f"uki /EFI/arkes/{name}\n")
 
         staged.add(entryPath)
+        ukiPath = os.path.join(efi_linux_path, name)
+        binaries.add(ukiPath)
         if os.path.isfile(ukiPath):
             continue
 
@@ -759,50 +760,58 @@ def update_loader_entries(sysroot: str = "/") -> None:
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
-            commands = [
-                "set -e",
-                "export ESP_PATH=/sysroot/boot/efi",
-                shlex.join(
+            outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
+            deployment.chroot(
+                "\n".join(
                     [
-                        "sbctl",
-                        "bundle",
-                        "--cmdline",
-                        cmdlineFile.name,
-                        "--kernel-img",
-                        f"/sysroot{props['linux']}",
-                        "--initramfs",
-                        f"/sysroot{props['initrd']}",
-                        output,
+                        "set -e",
+                        "export ESP_PATH=/sysroot/boot/efi",
+                        shlex.join(
+                            [
+                                "sbctl",
+                                "bundle",
+                                "--cmdline",
+                                cmdlineFile.name,
+                                "--kernel-img",
+                                f"/sysroot{props['linux']}",
+                                "--initramfs",
+                                f"/sysroot{props['initrd']}",
+                                outputPath,
+                            ]
+                        ),
                     ]
                 ),
-            ]
-            if os.path.isfile(
-                os.path.join(
-                    sysroot,
-                    "ostree/deploy",
-                    deployment.stateroot,
-                    "var/lib/sbctl/keys/db/db.key",
-                )
-            ):
-                commands.append(shlex.join(["sbctl", "sign", "-s", output]))
+                sysroot=sysroot,
+            )
 
-            deployment.chroot("\n".join(commands), sysroot=sysroot)
+        if os.path.isfile(
+            os.path.join(
+                sysroot,
+                "ostree/deploy",
+                deployment.stateroot,
+                "var/lib/sbctl/keys/db/db.key",
+            )
+        ):
+            deployment.chroot(f"sbctl sign -s '{outputPath}'", sysroot=sysroot)
 
     assert next_deployment is not None
     for file in staged:
         os.replace(f"{file}.new", file)
 
     for file in chain(
-        iglob(os.path.join(sysroot, "boot/efi/EFI/Linux", "arkes-*.efi")),
-        iglob(os.path.join(sysroot, "boot/efi/loader/entries", "arkes-*.conf")),
+        iglob(os.path.join(efi_linux_path, "arkes-*.efi")),
+        iglob(os.path.join(entries_dir, "arkes-*.conf")),
     ):
         if file not in binaries | staged:
             os.unlink(file)
 
-    next_deployment.chroot(
-        f"bootctl --esp-path=/sysroot/boot/efi set-default 'arkes-{next_deployment.checksum_str}.conf'",
-        sysroot=sysroot,
-    )
+    if _execute("bootctl is-installed --quiet") == 0:
+        execute(
+            "bootctl",
+            f"--esp-path={sysroot}/sysroot/boot/efi",
+            "set-default",
+            f"arkes-{next_deployment.checksum_str}.conf",
+        )
 
 
 def update_bootloader(
