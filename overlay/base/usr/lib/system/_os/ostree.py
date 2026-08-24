@@ -805,7 +805,12 @@ def update_loader_entries(sysroot: str = "/") -> None:
         if file not in binaries | staged:
             os.unlink(file)
 
-    if _execute("bootctl is-installed --quiet") == 0:
+    if (
+        _execute(
+            f"bootctl is-installed --esp-path='{sysroot}/sysroot/boot/efi' --quiet"
+        )
+        == 0
+    ):
         execute(
             "bootctl",
             f"--esp-path={sysroot}/sysroot/boot/efi",
