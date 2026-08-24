@@ -2,6 +2,7 @@ import atexit
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 from argparse import (
     ArgumentParser,
@@ -141,6 +142,12 @@ def install(
 
     if dev_boot is None:
         print("Boot partition must be specified")
+        sys.exit(1)
+
+    if (
+        subprocess.check_output(["lsblk", "-no", "pttype", dev_boot]).strip() != b"gpt"
+    ):
+        print(f"Boot partition {dev_boot} is not on a GPT disk", file=sys.stderr)
         sys.exit(1)
 
     setattr(ostree, "repo", os.path.normpath(f"{sysroot}/{getattr(ostree, 'repo')}"))

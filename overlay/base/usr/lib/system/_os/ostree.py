@@ -2,6 +2,8 @@
 import os
 import shlex
 import subprocess
+import sys
+import tempfile
 from collections.abc import (
     Callable,
     Generator,
@@ -243,6 +245,12 @@ class Deployment:
         return self.deployment.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
+    def index_str(self) -> str:
+        return (
+            f"{self.index}.{self.serial}" if self.serial else str(self.index)
+        )
+
+    @property
     def path(self) -> str:
         path = self.sysroot.get_deployment_directory(self.deployment).get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         assert isinstance(path, str)
@@ -372,7 +380,7 @@ class Deployment:
                     rbind=True,
                 )
             )
-            for i in ["dev", "proc", "sys"]:
+            for i in ["dev", "proc", "sys", "tmp"]:
                 stack.enter_context(
                     _mount(f"/{i}", os.path.join(self.path, i), bind=True)
                 )
@@ -639,69 +647,104 @@ def in_nspawn_system_cmd(
     ]
 
 
-def update_loader_entries(sysroot: str = "/") -> None:
+def loader_entries(sysroot: str) -> Generator[tuple[str, dict[str, str], Deployment]]:
     sysroot = os.path.normpath(sysroot)
     deployments_by_key: dict[tuple[str, str, int], Deployment] = {
         (deployment.stateroot, deployment.checksum, deployment.serial): deployment
         for deployment in deployments(sysroot)
     }
-    entries_dir = os.path.join(sysroot, "boot/loader/entries")
+    for path in iglob(os.path.join(sysroot, "boot/loader/entries", "ostree-*.conf")):
+        props: dict[str, str] = {}
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                key, sep, value = line.strip().partition(" ")
+                if sep:
+                    props[key] = value.strip()
+
+        kernel = props.get("linux")
+        if kernel is None:
+            print(
+                f"Skipping loader entry {path}: missing linux property",
+                file=sys.stderr,
+            )
+            continue
+
+        initrd = props.get("initrd")
+        if initrd is None:
+            print(
+                f"Skipping loader entry {path}: missing initrd property",
+                file=sys.stderr,
+            )
+            continue
+
+        options = props.get("options")
+        if options is None:
+            print(
+                f"Skipping loader entry {path}: missing options property",
+                file=sys.stderr,
+            )
+            continue
+
+        bootlink = next(
+            (
+                arg[len("ostree=") :]
+                for arg in options.split()
+                if arg.startswith("ostree=")
+            ),
+            None,
+        )
+        if bootlink is None:
+            print(
+                f"Skipping loader entry {path}: missing ostree= argument",
+                file=sys.stderr,
+            )
+            continue
+
+        deployment_name = os.path.basename(
+            os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
+        )
+        checksum, serial_str = deployment_name.rsplit(".", 1)
+        serial = int(serial_str)
+        deployment = deployments_by_key.get((bootlink.split("/")[3], checksum, serial))
+        if deployment is None:
+            print(
+                f"Skipping loader entry {path}: could not find deployment",
+                file=sys.stderr,
+            )
+            continue
+
+        yield path, props, deployment
+
+
+def update_loader_entries(sysroot: str = "/") -> None:
+    sysroot = os.path.normpath(sysroot)
     staged: list[tuple[str, list[str]]] = []
-    for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
-        try:
-            with open(path, encoding="utf-8") as f:
-                lines = f.readlines()
+    for path, props, deployment in loader_entries(sysroot):
+        os_info = deployment.os_info
+        version = os_info.get("VERSION", "0")
+        version_id = os_info.get("VERSION_ID", "0")
+        title = (
+            f"{deployment.index_str}: {deployment.image} {version}.{version_id} "
+            f"[{deployment.stateroot}]"
+        )
+        for char in "'\"$\\\n\r":
+            if char in title:
+                raise ValueError(
+                    f"Unsafe character {char!r} found in boot title: {title!r}"
+                )
 
-            bootlink = next(
-                (
-                    arg[len("ostree=") :]
-                    for line in lines
-                    if line.startswith("options ")
-                    for arg in line.split()
-                    if arg.startswith("ostree=")
-                ),
-                None,
-            )
-            if bootlink is None:
-                continue
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
 
-            deployment_name = os.path.basename(
-                os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
-            )
-            checksum, serial_str = deployment_name.rsplit(".", 1)
-            serial = int(serial_str)
-            deployment = deployments_by_key.get(
-                (bootlink.split("/")[3], checksum, serial)
-            )
-            if deployment is None:
-                continue
+        for i, line in enumerate(lines):
+            if line.startswith("title "):
+                lines[i] = f"title {title}\n"
+                break
 
-            os_info = deployment.os_info
-            version = os_info.get("VERSION", "0")
-            version_id = os_info.get("VERSION_ID", "0")
-            index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
-            title = (
-                f"{index}: {deployment.image} {version}.{version_id} "
-                f"[{deployment.stateroot}]"
-            )
-            for char in "'\"$\\\n\r":
-                if char in title:
-                    raise ValueError(
-                        f"Unsafe character {char!r} found in boot title: {title!r}"
-                    )
+        else:
+            lines.append(f"title {title}\n")
 
-            for i, line in enumerate(lines):
-                if line.startswith("title "):
-                    lines[i] = f"title {title}\n"
-                    break
-
-            else:
-                lines.append(f"title {title}\n")
-
-            staged.append((path, lines))
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to update boot title for {path}: {e}") from e
+        staged.append((path, lines))
 
     for path, lines in staged:
         with open(f"{path}.new", "w", encoding="utf-8") as f:
@@ -710,17 +753,57 @@ def update_loader_entries(sysroot: str = "/") -> None:
     for path, _ in staged:
         os.replace(f"{path}.new", path)
 
-    efi_entries_dir = os.path.join(sysroot, "boot/efi/loader/entries")
-    os.makedirs(efi_entries_dir, exist_ok=True)
-    execute(
-        "rsync",
-        "--archive",
-        "--delete-after",
-        "--include=ostree-*.conf",
-        "--exclude=*",
-        f"{entries_dir}/.",
-        f"{efi_entries_dir}/.",
-    )
+    names: set[str] = set()
+    for path, props, deployment in loader_entries(sysroot):
+        index = (
+            f"{deployment.index}.{deployment.serial}"
+            if deployment.serial
+            else deployment.index
+        )
+        name = f"arkes-{deployment.os_info.get('VERSION_ID', '0')}-{index}.efi"
+        output = f"/sysroot/boot/efi/EFI/Linux/{name}"
+        names.add(name)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
+        ) as cmdlineFile:
+            _ = cmdlineFile.write(f"{props['options']}\n")
+            cmdlineFile.flush()
+            commands = [
+                "set -e",
+                "export ESP_PATH=/sysroot/boot/efi",
+                shlex.join(
+                    [
+                        "sbctl",
+                        "bundle",
+                        "--cmdline",
+                        cmdlineFile.name,
+                        "--kernel-img",
+                        f"/sysroot{props['linux']}",
+                        "--initramfs",
+                        f"/sysroot{props['initrd']}",
+                        output,
+                    ]
+                ),
+            ]
+            if os.path.isfile(
+                os.path.join(
+                    sysroot,
+                    "ostree/deploy",
+                    deployment.stateroot,
+                    "var/lib/sbctl/keys/db/db.key",
+                )
+            ):
+                commands.append(shlex.join(["sbctl", "sign", "-s", output]))
+
+            deployment.chroot("\n".join(commands), sysroot=sysroot)
+
+    efi_linux_dir = os.path.join(sysroot, "sysroot/boot/efi/EFI/Linux")
+    os.makedirs(efi_linux_dir, exist_ok=True)
+    for ukiPath in iglob(os.path.join(efi_linux_dir, "arkes-*.efi")):
+        if os.path.basename(ukiPath) in names:
+            continue
+
+        os.unlink(ukiPath)
 
 
 def update_bootloader(

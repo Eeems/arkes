@@ -2,5 +2,4 @@ PRESETS=('ostree')
 
 ALL_kver='/boot/vmlinuz-linux-zen'
 ostree_config='/etc/mkinitcpio.conf.d/ostree.conf'
-ostree_uki="/boot/uki.efi"
-ostree_options="$(cat /etc/system/commandline)"
+ostree_image="/boot/initramfs-linux-zen.img"

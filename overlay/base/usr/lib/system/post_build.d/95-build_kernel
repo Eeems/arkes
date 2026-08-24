@@ -29,13 +29,5 @@ find /usr/lib/modules -name vmlinuz | while read -r vmlinuz; do
   ln -s "$vmlinuz" /boot/vmlinuz-linux-zen
   chronic mkinitcpio -P
   rm /boot/vmlinuz-linux-zen
-done
-find /usr/lib/modules -maxdepth 1 -mindepth 1 -type d | while read -r dir; do
-  if [ -f /boot/uki.efi ]; then
-    mv /boot/uki.efi "$dir/uki.efi"
-  fi
-  if [ -f /boot/initramfs-linux-zen.img ]; then
-    mv /boot/initramfs-linux-zen.img "$dir/initramfs.img"
-  fi
-  break
+  mv /boot/initramfs-linux-zen.img "$(dirname $vmlinuz)/initramfs.img"
 done
