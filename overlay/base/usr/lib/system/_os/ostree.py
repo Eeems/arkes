@@ -808,7 +808,9 @@ def update_loader_entries(sysroot: str = "/") -> None:
             os.unlink(file)
 
     if (
-        execute(f"bootctl is-installed --esp-path='{efi_path}' --quiet", check=False)
+        execute(
+            "bootctl", "is-installed", f"--esp-path={efi_path}", "--quiet", check=False
+        )
         == 0
     ):
         execute(
