@@ -490,20 +490,19 @@ def deploy(
     if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
         stateroot = current_deployment().stateroot
 
-    cmd = shlex.join(
-        [
-            "ostree",
-            "admin",
-            "deploy",
-            f"--sysroot={sysroot}",
-            *kargs,
-            f"--os={OS_NAME}",
-            f"--stateroot={stateroot}",
-            "--retain",
-            revision,
-        ]
+    execute(
+        "ostree",
+        "admin",
+        "deploy",
+        f"--sysroot={sysroot}",
+        *kargs,
+        f"--os={OS_NAME}",
+        f"--stateroot={stateroot}",
+        "--retain",
+        revision,
+        onstdout=onstdout,
+        onstderr=onstderr,
     )
-    execute(cmd, onstdout=onstdout, onstderr=onstderr)
     return list(deployments(sysroot))[0]
 
 
