@@ -717,6 +717,31 @@ def loader_entries(sysroot: str) -> Generator[tuple[str, dict[str, str], Deploym
         yield path, props, deployment
 
 
+def booted_with_systemd_boot() -> bool:
+    loader_info = (
+        "/sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+    )
+    if not os.path.isfile(loader_info):
+        return False
+
+    with open(loader_info, "rb") as f:
+        _ = f.read(4)  # skip EFI variable attributes header
+        return "systemd-boot" in f.read().decode("utf-16-le")
+
+
+def systemd_boot_installed(sysroot: str = "/") -> bool:
+    return (
+        execute(
+            "bootctl",
+            "is-installed",
+            f"--esp-path={os.path.join(sysroot, 'boot/efi')}",
+            "--quiet",
+            check=False,
+        )
+        == 0
+    )
+
+
 def update_loader_entries(sysroot: str = "/") -> None:
     sysroot = os.path.normpath(sysroot)
     staged: set[str] = set()
@@ -807,12 +832,7 @@ def update_loader_entries(sysroot: str = "/") -> None:
         if file not in binaries | staged:
             os.unlink(file)
 
-    if (
-        execute(
-            "bootctl", "is-installed", f"--esp-path={efi_path}", "--quiet", check=False
-        )
-        == 0
-    ):
+    if booted_with_systemd_boot() and systemd_boot_installed(sysroot):
         execute(
             "bootctl",
             f"--esp-path={efi_path}",
@@ -839,7 +859,12 @@ def update_bootloader(
         onstdout=onstdout,
         onstderr=onstderr,
     )
-    chroot("bootctl update --esp-path=/sysroot/boot/efi")
+    if not systemd_boot_installed(sysroot):
+        chroot("bootctl install --esp-path=/sysroot/boot/efi")
+
+    else:
+        chroot("bootctl update --esp-path=/sysroot/boot/efi")
+
     if not os.path.isfile(
         os.path.join(
             sysroot,
