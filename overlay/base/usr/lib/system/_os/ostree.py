@@ -810,13 +810,13 @@ def update_loader_entries(sysroot: str = "/") -> None:
 
     if (
         _execute(
-            f"bootctl is-installed --esp-path='{sysroot}/sysroot/boot/efi' --quiet"
+            f"bootctl is-installed --esp-path='{efi_path}' --quiet"
         )
         == 0
     ):
         execute(
             "bootctl",
-            f"--esp-path={sysroot}/sysroot/boot/efi",
+            f"--esp-path={efi_path}",
             "set-default",
             f"arkes-{next_deployment.checksum_str}.conf",
         )

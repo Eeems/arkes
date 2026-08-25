@@ -206,6 +206,9 @@ jobs:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system
 
+      - name: Fix git permissions
+        run: git config --global --add safe.directory "$(realpath .)"
+
       - name: Check for previous release
         id: release
         shell: bash
@@ -215,7 +218,6 @@ jobs:
             echo "exists=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           echo "$out"
           case "$out" in
             *"not found"*)

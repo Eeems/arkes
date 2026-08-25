@@ -18,12 +18,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Fix git permissions
+      run: git config --global --add safe.directory "$(realpath .)"
+
     - name: Remove old cache
       if: inputs.artifact == 'false'
       shell: bash
       continue-on-error: true
       run: |
-        git config --global --add safe.directory "$(realpath .)"
         gh cache delete \
           "${{ inputs.key }}" \
           --repo "${{ github.repository }}"
