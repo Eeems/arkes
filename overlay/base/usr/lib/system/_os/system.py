@@ -85,6 +85,17 @@ def execute(
     pass
 
 
+@overload
+def execute(
+    cmd: str | list[str],
+    *args: str,
+    check: bool = False,
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> int | None:
+    pass
+
+
 def execute(
     cmd: str | list[str],
     *args: str,

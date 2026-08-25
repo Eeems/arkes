@@ -14,6 +14,7 @@ runs:
   using: composite
   steps:
     - name: Fix git permissions
+      shell: bash
       run: git config --global --add safe.directory "$(realpath .)"
 
     - name: Get valid ref
