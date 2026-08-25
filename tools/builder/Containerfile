@@ -54,6 +54,7 @@ RUN apt-get update \
     skopeo \
     sudo \
     uidmap \
+    wget \
     xdelta3 \
     zstd \
     # Pyenv extra dependencies
