@@ -12,8 +12,10 @@ from hashlib import sha256
 from select import select
 from typing import (
     BinaryIO,
+    Literal,
     TextIO,
     cast,
+    overload,
 )
 
 import dbus  # pyright:ignore [reportMissingTypeStubs]
@@ -61,18 +63,45 @@ def _execute(cmd: str) -> int:  # pyright: ignore[reportUnusedFunction]
     return os.waitstatus_to_exitcode(status)
 
 
+@overload
 def execute(
     cmd: str | list[str],
     *args: str,
+    check: Literal[True] = True,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
+    pass
+
+
+@overload
+def execute(
+    cmd: str | list[str],
+    *args: str,
+    check: Literal[False],
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> int:
+    pass
+
+
+def execute(
+    cmd: str | list[str],
+    *args: str,
+    check: bool = True,
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> int | None:
     if isinstance(cmd, str):
         _args = [cmd]
+
     else:
         _args = cmd
 
     ret = execute_pipe(*_args, *args, onstdout=onstdout, onstderr=onstderr)
+    if not check:
+        return ret
+
     if ret:
         raise subprocess.CalledProcessError(ret, cmd, None, None)
 

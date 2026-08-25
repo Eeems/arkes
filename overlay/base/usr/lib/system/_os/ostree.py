@@ -468,8 +468,8 @@ class Deployment:
 def deploy(
     branch: str = "system",
     sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,  # pyright:ignore [reportUnusedParameter]
-    onstderr: Callable[[bytes], None] = bytes_to_stderr,  # pyright:ignore [reportUnusedParameter]
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> Deployment:
     kargs = ["--karg=root=LABEL=SYS_ROOT", "--karg=rw"]
     revision = f"{OS_NAME}/{branch}"
@@ -503,10 +503,7 @@ def deploy(
             revision,
         ]
     )
-    ret = _execute(cmd)
-    if ret:
-        raise subprocess.CalledProcessError(ret, cmd, None, None)
-
+    execute(cmd, onstdout=onstdout, onstderr=onstderr)
     return list(deployments(sysroot))[0]
 
 
@@ -576,6 +573,8 @@ def in_nspawn_system_cmd(
     if binds is None:
         binds = []
 
+    binds_ro: list[str] = []
+
     if overlays is None:
         overlays = []
 
@@ -622,7 +621,7 @@ def in_nspawn_system_cmd(
             binds.append("/var")
 
         case "ro":
-            binds.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
+            binds_ro.append(f"/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
 
         case _:
             raise NotImplementedError(f"Unknown var setting: {var}")
@@ -643,6 +642,7 @@ def in_nspawn_system_cmd(
         "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
         f"--bind={cache}",
         *[f"--bind={x}" for x in binds],
+        *[f"--bind-ro={x}" for x in binds_ro],
         *[f"--overlay={x}" for x in overlays],
         f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
         *args,
@@ -809,9 +809,7 @@ def update_loader_entries(sysroot: str = "/") -> None:
             os.unlink(file)
 
     if (
-        _execute(
-            f"bootctl is-installed --esp-path='{efi_path}' --quiet"
-        )
+        execute(f"bootctl is-installed --esp-path='{efi_path}' --quiet", check=False)
         == 0
     ):
         execute(
