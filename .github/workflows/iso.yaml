@@ -44,7 +44,7 @@ permissions:
   packages: read
 
 jobs:
-  run:
+  build:
     name: arkes:${{ inputs.variant }} iso
     runs-on: ubuntu-latest
     container:
@@ -108,15 +108,6 @@ jobs:
         with:
           run: ./make.py iso ${{ inputs.variant }}
 
-      - name: Boot test iso
-        uses: ./.github/actions/run-with-podman-service
-        timeout-minutes: 60
-        with:
-          run: >-
-            ./make.py test
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
-            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
-
       - name: Pacman cache
         uses: ./.github/actions/pacman-cache-update
         with:
@@ -128,8 +119,158 @@ jobs:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
+  test-install:
+    name: Boot test arkes:${{ inputs.variant }} iso
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt=seccomp=unconfined
+        --security-opt=apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device=/dev/fuse
+        --device=/dev/kvm
+        --tmpfs=/tmp
+        --tmpfs=/run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Setup container
+        uses: ./.github/actions/setup-container
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Free up space
+        uses: ./.github/actions/cleanup
+        with:
+          root: /run/host
+
+      - name: Download iso
+        uses: actions/download-artifact@v6
+        with:
+          name: arkes-${{ inputs.variant }}.iso
+          path: /var/lib/system
+
+      - name: Boot test iso
+        uses: ./.github/actions/run-with-podman-service
+        timeout-minutes: 60
+        with:
+          run: >-
+            ./make.py test
+            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+
+  test-upgrade:
+    name: Upgrade test arkes:${{ inputs.variant }} iso
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt=seccomp=unconfined
+        --security-opt=apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device=/dev/fuse
+        --device=/dev/kvm
+        --tmpfs=/tmp
+        --tmpfs=/run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Setup container
+        uses: ./.github/actions/setup-container
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Free up space
+        uses: ./.github/actions/cleanup
+        with:
+          root: /run/host
+
+      - name: Download iso
+        uses: actions/download-artifact@v6
+        with:
+          name: arkes-${{ inputs.variant }}.iso
+          path: /var/lib/system
+
+      - name: Check for previous release
+        id: release
+        shell: bash
+        run: |
+          set -e
+          if out=$(gh release view "variant/${{ inputs.variant }}" 2>&1); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "$out"
+          case "$out" in
+            *"not found"*)
+              echo "No previous release for variant/${{ inputs.variant }}, skipping upgrade test"
+              ;;
+            *)
+              echo "::error::Unable to check for previous release of variant/${{ inputs.variant }}"
+              exit 1
+              ;;
+          esac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade path test
+        if: steps.release.outputs.exists == 'true'
+        uses: ./.github/actions/run-with-podman-service
+        timeout-minutes: 90
+        with:
+          run: >-
+            ./make.py test
+            --from ${{ inputs.variant }}
+            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+
+  release:
+    name: Release arkes:${{ inputs.variant }} iso
+    if: inputs.push
+    needs:
+      - test-install
+      - test-upgrade
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt=seccomp=unconfined
+        --security-opt=apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device=/dev/fuse
+        --tmpfs=/tmp
+        --tmpfs=/run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Download iso
+        uses: actions/download-artifact@v6
+        with:
+          name: arkes-${{ inputs.variant }}.iso
+          path: /var/lib/system
+
       - name: Remove old release
-        if: inputs.push
         shell: bash
         run: |
           set -e
@@ -171,7 +312,6 @@ jobs:
 
       - name: Update release
         uses: ading2210/gh-large-releases@v1
-        if: inputs.push
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           files: arkes-${{ inputs.variant }}-*.iso
@@ -185,7 +325,6 @@ jobs:
           worker_url: "https://gh-releases.nathaniel-van-diepen.workers.dev"
 
       - name: Update latest release
-        if: inputs.push
         shell: bash
         run: |
           set -e

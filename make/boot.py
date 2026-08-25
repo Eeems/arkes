@@ -96,15 +96,69 @@ def graphical_args() -> list[str]:
     return args
 
 
+def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
+    data: bytes = subprocess.check_output(
+        podman_cmd(
+            "run",
+            "--rm",
+            f"--volume={iso}:/iso:ro",
+            f"{BUILDER}:{branch}",
+            "isoinfo",
+            "-R",
+            "-i",
+            "/iso",
+            "-x",
+            "/loader/entries/01-archiso-x86_64-linux.conf",
+        )
+    )
+    for line in data.decode("utf-8").splitlines():
+        for arg in line.split():
+            if arg.startswith("archisosearchuuid="):
+                value: str = arg.split("=", 1)[1]
+                assert value
+                return (
+                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
+                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", branch),
+                    value,
+                )
+
+    raise RuntimeError("Unable to find archisosearchuuid in the iso boot entry")
+
+
+def extract(iso: str, workspace: str, path: str, branch: str) -> str:
+    dest: str = os.path.join(workspace, os.path.basename(path))
+    with open(dest, "wb") as f:
+        _ = subprocess.run(
+            podman_cmd(
+                "run",
+                "--rm",
+                f"--volume={iso}:/iso:ro",
+                f"{BUILDER}:{branch}",
+                "isoinfo",
+                "-R",
+                "-i",
+                "/iso",
+                "-x",
+                path,
+            ),
+            stdout=f,
+            check=True,
+        )
+
+    return f"/workspace/{os.path.basename(path)}"
+
+
 def qemu_cmd(
     *,
     graphical: bool,
     monitor: bool,
     disk: str | None = None,
     cdrom: bool = False,
+    kernel: tuple[str, str, str] | None = None,
+    uefi: bool = True,
 ) -> list[str]:
     kvm: bool = os.path.exists("/dev/kvm")
-    args: list[str] = [
+    return [
         "-machine",
         "q35",
         "-cpu",
@@ -117,27 +171,50 @@ def qemu_cmd(
         "2",
         "-audiodev",
         "none,id=noaudio",
-        "-drive",
-        "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
-        "-drive",
-        "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+        *(
+            ["-display", "sdl", "-vga", "std", "-serial", "none"]
+            if graphical
+            else ["-nographic"]
+        ),
+        *([] if graphical or monitor else ["-monitor", "none"]),
+        *(
+            [
+                "-drive",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+                "-drive",
+                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+            ]
+            if uefi
+            else []
+        ),
+        *(
+            [
+                "-drive",
+                f"file={disk},if=none,id=disk0,format=qcow2",
+                "-device",
+                "virtio-blk-pci,drive=disk0,bootindex=1",
+            ]
+            if disk is not None
+            else []
+        ),
+        *(
+            ["-drive", "file=/iso,format=raw,media=cdrom,readonly=on"]
+            if cdrom or kernel is not None
+            else []
+        ),
+        *(
+            [
+                "-kernel",
+                kernel[0],
+                "-initrd",
+                kernel[1],
+                "-append",
+                f"console=ttyS0,115200 archisobasedir=arkes archisosearchuuid={kernel[2]} copytoram=n cow_spacesize=2G",
+            ]
+            if kernel is not None
+            else []
+        ),
     ]
-
-    if disk is not None:
-        args.extend(["-drive", f"file={disk},if=virtio,format=qcow2"])
-
-    if cdrom:
-        args.extend(["-drive", "file=/iso,format=raw,media=cdrom,readonly=on"])
-
-    if graphical:
-        args.extend(["-display", "sdl", "-vga", "std", "-serial", "none"])
-
-    else:
-        args.extend(["-nographic"])
-        if not monitor:
-            args.extend(["-monitor", "none"])
-
-    return args
 
 
 def workspace_path() -> str:
@@ -230,7 +307,12 @@ def command(args: Namespace) -> None:
                 f"--volume={iso}:/iso:ro",
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(graphical=False, monitor=False, disk=disk, cdrom=True),
+                *qemu_cmd(
+                    graphical=False,
+                    monitor=False,
+                    disk=disk,
+                    cdrom=True,
+                ),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -247,7 +329,7 @@ def command(args: Namespace) -> None:
                 print("boot: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not install(proc, fastInstall):
+            if not install(proc, fastInstall=fastInstall):
                 print("boot: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 
@@ -271,7 +353,11 @@ def command(args: Namespace) -> None:
                 *pod_args,
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(graphical=graphical, monitor=True, disk=disk),
+                *qemu_cmd(
+                    graphical=graphical,
+                    monitor=True,
+                    disk=disk,
+                ),
             ),
         )
         if res:
@@ -285,7 +371,11 @@ def partition_disk(proc: subprocess.Popen[bytes]) -> bool:
     ) and check(proc, "udevadm settle")
 
 
-def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
+def install(
+    proc: subprocess.Popen[bytes],
+    *,
+    fastInstall: bool = False,
+) -> bool:
     return check(
         proc,
         f"""
@@ -296,7 +386,7 @@ def install(proc: subprocess.Popen[bytes], fastInstall: bool) -> bool:
             --password=live \\
             --kernel-commandline=console=ttyS0,115200 \\
             {"--fast-install" if fastInstall else ""} \\
-            $(mountpoint -q /sys/firmware/efi/efivars && echo --secure-boot)
+            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF '--secure-boot' && echo --secure-boot)
         """,
     )
 

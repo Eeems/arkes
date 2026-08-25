@@ -13,8 +13,11 @@ from typing import (
     cast,
 )
 
+import requests
+
 from . import (
     BUILDER,
+    execute,
     podman,
     podman_cmd,
 )
@@ -23,6 +26,7 @@ from .boot import (
     clear_stdin,
     error_exit,
     expect,
+    extract_boot,
     install,
     login,
     partition_disk,
@@ -41,6 +45,12 @@ kwds: dict[str, str] = {
 def register(parser: ArgumentParser) -> None:
     _ = parser.add_argument("iso", help="Path to the iso to boot")
     _ = parser.add_argument(
+        "--from",
+        dest="fromVariant",
+        metavar="VARIANT",
+        help="Test installing and upgrading from the latest version of VARIANT, or from a local iso",
+    )
+    _ = parser.add_argument(
         "--branch",
         default="iso-runner",
         help="iso-runner image ref to use, defaults to iso-runner.",
@@ -48,24 +58,81 @@ def register(parser: ArgumentParser) -> None:
 
 
 def command(args: Namespace) -> None:
-    iso: str = os.path.abspath(cast(str, args.iso))
-    if not os.path.exists(iso):
-        print(f"iso not found: {iso}", file=sys.stderr)
+    targetIso: str = os.path.abspath(cast(str, args.iso))
+    if not os.path.exists(targetIso):
+        print(f"iso not found: {targetIso}", file=sys.stderr)
         sys.exit(1)
 
+    variant: str | None = cast(str | None, args.fromVariant)
     branch: str = ref(cast(str, args.branch))
     image: str = f"{BUILDER}:{branch}"
     _ = atexit.register(clear_stdin)
     with tempfile.TemporaryDirectory(
         prefix="iso-runner-", dir=workspace_path()
     ) as workspace:
+        # The iso to install. In --from mode this is the latest published
+        # release for the variant; otherwise it is the passed-in iso argument.
+        iso: str = targetIso
+        if variant is not None:
+            if os.path.isfile(variant):
+                iso = variant
+            else:
+                res = requests.get(
+                    "https://api.github.com/repos/Eeems/arkes/releases/tags/latest",
+                    timeout=20,
+                )
+                res.raise_for_status()
+                prefix = f"arkes-{variant}-"
+                for line in cast(
+                    str, cast(dict[str, Any], res.json())["body"]
+                ).splitlines():
+                    cells = [
+                        cell.strip() for cell in line.strip().strip("|").split("|")
+                    ]
+                    cell = cells[0] if cells else ""
+                    if not (cell.startswith("[") and "](" in cell):
+                        continue
+
+                    name, _, rest = cell[1:].partition("](")
+                    found_url = rest.partition(")")[0]
+                    if not (
+                        name.startswith(prefix)
+                        and name.endswith(".iso")
+                        and name[len(prefix)].isdigit()
+                    ):
+                        continue
+
+                    filename = name
+                    url = found_url
+                    sha256 = cells[-1].partition("`")[2].partition("`")[0]
+                    break
+
+                else:
+                    print("boot-test: Unable to find iso for variant", file=sys.stderr)
+                    sys.exit(1)
+
+                dest = os.path.join(workspace, filename)
+                print(f"boot-test: downloading {filename}", file=sys.stderr)
+                execute(
+                    "wget",
+                    "--progress=dot:giga",
+                    "--tries=3",
+                    "--output-document",
+                    dest,
+                    url,
+                )
+                sums = os.path.join(workspace, "iso.sha256")
+                with open(sums, "w") as f:
+                    _ = f.write(f"{sha256}  {dest}\n")
+
+                execute("sha256sum", "--check", sums)
+                iso = dest
+
         pod_args: list[str] = [
             f"--volume={workspace}:/workspace",
             "--security-opt=label=disable",
+            *(["--device=/dev/kvm"] if os.path.exists("/dev/kvm") else []),
         ]
-        if os.path.exists("/dev/kvm"):
-            pod_args.append("--device=/dev/kvm")
-
         podman(
             "run",
             "--rm",
@@ -88,9 +155,17 @@ def command(args: Namespace) -> None:
             "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
         )
         disk: str = "/workspace/disk.qcow2"
-
         # Phase 1: boot the iso, validate, install to the target disk.
         cidfile: str = os.path.join(workspace, "phase1.cid")
+        # Published isos older than the serial console wiring cannot be
+        # driven through their own bootloader. The kernel and initrd are
+        # extracted from the iso and booted directly; OVMF loads them via
+        # fw_cfg, keeping efivars available for the legacy os install to
+        # enroll its boot entries.
+        kernel: tuple[str, str, str] | None = None
+        if variant is not None:
+            kernel = extract_boot(iso, workspace, branch)
+
         proc: subprocess.Popen[bytes] = subprocess.Popen(
             podman_cmd(
                 "run",
@@ -102,14 +177,19 @@ def command(args: Namespace) -> None:
                 f"--volume={iso}:/iso:ro",
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(graphical=False, monitor=False, disk=disk, cdrom=True),
+                *qemu_cmd(
+                    graphical=False,
+                    monitor=False,
+                    disk=disk,
+                    cdrom=kernel is None,
+                    kernel=kernel,
+                ),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             bufsize=0,
         )
-
         try:
             if not login(proc):
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
@@ -123,14 +203,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not check(proc, "sbctl status"):
-                print(
-                    "boot-test: efivars not mounted, cannot install with secure boot",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
-            if not install(proc, False):
+            if not install(proc, fastInstall=variant is not None):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 
@@ -144,6 +217,12 @@ def command(args: Namespace) -> None:
 
         # Phase 2: boot the installed disk (uefi, no iso) and validate.
         cidfile = os.path.join(workspace, "phase2.cid")
+        phase2_args: list[str] = list(pod_args)
+        cdrom: bool = False
+        if variant is not None:
+            phase2_args.append(f"--volume={targetIso}:/iso:ro")
+            cdrom = True
+
         proc = subprocess.Popen(
             podman_cmd(
                 "run",
@@ -151,10 +230,15 @@ def command(args: Namespace) -> None:
                 "-i",
                 "--cidfile",
                 cidfile,
-                *pod_args,
+                *phase2_args,
                 image,
                 "qemu-system-x86_64",
-                *qemu_cmd(graphical=False, monitor=False, disk=disk),
+                *qemu_cmd(
+                    graphical=False,
+                    monitor=False,
+                    disk=disk,
+                    cdrom=cdrom,
+                ),
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -173,6 +257,45 @@ def command(args: Namespace) -> None:
             if not check(proc, "os validate --verbose"):
                 print(
                     "boot-test: installed system failed os validate",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            if variant is not None and not check(
+                proc,
+                """
+                  (
+                    set -e
+                    set -o pipefail
+                    echo '[test] mounting iso'
+                    sudo mkdir -p /mnt/iso /mnt/sfs
+                    sudo mount -o ro /dev/sr0 /mnt/iso
+                    sudo modprobe loop
+                    sudo modprobe squashfs
+                    sudo mount -o loop,ro /mnt/iso/arkes/x86_64/airootfs.sfs /mnt/sfs
+                    sudo mkdir -p /var/tmp/sfs-upper /var/tmp/sfs-work
+                    sudo mount -t overlay overlay \\
+                      -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
+                      /mnt/sfs/var/lib/containers/storage
+                    image=$(awk '$1=="FROM"{print $2; exit}' /mnt/sfs/etc/system/Systemfile)
+                    echo '[test] copying image'
+                    sudo podman \\
+                      --root=/mnt/sfs/var/lib/containers/storage \\
+                      --runroot=/var/tmp/podman-runroot \\
+                      --storage-driver=overlay \\
+                      --events-backend=file \\
+                      save --multi-image-archive "$image" |
+                    sudo podman \\
+                      --root=/var/tmp/podman-load-root \\
+                      --runroot=/var/tmp/podman-load-runroot \\
+                      --storage-driver=overlay \\
+                      --events-backend=file \\
+                      load
+                  )
+                """,
+            ):
+                print(
+                    "boot-test: failed to load build into installed system",
                     file=sys.stderr,
                 )
                 error_exit(proc, cidfile)

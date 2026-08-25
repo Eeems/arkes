@@ -330,6 +330,9 @@ class Deployment:
         onstdout: Callable[[bytes], None] = bytes_to_stdout,
         onstderr: Callable[[bytes], None] = bytes_to_stderr,
     ) -> None:
+        if not is_root():
+            raise RuntimeError("chroot can only be called as root")
+
         _mount = partial(
             mount,
             onstdout=onstdout,
