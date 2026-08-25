@@ -285,12 +285,7 @@ def command(args: Namespace) -> None:
                       --storage-driver=overlay \\
                       --events-backend=file \\
                       save --multi-image-archive "$image" |
-                    sudo podman \\
-                      --root=/var/tmp/podman-load-root \\
-                      --runroot=/var/tmp/podman-load-runroot \\
-                      --storage-driver=overlay \\
-                      --events-backend=file \\
-                      load
+                    sudo podman load
                   )
                 """,
             ):
