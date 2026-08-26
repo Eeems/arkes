@@ -787,43 +787,43 @@ def update_loader_entries(
         if os.path.isfile(ukiPath):
             continue
 
-        chroot = partial(
-            deployment.chroot,
-            sysroot=sysroot,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-        sbctl = os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
+        def execOrChroot(deployment: Deployment, script: str) -> None:
+            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                deployment.chroot(
+                    script, sysroot=sysroot, onstdout=onstdout, onstderr=onstderr
+                )
+
+            else:
+                execute_("bash", "-c", script)
+
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
             outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
-            script = "\n".join(
-                [
-                    "set -e",
-                    "export ESP_PATH=/sysroot/boot/efi",
-                    shlex.join(
-                        [
-                            "sbctl",
-                            "bundle",
-                            "--cmdline",
-                            cmdlineFile.name,
-                            "--kernel-img",
-                            f"/sysroot{props['linux']}",
-                            "--initramfs",
-                            f"/sysroot{props['initrd']}",
-                            outputPath,
-                        ]
-                    ),
-                ]
+            execOrChroot(
+                deployment,
+                "\n".join(
+                    [
+                        "set -e",
+                        "export ESP_PATH=/sysroot/boot/efi",
+                        shlex.join(
+                            [
+                                "sbctl",
+                                "bundle",
+                                "--cmdline",
+                                cmdlineFile.name,
+                                "--kernel-img",
+                                f"/sysroot{props['linux']}",
+                                "--initramfs",
+                                f"/sysroot{props['initrd']}",
+                                outputPath,
+                            ]
+                        ),
+                    ]
+                ),
             )
-            if sbctl:
-                chroot(script, sysroot=sysroot)
-
-            else:
-                execute_("bash", "-c", script)
 
         if os.path.isfile(
             os.path.join(
@@ -833,12 +833,7 @@ def update_loader_entries(
                 "var/lib/sbctl/keys/db/db.key",
             )
         ):
-            script = f"sbctl sign -s '{outputPath}'"
-            if sbctl:
-                chroot(script, sysroot=sysroot)
-
-            else:
-                execute_("bash", "-c", script)
+            execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
     assert next_deployment is not None
     for file in staged:
