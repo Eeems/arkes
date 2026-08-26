@@ -261,13 +261,15 @@ jobs:
               --dir "$download_dir"
 
           echo "Assembling ISO..."
-          cat $download_dir/$chunks > "/var/lib/system/$filename"
+          iso_dir="$RUNNER_TEMP/previous"
+          mkdir -p "$iso_dir"
+          cat $download_dir/$chunks > "$iso_dir/$filename"
           rm -rf "$download_dir"
 
-          echo "$sha256  /var/lib/system/$filename" > /tmp/iso.sha256
+          echo "$sha256  $iso_dir/$filename" > /tmp/iso.sha256
           sha256sum --check /tmp/iso.sha256
 
-          echo "path=/var/lib/system/$filename" >> "$GITHUB_OUTPUT"
+          echo "path=$iso_dir/$filename" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
