@@ -9,11 +9,15 @@ log() {
 up() {
   log "Setting up kernel..."
   sysctl net.ipv4.conf.all.rp_filter=0 1>&2
+  sysctl -w net.ipv4.ip_forward=1 1>&2
   log "Setting up networking..."
   ip tuntap add mode tun dev tun0
   ip addr add 192.18.0.1/15 dev tun0
   ip link set dev tun0 up
   ip route add default via 192.18.0.1 dev tun0 metric 1
+  log "Setting up firewall..."
+  iptables -A FORWARD -i tun0 -j ACCEPT
+  iptables -A FORWARD -o tun0 -j ACCEPT
   log "Starting ssh connection..."
   sudo -u eeems ssh -TND 4711 "$1" >/dev/null &
   log "Starting vpn..."
@@ -31,6 +35,8 @@ down() {
   ip route del default via 192.18.0.1 dev tun0 metric 1
   ip link set dev tun0 down
   ip tuntap del mode tun dev tun0
+  iptables -D FORWARD -i tun0 -j ACCEPT || true
+  iptables -D FORWARD -o tun0 -j ACCEPT || true
   log "Stopped."
 }
 ipaddr() {

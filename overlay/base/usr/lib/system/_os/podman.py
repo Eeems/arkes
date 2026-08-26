@@ -320,7 +320,13 @@ def image_name_from_parts(
                 pass
 
             case _:
-                if repo != IMAGE:
+                if repo == OS_NAME:
+                    repo = IMAGE
+
+                if repo == IMAGE:
+                    registry = REGISTRY
+
+                else:
                     registry = "docker.io"
 
     if registry is not None:
@@ -331,8 +337,10 @@ def image_name_from_parts(
 
 def image_qualified_name(image: str) -> str:
     registry, repo, tag, digest = image_name_parts(image)
-    if ((registry or REGISTRY) == REGISTRY) and repo == IMAGE:
+    if ((registry or REGISTRY) == REGISTRY) and repo == IMAGE or repo == OS_NAME:
         registry = REGISTRY
+        if repo == OS_NAME:
+            repo = IMAGE
 
     if registry == "docker.io" and repo == f"library/{OS_NAME}":
         registry = REGISTRY

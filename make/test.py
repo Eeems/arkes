@@ -269,13 +269,14 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            validate(proc, cidfile)
-            if variant is not None and not check(
+            if variant is None:
+                validate(proc, cidfile)
+
+            elif not check(
                 proc,
                 """
                   (
                     set -e
-                    set -o pipefail
                     echo '[test] mounting iso'
                     sudo mkdir -p /mnt/iso /mnt/sfs
                     sudo mount -o ro /dev/sr0 /mnt/iso
@@ -286,15 +287,17 @@ def command(args: Namespace) -> None:
                     sudo mount -t overlay overlay \\
                       -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
                       /mnt/sfs/var/lib/containers/storage
-                    image=$(awk '$1=="FROM"{print $2; exit}' /mnt/sfs/etc/system/Systemfile)
+                    raw=$(awk '$1=="FROM"{print $2; exit}' /mnt/sfs/etc/system/Systemfile)
+                    image=$(python -c "
+                    import sys
+                    sys.path.insert(0, '/usr/lib/system')
+                    from _os.podman import image_qualified_name
+                    print(image_qualified_name(sys.argv[1]))
+                    " "$raw")
                     echo '[test] copying image'
-                    sudo podman \\
-                      --root=/mnt/sfs/var/lib/containers/storage \\
-                      --runroot=/var/tmp/podman-runroot \\
-                      --storage-driver=overlay \\
-                      --events-backend=file \\
-                      save --multi-image-archive "$image" |
-                    sudo podman load
+                    sudo skopeo --insecure-policy copy \\
+                      "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]$image" \\
+                      "containers-storage:$image"
                   )
                 """,
             ):

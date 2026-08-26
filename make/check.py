@@ -14,6 +14,8 @@ from typing import (
 
 from . import (
     IMAGE,
+    OS_NAME,
+    REGISTRY,
     REPO,
     _execute,  # pyright: ignore[reportPrivateUsage]
     _osDir,  # pyright: ignore[reportPrivateUsage]
@@ -79,6 +81,8 @@ def command(args: Namespace) -> None:
     )
     failed = failed or not _assert_name(f"{IMAGE}:latest", f"{REPO}:latest")
     failed = failed or not _assert_name(IMAGE, REPO)
+    failed = failed or not _assert_name(OS_NAME, REPO)
+    failed = failed or not _assert_name(f"{REGISTRY}/{IMAGE}", REPO)
     if shutil.which("niri") is not None:
         print("[check] Checking niri config", file=sys.stderr)
         cmd = shlex.join(
