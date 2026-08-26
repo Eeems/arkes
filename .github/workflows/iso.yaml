@@ -194,66 +194,85 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
+      - name: Fix git permissions
+        run: git config --global --add safe.directory "$(realpath .)"
+
+      - name: Check for previous release ISO
+        id: check-previous
+        shell: bash
+        run: |
+          set -e
+          if ! gh release view "variant/${{ inputs.variant }}" >/dev/null 2>&1; then
+            echo "No previous release for variant/${{ inputs.variant }}, skipping upgrade test"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          manifests=$(gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '[.assets[] | select(.name | endswith(".iso.manifest"))] | length')
+          if [ "$manifests" -eq 0 ]; then
+            echo "No ISO manifest in variant/${{ inputs.variant }} release, skipping upgrade test"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Free up space
+        if: steps.check-previous.outputs.available == 'true'
         uses: ./.github/actions/cleanup
         with:
           root: /run/host
 
       - name: Download iso
+        if: steps.check-previous.outputs.available == 'true'
         uses: actions/download-artifact@v6
         with:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system
 
-      - name: Fix git permissions
-        run: git config --global --add safe.directory "$(realpath .)"
-
       - name: Download previous release ISO
+        if: steps.check-previous.outputs.available == 'true'
         id: download-previous
         shell: bash
         run: |
           set -e
-          if ! gh release view latest >/dev/null 2>&1; then
-            echo "No latest release found, skipping upgrade test"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          download_dir="/tmp/iso-download"
+          rm -rf "$download_dir"
+          mkdir -p "$download_dir"
 
-          body=$(gh release view latest --json body --jq '.body')
-          prefix="arkes-${{ inputs.variant }}-"
-          url=""
-          sha256=""
-          filename=""
+          manifest_asset=$(gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '.assets[] | select(.name | endswith(".iso.manifest")) | .name')
 
-          while IFS= read -r line; do
-            if [[ "$line" != *"[$prefix"* || "$line" != *".iso"* ]]; then
-              continue
-            fi
-            url=$(echo "$line" | sed -n 's/.*](\([^)]*\)).*/\1/p')
-            filename=$(echo "$line" | sed -n 's/.*\[\([^]]*\)\].*/\1/p' | head -1)
-            sha256=$(echo "$line" | sed -n 's/.*`\([^`]*\)`.*/\1/p')
-            break
-          done <<< "$body"
+          gh release download "variant/${{ inputs.variant }}" \
+            --pattern "$manifest_asset" \
+            --dir "$download_dir"
 
-          if [[ -z "$url" ]]; then
-            echo "No ISO found for ${{ inputs.variant }} in latest release, skipping upgrade test"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          filename=$(jq -r '.name' "$download_dir/$manifest_asset")
+          sha256=$(jq -r '.hash' "$download_dir/$manifest_asset")
+          chunks=$(jq -r '.chunks[]' "$download_dir/$manifest_asset")
 
-          echo "Downloading $filename..."
-          wget --progress=dot:giga --tries=3 --output-document "/var/lib/system/$filename" "$url"
+          echo "Downloading $filename ($(( $(echo $chunks | wc -w) )) chunks)..."
+          echo "$chunks" | xargs -P 0 -I {} \
+            gh release download "variant/${{ inputs.variant }}" \
+              --pattern {} \
+              --dir "$download_dir"
+
+          echo "Assembling ISO..."
+          cat $download_dir/$chunks > "/var/lib/system/$filename"
+          rm -rf "$download_dir"
 
           echo "$sha256  /var/lib/system/$filename" > /tmp/iso.sha256
           sha256sum --check /tmp/iso.sha256
 
-          echo "exists=true" >> "$GITHUB_OUTPUT"
           echo "path=/var/lib/system/$filename" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade path test
-        if: steps.download-previous.outputs.exists == 'true'
+        if: steps.check-previous.outputs.available == 'true'
         uses: ./.github/actions/run-with-podman-service
         timeout-minutes: 90
         with:
