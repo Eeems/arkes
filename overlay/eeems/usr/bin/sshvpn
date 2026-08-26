@@ -9,7 +9,6 @@ log() {
 up() {
   log "Setting up kernel..."
   sysctl net.ipv4.conf.all.rp_filter=0 1>&2
-  sysctl net.ipv4.conf.enp7s0.rp_filter=0 1>&2
   log "Setting up networking..."
   ip tuntap add mode tun dev tun0
   ip addr add 192.18.0.1/15 dev tun0
@@ -21,7 +20,6 @@ up() {
   tun2socks \
     --device tun0 \
     --proxy socks5://localhost:4711 \
-    --interface enp7s0 \
     --loglevel error \
     >/dev/null &
 }
