@@ -296,7 +296,7 @@ jobs:
       - name: Fix git permissions
         run: git config --global --add safe.directory "$(realpath .)"
 
-      - name: Remove old release
+      - name: Prepare release
         shell: bash
         run: |
           set -e
@@ -304,12 +304,6 @@ jobs:
           git push -f origin "refs/tags/variant/${{ inputs.variant }}"
 
           truncate --size 0 /tmp/body.txt
-          {
-            echo "<!-- START_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
-            echo "> [!WARNING]"
-            echo "> New ISO is being uploaded."
-            echo "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
-          } > /tmp/body.txt
 
           if gh release view "variant/${{ inputs.variant }}" 1>/dev/null 2>/dev/null; then
             gh release edit "variant/${{ inputs.variant }}" \
@@ -325,12 +319,7 @@ jobs:
 
           gh release view "variant/${{ inputs.variant }}" \
             --json assets \
-            --jq '.assets.[].name' \
-          | xargs -rI{} \
-            gh release delete-asset \
-              "variant/${{ inputs.variant }}" \
-              "{}" \
-              --yes
+            --jq '.assets.[].name' > /tmp/old_assets.txt
 
           mv /var/lib/system/arkes-${{ inputs.variant }}-*.iso .
         env:
@@ -349,6 +338,69 @@ jobs:
           draft: false
           prerelease: true
           worker_url: "https://gh-releases.nathaniel-van-diepen.workers.dev"
+
+      - name: Remove old release assets
+        shell: bash
+        run: |
+          set -e
+          while read -r asset; do
+            [ -z "$asset" ] && continue
+            gh release delete-asset \
+              "variant/${{ inputs.variant }}" \
+              "$asset" \
+              --yes
+          done < /tmp/old_assets.txt
+
+          gh release view "variant/${{ inputs.variant }}" \
+            --json body --jq '.body' > /tmp/release_body.txt
+          gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '.assets.[].name' > /tmp/current_assets.txt
+
+          python3 << 'PYEOF'
+          import re
+
+          with open("/tmp/release_body.txt") as f:
+              body = f.read()
+
+          with open("/tmp/current_assets.txt") as f:
+              assets = set(line.strip() for line in f if line.strip())
+
+          tag_start = "<!-- START_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
+          tag_end = "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
+
+          lines = body.split("\n")
+          result = []
+          in_grid = False
+          for line in lines:
+              if tag_start in line:
+                  in_grid = True
+                  result.append(line)
+                  continue
+
+              if tag_end in line:
+                  in_grid = False
+                  result.append(line)
+                  continue
+
+              if in_grid and "|" in line and "[" in line:
+                  match = re.search(r"\[([^\]]+)\]", line)
+                  if match:
+                      filename = match.group(1)
+                      if filename in assets or f"{filename}.manifest" in assets:
+                          result.append(line)
+
+                  continue
+
+              result.append(line)
+
+          with open("/tmp/new_body.txt", "w") as f:
+              f.write("\n".join(result))
+          PYEOF
+
+          gh release edit "variant/${{ inputs.variant }}" \
+            --notes-file /tmp/new_body.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update latest release
         shell: bash
