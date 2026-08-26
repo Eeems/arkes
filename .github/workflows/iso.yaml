@@ -272,6 +272,9 @@ jobs:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system
 
+      - name: Fix git permissions
+        run: git config --global --add safe.directory "$(realpath .)"
+
       - name: Remove old release
         shell: bash
         run: |

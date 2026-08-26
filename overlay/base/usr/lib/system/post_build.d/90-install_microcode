@@ -2,9 +2,9 @@
 echo "[system] Installing microcode"
 case "$(grep vendor_id /proc/cpuinfo | cut -d: -f2 | uniq | xargs)" in
 GenuineIntel)
-  chronic /usr/lib/system/package_layer intel-ucode
+  chronic /usr/lib/system/install_packages intel-ucode
   ;;
 AuthenticAMD)
-  chronic /usr/lib/system/package_layer amd-ucode
+  chronic /usr/lib/system/install_packages amd-ucode
   ;;
 esac
