@@ -10,6 +10,7 @@ from datetime import (
     UTC,
     datetime,
 )
+from tempfile import TemporaryDirectory
 from typing import (
     Any,
     cast,
@@ -89,25 +90,31 @@ def build(target: str, cache: bool = True) -> None:
     if target == "rootfs":
         build_args["HASH"] = hash(target)
 
-    podman(
-        "build",
-        f"--tag={build_tag}",
-        *[f"--build-arg={k}={v}" for k, v in build_args.items()],
-        *[] if cache else ["--no-cache"],
-        "--force-rm",
-        "--cap-add=SYS_ADMIN",
-        "--pull=never",
-        "--volume=/var/cache/pacman:/var/cache/pacman",
-        f"--file={containerfile}",
-        "--format=oci",
-        "--timestamp=1735689640",
-        "--annotation=io.github.containers.compression.zstd=true",
-        ".",
-    )
-    if target == "rootfs":
-        podman("tag", build_tag, f"{REPO}:{target}")
-        podman("rmi", build_tag)
-        return
+    with TemporaryDirectory() as gnupg_dir:
+        podman(
+            "build",
+            f"--tag={build_tag}",
+            *[f"--build-arg={k}={v}" for k, v in build_args.items()],
+            *[] if cache else ["--no-cache"],
+            "--force-rm",
+            "--cap-add=SYS_ADMIN",
+            "--pull=never",
+            "--volume=/var/cache/pacman:/var/cache/pacman",
+            *(
+                [f"--volume={gnupg_dir}:/etc/pacman.d/gnupg"]
+                if target != "rootfs"
+                else []
+            ),
+            f"--file={containerfile}",
+            "--format=oci",
+            "--timestamp=1735689640",
+            "--annotation=io.github.containers.compression.zstd=true",
+            ".",
+        )
+        if target == "rootfs":
+            podman("tag", build_tag, f"{REPO}:{target}")
+            podman("rmi", build_tag)
+            return
 
     build_args["HASH"] = hash(target)
     if "-" in target and not os.path.exists(f"variants/{target}.Containerfile"):

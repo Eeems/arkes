@@ -427,18 +427,16 @@ def image_size(image: str) -> int:
 CONTAINER_POST_STEPS = r"""
 ARG KARGS
 ARG PACKAGES
-
-RUN \
-  SOURCE_DATE_EPOCH=0 \
-  PACKAGES="${PACKAGES}" \
-  KARGS="${KARGS}" \
-  /usr/lib/system/post_build
-
 ARG VERSION_ID
 
-RUN \
-  VERSION_ID=${VERSION_ID} \
-  /usr/lib/system/set_build_id
+RUN <<EOT
+  set -e
+  SOURCE_DATE_EPOCH=0 \
+  KARGS="${KARGS}" \
+  PACKAGES="${PACKAGES}" \
+  VERSION_ID="${VERSION_ID}" \
+  /usr/lib/system/post_build
+EOT
 """
 
 
@@ -492,6 +490,7 @@ def build(
             "--cap-add=SYS_ADMIN",
             *[f"--build-arg={k}={v}" for k, v in _buildArgs.items()],
             f"--volume={cache}:{cache}",
+            "--volume=/etc/pacman.d/gnupg:/etc/pacman.d/gnupg",
             f"--file={containerfile}",
             "--format=oci",
             "--timestamp=1735689640",

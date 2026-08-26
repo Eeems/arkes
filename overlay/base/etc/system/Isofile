@@ -16,10 +16,6 @@ RUN <<EOT
   cp -lf \
     /etc/system/linux-zen-archiso.preset \
     /etc/mkinitcpio.d/linux-zen.preset
-  cp -lf \
-    /etc/system/pacman-initialize.service \
-    /etc/systemd/system/pacman-initialize.service
-  systemctl enable pacman-initialize.service
 EOT
 
 # Base tools needed for installation

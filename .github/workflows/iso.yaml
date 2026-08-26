@@ -23,7 +23,6 @@ on:
         required: false
         default: ""
       push:
-        # TODO implement this
         description: Push the generated iso
         type: boolean
         default: false
@@ -33,7 +32,7 @@ on:
         required: false
         type: string
       iso_runner:
-        description: Content hash of the iso runner image to use for boot tests
+        description: Content hash of the iso runner image to use for tests
         required: false
         type: string
   workflow_dispatch:
@@ -120,7 +119,7 @@ jobs:
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   test-install:
-    name: Boot test arkes:${{ inputs.variant }} iso
+    name: Install test arkes:${{ inputs.variant }} iso
     needs: build
     runs-on: ubuntu-latest
     container:

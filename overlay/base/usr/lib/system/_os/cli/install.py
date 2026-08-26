@@ -1,4 +1,3 @@
-import atexit
 import os
 import shlex
 import shutil
@@ -10,6 +9,7 @@ from argparse import (
 )
 from getpass import getpass
 from glob import iglob
+from threading import Thread
 from typing import (
     Any,
     cast,
@@ -106,6 +106,53 @@ def command(args: Namespace) -> None:
     )
 
 
+def copy_images(sysroot: str, result: dict[str, str]) -> None:
+    output = bytearray()
+    try:
+        tmp = os.path.join(sysroot, ".tmp")
+        os.mkdir(tmp)
+        execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
+        storage = os.path.join(
+            sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
+        )
+        execute(
+            "bash",
+            "-c",
+            " | ".join(
+                [
+                    shlex.join(
+                        podman_cmd(
+                            "save",
+                            "--multi-image-archive",
+                            "system:latest",
+                            baseImage(),
+                        )
+                    ),
+                    shlex.join(
+                        [
+                            "podman",
+                            f"--root={storage}",
+                            "--runroot=/tmp/podman-runroot",
+                            "--storage-driver=overlay",
+                            "--events-backend=file",
+                            "load",
+                        ]
+                    ),
+                ]
+            ),
+            onstdout=output.extend,
+            onstderr=output.extend,
+        )
+        os.unlink(os.path.join(storage, "db.sql"))
+        os.sync()
+        execute("umount", "/var/tmp")  # noqa: S108
+        os.rmdir(tmp)
+
+    except BaseException as e:
+        result["error"] = f"{e}\n{output.decode('utf-8', errors='replace')}"
+        raise
+
+
 def install(
     *,
     branch: str = "system",
@@ -184,6 +231,14 @@ def install(
         """,
     )
     deployment = deploy(branch, sysroot)
+
+    copy_result: dict[str, str] = {}
+    copy_thread: Thread | None = None
+    if not fastInstall:
+        print("[system] Copying images in background", file=sys.stderr)
+        copy_thread = Thread(target=copy_images, args=(sysroot, copy_result))
+        copy_thread.start()
+
     execute("bootctl", "install", f"--esp-path={sysroot}/boot/efi")
     sysPath = [
         x.path
@@ -223,44 +278,12 @@ def install(
     )
 
     if not fastInstall:
-        tmp = os.path.join(sysroot, ".tmp")
-        os.mkdir(tmp)
-        execute("mount", "-o", "bind", tmp, "/var/tmp")  # noqa: S108
-        exitFunc1 = atexit.register(execute, "umount", "/var/tmp")  # noqa: S108
-        storage = os.path.join(
-            sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
-        )
-        execute(
-            "bash",
-            "-c",
-            " | ".join(
-                [
-                    shlex.join(
-                        podman_cmd(
-                            "save",
-                            "--multi-image-archive",
-                            "system:latest",
-                            baseImage(),
-                        )
-                    ),
-                    shlex.join(
-                        [
-                            "podman",
-                            f"--root={storage}",
-                            "--runroot=/tmp/podman-runroot",
-                            "--storage-driver=overlay",
-                            "--events-backend=file",
-                            "load",
-                        ]
-                    ),
-                ]
-            ),
-        )
-        os.unlink(os.path.join(storage, "db.sql"))
-        atexit.unregister(exitFunc1)
-        os.sync()
-        execute("umount", "/var/tmp")  # noqa: S108
-        os.rmdir(tmp)
+        assert copy_thread is not None
+        print("[system] Waiting for image copy to finish", file=sys.stderr)
+        copy_thread.join()
+        if "error" in copy_result:
+            print(copy_result["error"], file=sys.stderr)
+            sys.exit(1)
 
     os.sync()
     execute("umount", "--lazy", "--recursive", sysroot)

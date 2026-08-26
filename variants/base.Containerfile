@@ -11,7 +11,6 @@ RUN <<EOT
   /usr/lib/system/package_layer \
     base \
     bluez \
-    broadcom-wl-dkms \
     btrfs-progs \
     colordiff \
     debugedit \
@@ -64,8 +63,9 @@ RUN <<EOT
   ln -s /usr/bin/sudo{-rs,}
   ln -s /usr/bin/visudo{-rs,}
   chmod u+s /usr/bin/new{u,g}idmap
-  rm -f /etc/containers/storage.conf
   rm /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook
+  /usr/lib/system/package_layer \
+    broadcom-wl-dkms
 EOT
 
 COPY overlay/base /
@@ -84,13 +84,14 @@ EOT
 RUN <<EOT
   set -e
   systemctl enable \
-    NetworkManager \
-    bluetooth \
-    podman \
-    atomic-state-overlay \
-    os-daemon \
+    NetworkManager.service \
+    bluetooth.service \
+    podman.service \
+    atomic-state-overlay.service \
+    os-daemon.service \
     os-checkupdates.timer \
-    systemd-timesyncd
+    systemd-timesyncd.service \
+    pacman-initialize.service
   mkdir -p /var/lib/system
   chmod 400 /etc/sudoers
   chmod 644 /etc/pam.d/sudo{,-i}

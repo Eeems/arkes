@@ -13,7 +13,6 @@ RUN mkdir -p /var/roothome/.cache \
   && /usr/lib/system/remove_unused_packages \
   && echo "[system] Updating packages" \
   && chronic pacman -Syu --needed --noconfirm \
-  && /usr/lib/system/remove_pacman_files \
   && rm -r /var/roothome/.cache
 
 FROM scratch

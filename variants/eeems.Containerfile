@@ -17,8 +17,7 @@ RUN /usr/lib/system/add_pacman_repository \
   --server=https://repo.eeems.website/\$repo \
   --server=https://repo.eeems.codes/\$repo \
   eeems-linux \
-  && /usr/lib/system/install_packages eeems-keyring \
-  && /usr/lib/system/remove_pacman_files
+  && /usr/lib/system/install_packages eeems-keyring
 
 RUN /usr/lib/system/package_layer \
   sublime-text \
