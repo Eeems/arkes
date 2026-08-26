@@ -18,6 +18,7 @@ import requests
 from . import (
     BUILDER,
     execute,
+    image_qualified_name,
     podman,
     podman_cmd,
 )
@@ -31,6 +32,7 @@ from .boot import (
     login,
     partition_disk,
     qemu_cmd,
+    run,
     send,
     stop,
     workspace_path,
@@ -288,18 +290,34 @@ def command(args: Namespace) -> None:
                     sudo mount -t overlay overlay \\
                       -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
                       /mnt/sfs/var/lib/containers/storage
-                    raw=$(awk '$1=="FROM"{print $2; exit}' /mnt/sfs/etc/system/Systemfile)
-                    image=$(python -c "
-                    import sys
-                    sys.path.insert(0, '/usr/lib/system')
-                    from _os.podman import image_qualified_name
-                    print(image_qualified_name(sys.argv[1]))
-                    " "$raw")
-                    echo '[test] copying image'
-                    sudo skopeo --insecure-policy copy \\
-                      "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]$image" \\
-                      "containers-storage:$image"
                   )
+                """,
+            ):
+                print(
+                    "boot-test: failed to mount iso",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            output = run(
+                proc,
+                "awk '$1==\"FROM\"{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
+            )
+            if output is None:
+                print(
+                    "boot-test: failed to read FROM line",
+                    file=sys.stderr,
+                )
+                error_exit(proc, cidfile)
+
+            image = image_qualified_name(output.decode())
+            if not check(
+                proc,
+                f"""
+                  echo '[test] copying image'
+                  sudo skopeo --insecure-policy copy \\
+                    "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]{image}" \\
+                    "containers-storage:{image}"
                 """,
             ):
                 print(

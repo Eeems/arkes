@@ -538,6 +538,47 @@ def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
     return False
 
 
+def run(
+    proc: subprocess.Popen[bytes],
+    cmd: str,
+    timeout: float | None = None,
+) -> bytes | None:
+    assert proc.stdout is not None
+    send(proc, f"{cmd.strip()}\n".encode())
+    buffer = b""
+    deadline: float | None = None
+    if timeout is not None:
+        deadline = time.monotonic() + timeout
+
+    while proc.poll() is None:
+        if deadline is not None:
+            remaining: float = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+
+            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
+            if not readable:
+                return None
+
+        data: bytes = read(proc)
+        if not data:
+            continue
+
+        buffer += data
+        for pattern in [b"~]$", b"~]#"]:
+            idx = buffer.find(pattern)
+            if idx != -1:
+                output = buffer[:idx]
+                # Strip the echoed command line from the serial console
+                first_newline = output.find(b"\n")
+                if first_newline != -1:
+                    output = output[first_newline + 1 :]
+
+                return output.strip()
+
+    return None
+
+
 def expect(
     proc: subprocess.Popen[bytes],
     patterns: list[bytes],
