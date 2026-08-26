@@ -18,7 +18,7 @@ def register(_: ArgumentParser) -> None:
 
 
 def command(_: Namespace) -> None:
-    sys.exit(execute("os undeploy 0", check=False))
+    sys.exit(execute("os", "undeploy", "0", check=False))
 
 
 if __name__ == "__main__":
