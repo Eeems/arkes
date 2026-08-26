@@ -209,6 +209,7 @@ def install(
     execute("ostree", "admin", "stateroot-init", f"--sysroot={sysroot}", OS_NAME)
     ostree("init", "--mode=bare")
     ostree("config", "set", "sysroot.bootprefix", "1")
+    ostree("config", "set", "sysroot.bootloader", "none")
     systemfile = "/tmp/Systemfile"  # noqa: S108
     if os.path.exists(systemfile):
         os.unlink(systemfile)

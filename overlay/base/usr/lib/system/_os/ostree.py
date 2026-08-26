@@ -788,28 +788,30 @@ def update_loader_entries(sysroot: str = "/") -> None:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
             outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
-            deployment.chroot(
-                "\n".join(
-                    [
-                        "set -e",
-                        "export ESP_PATH=/sysroot/boot/efi",
-                        shlex.join(
-                            [
-                                "sbctl",
-                                "bundle",
-                                "--cmdline",
-                                cmdlineFile.name,
-                                "--kernel-img",
-                                f"/sysroot{props['linux']}",
-                                "--initramfs",
-                                f"/sysroot{props['initrd']}",
-                                outputPath,
-                            ]
-                        ),
-                    ]
-                ),
-                sysroot=sysroot,
+            script = "\n".join(
+                [
+                    "set -e",
+                    "export ESP_PATH=/sysroot/boot/efi",
+                    shlex.join(
+                        [
+                            "sbctl",
+                            "bundle",
+                            "--cmdline",
+                            cmdlineFile.name,
+                            "--kernel-img",
+                            f"/sysroot{props['linux']}",
+                            "--initramfs",
+                            f"/sysroot{props['initrd']}",
+                            outputPath,
+                        ]
+                    ),
+                ]
             )
+            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                deployment.chroot(script, sysroot=sysroot)
+
+            else:
+                execute("bash", "-c", script)
 
         if os.path.isfile(
             os.path.join(
@@ -860,6 +862,7 @@ def update_bootloader(
         onstderr=onstderr,
     )
     if not systemd_boot_installed(sysroot):
+        ostree("config", "set", "sysroot.bootloader", "none")
         chroot("bootctl install --esp-path=/sysroot/boot/efi")
 
     else:
