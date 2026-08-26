@@ -386,7 +386,7 @@ def install(
             --password=live \\
             --kernel-commandline=console=ttyS0,115200 \\
             {"--fast-install" if fastInstall else ""} \\
-            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF '--secure-boot' && echo --secure-boot)
+            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
         """,
     )
 
