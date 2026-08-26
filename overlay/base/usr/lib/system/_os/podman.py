@@ -432,10 +432,11 @@ ARG VERSION_ID
 RUN <<EOT
   set -e
   SOURCE_DATE_EPOCH=0 \
-  KARGS="${KARGS}" \
   PACKAGES="${PACKAGES}" \
-  VERSION_ID="${VERSION_ID}" \
+  KARGS="${KARGS}" \
   /usr/lib/system/post_build
+  VERSION_ID=${VERSION_ID} \
+  /usr/lib/system/set_build_id
 EOT
 """
 
