@@ -94,6 +94,7 @@ def command(args: Namespace) -> None:
         if variant is not None:
             if os.path.isfile(variant):
                 iso = variant
+
             else:
                 res = requests.get(
                     "https://api.github.com/repos/Eeems/arkes/releases/tags/latest",
@@ -305,6 +306,16 @@ def command(args: Namespace) -> None:
                     "boot-test: failed to load build into installed system",
                     file=sys.stderr,
                 )
+                error_exit(proc, cidfile)
+
+            if variant is not None and check(
+                proc,
+                """
+                  sudo cp /mnt/sfs/etc/system/Systemfile /etc/system/Systemfile
+                  sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+                """,
+            ):
+                print("boot-test: failed to patch Systemfile", file=sys.stderr)
                 error_exit(proc, cidfile)
 
             # Run the upgrade in the background while verifying that the

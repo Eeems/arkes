@@ -379,14 +379,18 @@ def install(
     return check(
         proc,
         f"""
-          sudo os install \\
-            --system-partition=/dev/vda2 \\
-            --boot-partition=/dev/vda1 \\
-            --format-partitions \\
-            --password=live \\
-            --kernel-commandline=console=ttyS0,115200 \\
-            {"--fast-install" if fastInstall else ""} \\
-            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
+          (
+            set -e
+            sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+            sudo os install \\
+              --system-partition=/dev/vda2 \\
+              --boot-partition=/dev/vda1 \\
+              --format-partitions \\
+              --password=live \\
+              --kernel-commandline=console=ttyS0,115200 \\
+              {"--fast-install" if fastInstall else ""} \\
+              $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
+         )
         """,
     )
 
