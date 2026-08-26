@@ -2,6 +2,7 @@ import atexit
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 from argparse import (
     ArgumentParser,
@@ -16,12 +17,11 @@ from typing import (
 
 from .. import OS_NAME
 from ..ostree import (
-    chroot,
     commit_export,
     deploy,
-    deployments,
     ostree,
-    update_grub_config,
+    update_bootloader,
+    update_loader_entries,
 )
 from ..podman import (
     build,
@@ -71,6 +71,12 @@ def register(parser: ArgumentParser) -> None:
         dest="fastInstall",
         help="Don't copy the system and base images as part of the install",
     )
+    _ = parser.add_argument(
+        "--secure-boot",
+        action="store_true",
+        dest="secureBoot",
+        help="Generate secure boot keys, register them, and sign the boot files",
+    )
     _ = parser.add_argument("--password", default=None, help="New root password")
     _ = parser.add_argument(
         "--package", action="append", help="Extra package to install", default=[]
@@ -96,6 +102,7 @@ def command(args: Namespace) -> None:
         password=cast(str, args.password),
         extraPackages=packages,
         fastInstall=cast(bool, args.fastInstall),
+        secureBoot=cast(bool, args.secureBoot),
     )
 
 
@@ -110,6 +117,7 @@ def install(
     password: str | None = None,
     extraPackages: list[str] | None = None,
     fastInstall: bool = False,
+    secureBoot: bool = False,
 ) -> None:
     if os.path.exists("/ostree"):
         print("Cannot install on existing system")
@@ -134,6 +142,10 @@ def install(
 
     if dev_boot is None:
         print("Boot partition must be specified")
+        sys.exit(1)
+
+    if subprocess.check_output(["lsblk", "-no", "pttype", dev_boot]).strip() != b"gpt":
+        print(f"Boot partition {dev_boot} is not on a GPT disk", file=sys.stderr)
         sys.exit(1)
 
     setattr(ostree, "repo", os.path.normpath(f"{sysroot}/{getattr(ostree, 'repo')}"))
@@ -171,16 +183,8 @@ def install(
         rm -rf /var/*
         """,
     )
-    deploy(branch, sysroot)
-    execute(
-        "grub-install",
-        "--target=x86_64-efi",
-        f"--efi-directory={sysroot}/boot/efi",
-        f"--boot-directory={sysroot}/boot/efi/EFI",
-        f"--bootloader-id={OS_NAME}",
-        "--removable",
-        dev_boot,
-    )
+    deployment = deploy(branch, sysroot)
+    execute("bootctl", "install", f"--esp-path={sysroot}/boot/efi")
     sysPath = [
         x.path
         for x in os.scandir(os.path.join(sysroot, f"ostree/deploy/{OS_NAME}/deploy"))
@@ -199,9 +203,21 @@ def install(
     execute(
         "bash", "-c", f"genfstab -U {sysroot} >> {os.path.join(sysPath, 'etc/fstab')}"
     )
-    update_grub_config(sysroot)
-    chroot(
-        list(deployments(sysroot))[0],
+    if secureBoot:
+        deployment.chroot(
+            """
+            set -e
+            mkdir /var/lib
+            export ESP_PATH=/sysroot/boot/efi
+            sbctl create-keys
+            sbctl enroll-keys -m
+            """,
+            sysroot=sysroot,
+        )
+
+    update_loader_entries(sysroot)
+    update_bootloader(sysroot, deployment=deployment)
+    deployment.chroot(
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
         sysroot=sysroot,
     )
@@ -242,10 +258,12 @@ def install(
         )
         os.unlink(os.path.join(storage, "db.sql"))
         atexit.unregister(exitFunc1)
+        os.sync()
         execute("umount", "/var/tmp")  # noqa: S108
         os.rmdir(tmp)
 
-    execute("umount", "--recursive", sysroot)
+    os.sync()
+    execute("umount", "--lazy", "--recursive", sysroot)
 
 
 if __name__ == "__main__":

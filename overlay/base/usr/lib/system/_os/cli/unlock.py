@@ -8,7 +8,7 @@ from typing import (
     cast,
 )
 
-from ..ostree import update_grub_config
+from ..ostree import update_loader_entries
 from ..system import (
     execute,
     is_root,
@@ -37,7 +37,7 @@ def command(args: Namespace) -> None:
 
     execute("ostree", "admin", "unlock", *argv)
     if hotfix:
-        update_grub_config()
+        update_loader_entries()
 
 
 if __name__ == "__main__":

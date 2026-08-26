@@ -27,7 +27,6 @@ RUN <<EOT
     flatpak \
     fuse-overlayfs \
     git \
-    grub \
     htop \
     less \
     linux-firmware \
@@ -50,6 +49,7 @@ RUN <<EOT
     python-requests \
     rsync \
     run-parts \
+    sbctl \
     skopeo \
     squashfs-tools \
     sudo-rs \

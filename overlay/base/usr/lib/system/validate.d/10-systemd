@@ -7,7 +7,7 @@ fi
 
 # Work around bug in cosmic variant
 if systemctl is-failed systemd-vconsole-setup.service; then
-  systemctl reset-failed systemd-vconsole-setup.service
+  sudo systemctl reset-failed systemd-vconsole-setup.service
   if chronic systemctl is-system-running --wait; then
     exit 0
   fi

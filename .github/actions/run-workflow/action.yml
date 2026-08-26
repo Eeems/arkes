@@ -13,12 +13,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Fix git permissions
+      shell: bash
+      run: git config --global --add safe.directory "$(realpath .)"
+
     - name: Get valid ref
       shell: bash
       id: get_ref
       run: |
         set -euo pipefail
-        git config --global --add safe.directory "$(realpath .)"
         REF=""
 
         if [[ -n "${GITHUB_HEAD_REF:-}" ]]; then

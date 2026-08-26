@@ -19,7 +19,8 @@ from ..ostree import (
     commit_export,
     deploy,
     prune,
-    update_grub_config,
+    update_bootloader,
+    update_loader_entries,
 )
 from ..podman import (
     build,
@@ -171,12 +172,14 @@ class Object(dbus.service.Object):
                 self.upgrade_stderr(b"PROGRESS 3/5 Pruning ostree\n")
                 prune(onstdout=self.upgrade_stdout, onstderr=self.upgrade_stderr)
                 self.upgrade_stderr(b"PROGRESS 4/5 Deploying ostree\n")
-                deploy(
+                deployment = deploy(
                     onstdout=self.upgrade_stdout,
                     onstderr=self.upgrade_stderr,
                 )
                 self.upgrade_stderr(b"PROGRESS 5/5 Updating bootloader\n")
-                update_grub_config(
+                update_loader_entries()
+                update_bootloader(
+                    deployment=deployment,
                     onstdout=self.upgrade_stdout,
                     onstderr=self.upgrade_stderr,
                 )

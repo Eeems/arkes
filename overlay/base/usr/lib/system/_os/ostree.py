@@ -2,22 +2,32 @@
 import os
 import shlex
 import subprocess
+import sys
+import tempfile
 from collections.abc import (
     Callable,
     Generator,
 )
+from contextlib import ExitStack
 from datetime import datetime
+from functools import partial
 from glob import iglob
+from itertools import chain
 from typing import cast
 
 import gi  # pyright: ignore[reportMissingTypeStubs]
 
 from . import OS_NAME, ROOTFS_PATH, SYSTEM_PATH
-from .console import bytes_to_stderr, bytes_to_stdout
+from .console import (
+    bytes_to_stderr,
+    bytes_to_stdout,
+)
 from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
     baseImage,
     execute,
+    is_root,
+    mount,
 )
 
 gi.require_version("OSTree", "1.0")  # pyright: ignore[reportUnknownMemberType]
@@ -132,49 +142,6 @@ def commit_export(
             )
 
 
-def deploy(
-    branch: str = "system",
-    sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,  # pyright:ignore [reportUnusedParameter]
-    onstderr: Callable[[bytes], None] = bytes_to_stderr,  # pyright:ignore [reportUnusedParameter]
-) -> None:
-    kargs = ["--karg=root=LABEL=SYS_ROOT", "--karg=rw"]
-    revision = f"{OS_NAME}/{branch}"
-    if b"/usr/etc/system/commandline" in subprocess.check_output(
-        ostree_cmd("ls", revision, "/usr/etc/system")
-    ):
-        kernelCommandline = (
-            subprocess.check_output(
-                ostree_cmd("cat", revision, "/usr/etc/system/commandline")
-            )
-            .strip()
-            .decode("UTF-8")
-        )
-        for karg in kernelCommandline.split():
-            kargs.append(f"--karg={karg.strip()}")
-
-    stateroot = OS_NAME
-    if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
-        stateroot = current_deployment().stateroot
-
-    cmd = shlex.join(
-        [
-            "ostree",
-            "admin",
-            "deploy",
-            f"--sysroot={sysroot}",
-            *kargs,
-            f"--os={OS_NAME}",
-            f"--stateroot={stateroot}",
-            "--retain",
-            revision,
-        ]
-    )
-    ret = _execute(cmd)
-    if ret:
-        raise subprocess.CalledProcessError(ret, cmd, None, None)
-
-
 def prune(
     branch: str = "system",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
@@ -219,6 +186,10 @@ class Deployment:
     @property
     def checksum(self) -> str:
         return self.deployment.get_csum()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+
+    @property
+    def checksum_str(self) -> str:
+        return f"{self.checksum}.{self.serial}" if self.serial else str(self.checksum)
 
     @property
     def stateroot(self) -> str:
@@ -314,15 +285,11 @@ class Deployment:
 
     @property
     def packages(self) -> dict[str, str]:
-        from .system import in_nspawn_system_output  # noqa: PLC0415
-
         packages: list[tuple[str, str]] = []
         try:
             packages = [
                 cast(tuple[str, str], tuple(x.split(" ", 1)))
-                for x in in_nspawn_system_output(
-                    "pacman", "-Q", deployment=self, quiet=True
-                )
+                for x in self.nspawn_output("pacman", "-Q", quiet=True)
                 .strip()
                 .decode("utf-8")
                 .splitlines()
@@ -356,6 +323,188 @@ class Deployment:
     def image(self) -> str:
         return baseImage(os.path.join(self.path, "etc/system/Systemfile"))
 
+    def chroot(
+        self,
+        cmd: str,
+        sysroot: str = "/",
+        onstdout: Callable[[bytes], None] = bytes_to_stdout,
+        onstderr: Callable[[bytes], None] = bytes_to_stderr,
+    ) -> None:
+        if not is_root():
+            raise RuntimeError("chroot can only be called as root")
+
+        _mount = partial(
+            mount,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+        with ExitStack() as stack:
+            sysroot_partition = (
+                subprocess.check_output(
+                    [
+                        "findmnt",
+                        "--noheadings",
+                        "--output",
+                        "SOURCE",
+                        "--target",
+                        sysroot,
+                    ]
+                )
+                .decode()
+                .strip()
+                .split("[", 1)[0]
+            )
+            stack.enter_context(
+                _mount(sysroot_partition, os.path.join(self.path, "sysroot"))
+            )
+            boot_partition = (
+                subprocess.check_output(
+                    [
+                        "findmnt",
+                        "--noheadings",
+                        "--output",
+                        "SOURCE",
+                        "--target",
+                        os.path.join(sysroot, "boot/efi"),
+                    ]
+                )
+                .decode()
+                .strip()
+                .split("[", 1)[0]
+            )
+            stack.enter_context(
+                _mount(boot_partition, os.path.join(self.path, "sysroot/boot/efi"))
+            )
+            stack.enter_context(
+                _mount(
+                    os.path.join(sysroot, "ostree/deploy", self.stateroot, "var"),
+                    os.path.join(self.path, "var"),
+                    rbind=True,
+                )
+            )
+            for i in ["dev", "proc", "sys", "tmp"]:
+                stack.enter_context(
+                    _mount(f"/{i}", os.path.join(self.path, i), bind=True)
+                )
+
+            if os.path.exists("/sys/firmware/efi/efivars"):
+                stack.enter_context(
+                    _mount(
+                        "/sys/firmware/efi/efivars",
+                        os.path.join(self.path, "sys/firmware/efi/efivars"),
+                        rbind=True,
+                    )
+                )
+
+            execute(
+                "chroot",
+                self.path,
+                "/bin/bash",
+                "-c",
+                cmd,
+                onstdout=onstdout,
+                onstderr=onstderr,
+            )
+            os.sync()
+
+    def nspawn(
+        self,
+        *args: str,
+        check: bool = False,
+        quiet: bool = False,
+        binds: list[str] | None = None,
+        overlays: list[str] | None = None,
+        etc: str = "ro",
+        home: str = "ro",
+        var: str = "ro",
+    ) -> int:
+        if not is_root():
+            raise RuntimeError("nspawn can only be called as root")
+
+        cmd = in_nspawn_system_cmd(
+            *args,
+            quiet=quiet,
+            deployment=self,
+            binds=binds,
+            overlays=overlays,
+            etc=etc,
+            home=home,
+            var=var,
+        )
+        ret = _execute(shlex.join(cmd))
+        if ret and check:
+            raise subprocess.CalledProcessError(ret, cmd, None, None)
+
+        return ret
+
+    def nspawn_output(
+        self,
+        *args: str,
+        quiet: bool = False,
+        binds: list[str] | None = None,
+        overlays: list[str] | None = None,
+        etc: str = "ro",
+        home: str = "ro",
+        var: str = "ro",
+    ) -> bytes:
+        if not is_root():
+            raise RuntimeError("nspawn_output can only be called as root")
+
+        return subprocess.check_output(
+            in_nspawn_system_cmd(
+                *args,
+                quiet=quiet,
+                deployment=self,
+                binds=binds,
+                overlays=overlays,
+                etc=etc,
+                home=home,
+                var=var,
+            ),
+            stderr=subprocess.DEVNULL if quiet else None,
+        )
+
+
+def deploy(
+    branch: str = "system",
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> Deployment:
+    kargs = ["--karg=root=LABEL=SYS_ROOT", "--karg=rw"]
+    revision = f"{OS_NAME}/{branch}"
+    if b"/usr/etc/system/commandline" in subprocess.check_output(
+        ostree_cmd("ls", revision, "/usr/etc/system")
+    ):
+        kernelCommandline = (
+            subprocess.check_output(
+                ostree_cmd("cat", revision, "/usr/etc/system/commandline")
+            )
+            .strip()
+            .decode("UTF-8")
+        )
+        for karg in kernelCommandline.split():
+            kargs.append(f"--karg={karg.strip()}")
+
+    stateroot = OS_NAME
+    if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
+        stateroot = current_deployment().stateroot
+
+    execute(
+        "ostree",
+        "admin",
+        "deploy",
+        f"--sysroot={sysroot}",
+        *kargs,
+        f"--os={OS_NAME}",
+        f"--stateroot={stateroot}",
+        "--retain",
+        revision,
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
+    return list(deployments(sysroot))[0]
+
 
 def sysroot(sysroot_path: str | None = None) -> OSTree.Sysroot:  # pyright: ignore[reportUnknownMemberType, reportUnknownParameterType]
     if sysroot_path is None:
@@ -385,188 +534,351 @@ def current_deployment() -> Deployment:
     return Deployment(_sysroot, deployment)  # pyright: ignore[reportUnknownArgumentType]
 
 
-def update_grub_config(
-    sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,
-    onstderr: Callable[[bytes], None] = bytes_to_stderr,
-) -> None:
+def in_nspawn_system_cmd(
+    *args: str,
+    quiet: bool = False,
+    deployment: Deployment | None = None,
+    binds: list[str] | None = None,
+    overlays: list[str] | None = None,
+    etc: str = "ro",
+    home: str = "ro",
+    var: str = "ro",
+) -> list[str]:
+    _ostree_root = ""
+    if os.path.exists("/ostree") and os.path.isdir("/ostree"):
+        _ostree = "/ostree"
+        if not os.path.exists(SYSTEM_PATH):
+            os.makedirs(SYSTEM_PATH, exist_ok=True)
+
+        if not os.path.exists(f"{SYSTEM_PATH}/ostree"):
+            os.symlink("/ostree", f"{SYSTEM_PATH}/ostree")
+
+    else:
+        _ostree = f"{SYSTEM_PATH}/ostree"
+        os.makedirs(_ostree, exist_ok=True)
+        repo = os.path.join(_ostree, "repo")
+        _ostree_root = f"{SYSTEM_PATH}/"
+        setattr(ostree, "repo", repo)
+        if not os.path.exists(repo):
+            ostree("init")
+
+    cache = "/var/cache/pacman"
+    if not os.path.exists(cache):
+        os.makedirs(cache, exist_ok=True)
+
+    if deployment is None:
+        deployment = current_deployment()
+
+    if binds is None:
+        binds = []
+
+    binds_ro: list[str] = []
+
+    if overlays is None:
+        overlays = []
+
+    if etc == "rw":
+        etc = "bind"
+
+    match etc:
+        case "overlay":
+            overlays.append("+/etc::/etc")
+
+        case "bind":
+            binds.append("/etc")
+
+        case "ro":
+            pass
+
+        case _:
+            raise NotImplementedError(f"Unknown etc setting: {etc}")
+
+    if home == "rw":
+        home = "bind"
+
+    match home:
+        case "overlay":
+            overlays.append("+/var/home::/var/home")
+
+        case "bind":
+            binds.append("/var/home")
+
+        case "ro":
+            pass
+
+        case _:
+            raise NotImplementedError(f"Unknown home setting: {home}")
+
+    if var == "rw":
+        var = "bind"
+
+    match var:
+        case "overlay":
+            overlays.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var::/var")
+
+        case "bind":
+            binds.append("/var")
+
+        case "ro":
+            binds_ro.append(f"/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
+
+        case _:
+            raise NotImplementedError(f"Unknown var setting: {var}")
+
+    os.environ["SYSTEMD_NSPAWN_LOCK"] = "0"
+    # TODO overlay /usr/lib/pacman somehow
+    return [
+        "systemd-nspawn",
+        "--as-pid2",
+        "--pipe",
+        "--volatile=state",
+        "--link-journal=no",
+        "--directory=/sysroot",
+        "--resolv-conf=off",
+        *(["--quiet"] if quiet else []),
+        f"--bind={SYSTEM_PATH}:{SYSTEM_PATH}",
+        "--bind=/boot:/boot",
+        "--bind=/run/podman/podman.sock:/run/podman/podman.sock",
+        f"--bind={cache}",
+        *[f"--bind={x}" for x in binds],
+        *[f"--bind-ro={x}" for x in binds_ro],
+        *[f"--overlay={x}" for x in overlays],
+        f"--pivot-root={_ostree_root}{deployment.path}:/sysroot",
+        *args,
+    ]
+
+
+def loader_entries(sysroot: str) -> Generator[tuple[str, dict[str, str], Deployment]]:
     sysroot = os.path.normpath(sysroot)
     deployments_by_key: dict[tuple[str, str, int], Deployment] = {
         (deployment.stateroot, deployment.checksum, deployment.serial): deployment
         for deployment in deployments(sysroot)
     }
-    entries_dir = os.path.join(sysroot, "boot/loader/entries")
-    staged: list[tuple[str, list[str]]] = []
-    for path in iglob(os.path.join(entries_dir, "ostree-*.conf")):
-        try:
-            with open(path, encoding="utf-8") as f:
-                lines = f.readlines()
+    for path in iglob(os.path.join(sysroot, "boot/loader/entries", "ostree-*.conf")):
+        props: dict[str, str] = {}
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                key, sep, value = line.strip().partition(" ")
+                if sep:
+                    props[key] = value.strip()
 
-            bootlink = next(
-                (
-                    arg[len("ostree=") :]
-                    for line in lines
-                    if line.startswith("options ")
-                    for arg in line.split()
-                    if arg.startswith("ostree=")
-                ),
-                None,
+        kernel = props.get("linux")
+        if kernel is None:
+            print(
+                f"Skipping loader entry {path}: missing linux property",
+                file=sys.stderr,
             )
-            if bootlink is None:
-                continue
+            continue
 
-            deployment_name = os.path.basename(
-                os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
+        initrd = props.get("initrd")
+        if initrd is None:
+            print(
+                f"Skipping loader entry {path}: missing initrd property",
+                file=sys.stderr,
             )
-            checksum, serial_str = deployment_name.rsplit(".", 1)
-            serial = int(serial_str)
-            deployment = deployments_by_key.get(
-                (bootlink.split("/")[3], checksum, serial)
+            continue
+
+        options = props.get("options")
+        if options is None:
+            print(
+                f"Skipping loader entry {path}: missing options property",
+                file=sys.stderr,
             )
-            if deployment is None:
-                continue
+            continue
 
-            os_info = deployment.os_info
-            version = os_info.get("VERSION", "0")
-            version_id = os_info.get("VERSION_ID", "0")
-            index = f"{deployment.index}.{serial}" if serial else str(deployment.index)
-            title = (
-                f"{index}: {deployment.image} {version}.{version_id} "
-                f"[{deployment.stateroot}]"
-            )
-            for char in "'\"$\\\n\r":
-                if char in title:
-                    raise ValueError(
-                        f"Unsafe character {char!r} found in boot title: {title!r}"
-                    )
-
-            for i, line in enumerate(lines):
-                if line.startswith("title "):
-                    lines[i] = f"title {title}\n"
-                    break
-
-            else:
-                lines.append(f"title {title}\n")
-
-            staged.append((path, lines))
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to update boot title for {path}: {e}") from e
-
-    for path, lines in staged:
-        with open(f"{path}.new", "w", encoding="utf-8") as f:
-            f.writelines(lines)
-
-    for path, _ in staged:
-        os.replace(f"{path}.new", path)
-
-    grub_cfg = os.path.join(sysroot, "boot/efi/EFI/grub/grub.cfg")
-    grub_cfg_new = f"{grub_cfg}.new"
-    deployment = next(iter(deployments(sysroot)), None)
-    if deployment is None:
-        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
-
-    if sysroot == "/":
-        execute(
-            "grub-mkconfig",
-            "-o",
-            grub_cfg_new,
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    else:
-        chroot(
-            deployment,
-            shlex.join(
-                [
-                    "grub-mkconfig",
-                    "-o",
-                    os.path.join("/", os.path.relpath(grub_cfg_new, sysroot)),
-                ]
+        bootlink = next(
+            (
+                arg[len("ostree=") :]
+                for arg in options.split()
+                if arg.startswith("ostree=")
             ),
-            sysroot=sysroot,
-            onstdout=onstdout,
-            onstderr=onstderr,
+            None,
+        )
+        if bootlink is None:
+            print(
+                f"Skipping loader entry {path}: missing ostree= argument",
+                file=sys.stderr,
+            )
+            continue
+
+        deployment_name = os.path.basename(
+            os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
+        )
+        checksum, serial_str = deployment_name.rsplit(".", 1)
+        serial = int(serial_str)
+        deployment = deployments_by_key.get((bootlink.split("/")[3], checksum, serial))
+        if deployment is None:
+            print(
+                f"Skipping loader entry {path}: could not find deployment",
+                file=sys.stderr,
+            )
+            continue
+
+        yield path, props, deployment
+
+
+def booted_with_systemd_boot() -> bool:
+    loader_info = (
+        "/sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+    )
+    if not os.path.isfile(loader_info):
+        return False
+
+    with open(loader_info, "rb") as f:
+        _ = f.read(4)  # skip EFI variable attributes header
+        return "systemd-boot" in f.read().decode("utf-16-le")
+
+
+def systemd_boot_installed(sysroot: str = "/") -> bool:
+    return (
+        execute(
+            "bootctl",
+            "is-installed",
+            f"--esp-path={os.path.join(sysroot, 'boot/efi')}",
+            "--quiet",
+            check=False,
+        )
+        == 0
+    )
+
+
+def update_loader_entries(sysroot: str = "/") -> None:
+    sysroot = os.path.normpath(sysroot)
+    staged: set[str] = set()
+    binaries: set[str] = set()
+    efi_path = os.path.join(sysroot, "boot/efi")
+    entries_dir = os.path.join(efi_path, "loader/entries")
+    os.makedirs(entries_dir, exist_ok=True)
+    efi_linux_path = os.path.join(efi_path, "EFI/arkes")
+    os.makedirs(efi_linux_path, exist_ok=True)
+    next_deployment: Deployment | None = None
+    for _path, props, deployment in loader_entries(sysroot):
+        if not deployment.index:
+            next_deployment = deployment
+
+        name = f"arkes-{deployment.checksum_str}.efi"
+        os_info = deployment.os_info
+        version = os_info.get("VERSION", "0")
+        version_id = os_info.get("VERSION_ID", "0")
+        title = (
+            f"{deployment.index}: {deployment.image} {version}.{version_id} "
+            f"[{deployment.stateroot}]"
+        )
+        for char in "'\"$\\\n\r":
+            if char in title:
+                raise ValueError(
+                    f"Unsafe character {char!r} found in boot title: {title!r}"
+                )
+
+        entryPath = os.path.join(entries_dir, f"arkes-{deployment.checksum_str}.conf")
+        with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
+            _ = f.write(f"title {title}\n")
+            _ = f.write(f"version {version_id}\n")
+            _ = f.write(f"uki /EFI/arkes/{name}\n")
+
+        staged.add(entryPath)
+        ukiPath = os.path.join(efi_linux_path, name)
+        binaries.add(ukiPath)
+        if os.path.isfile(ukiPath):
+            continue
+
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
+        ) as cmdlineFile:
+            _ = cmdlineFile.write(f"{props['options']}\n")
+            cmdlineFile.flush()
+            outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
+            deployment.chroot(
+                "\n".join(
+                    [
+                        "set -e",
+                        "export ESP_PATH=/sysroot/boot/efi",
+                        shlex.join(
+                            [
+                                "sbctl",
+                                "bundle",
+                                "--cmdline",
+                                cmdlineFile.name,
+                                "--kernel-img",
+                                f"/sysroot{props['linux']}",
+                                "--initramfs",
+                                f"/sysroot{props['initrd']}",
+                                outputPath,
+                            ]
+                        ),
+                    ]
+                ),
+                sysroot=sysroot,
+            )
+
+        if os.path.isfile(
+            os.path.join(
+                sysroot,
+                "ostree/deploy",
+                deployment.stateroot,
+                "var/lib/sbctl/keys/db/db.key",
+            )
+        ):
+            deployment.chroot(f"sbctl sign -s '{outputPath}'", sysroot=sysroot)
+
+    assert next_deployment is not None
+    for file in staged:
+        os.replace(f"{file}.new", file)
+
+    for file in chain(
+        iglob(os.path.join(efi_linux_path, "arkes-*.efi")),
+        iglob(os.path.join(entries_dir, "arkes-*.conf")),
+    ):
+        if file not in binaries | staged:
+            os.unlink(file)
+
+    if booted_with_systemd_boot() and systemd_boot_installed(sysroot):
+        execute(
+            "bootctl",
+            f"--esp-path={efi_path}",
+            "set-default",
+            f"arkes-{next_deployment.checksum_str}.conf",
         )
 
-    execute(
-        "grub-script-check",
-        grub_cfg_new,
-        onstdout=onstdout,
-        onstderr=onstderr,
-    )
-    os.replace(grub_cfg_new, grub_cfg)
 
-
-def chroot(
-    deployment: Deployment,
-    cmd: str,
+def update_bootloader(
     sysroot: str = "/",
+    deployment: Deployment | None = None,
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "boot"),
-        os.path.join(deployment.path, "boot"),
+    if deployment is None:
+        deployment = next(iter(deployments(sysroot)), None)
+
+    if deployment is None:
+        raise RuntimeError(f"No deployments found in sysroot {sysroot}")
+
+    chroot = partial(
+        deployment.chroot,
+        sysroot=sysroot,
         onstdout=onstdout,
         onstderr=onstderr,
     )
-    execute(
-        "mount",
-        "--mkdir",
-        "--rbind",
-        os.path.join(sysroot, "ostree"),
-        os.path.join(deployment.path, "sysroot/ostree"),
-        onstdout=onstdout,
-        onstderr=onstderr,
+    if not systemd_boot_installed(sysroot):
+        chroot("bootctl install --esp-path=/sysroot/boot/efi")
+
+    else:
+        chroot("bootctl update --esp-path=/sysroot/boot/efi")
+
+    if not os.path.isfile(
+        os.path.join(
+            sysroot,
+            "ostree/deploy",
+            deployment.stateroot,
+            "var/lib/sbctl/keys/db/db.key",
+        )
+    ):
+        return
+
+    chroot(
+        """
+        set -e
+        export ESP_PATH=/sysroot/boot/efi
+        sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+        """
     )
-    for i in ["sysroot/ostree", "boot"]:
-        execute(
-            "mount",
-            "--make-rslave",
-            os.path.join(deployment.path, i),
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    for i in ["dev", "proc", "sys"]:
-        execute(
-            "mount",
-            "-o",
-            "bind",
-            f"/{i}",
-            os.path.join(deployment.path, i),
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    execute(
-        "chroot",
-        deployment.path,
-        "/bin/bash",
-        "-c",
-        cmd,
-        onstdout=onstdout,
-        onstderr=onstderr,
-    )
-    os.sync()
-    for i in ["sys", "proc", "dev"]:
-        execute(
-            "umount",
-            os.path.join(deployment.path, i),
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
-
-    for i in ["sysroot/ostree", "boot"]:
-        execute(
-            "umount",
-            "--recursive",
-            os.path.join(deployment.path, i),
-            onstdout=onstdout,
-            onstderr=onstderr,
-        )
