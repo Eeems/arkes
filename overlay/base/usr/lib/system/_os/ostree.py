@@ -742,7 +742,12 @@ def systemd_boot_installed(sysroot: str = "/") -> bool:
     )
 
 
-def update_loader_entries(sysroot: str = "/") -> None:
+def update_loader_entries(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    execute_ = partial(execute, onstdout=onstdout, onstderr=onstderr)
     sysroot = os.path.normpath(sysroot)
     staged: set[str] = set()
     binaries: set[str] = set()
@@ -782,6 +787,13 @@ def update_loader_entries(sysroot: str = "/") -> None:
         if os.path.isfile(ukiPath):
             continue
 
+        chroot = partial(
+            deployment.chroot,
+            sysroot=sysroot,
+            onstdout=onstdout,
+            onstderr=onstderr,
+        )
+        sbctl = os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
         ) as cmdlineFile:
@@ -807,11 +819,11 @@ def update_loader_entries(sysroot: str = "/") -> None:
                     ),
                 ]
             )
-            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-                deployment.chroot(script, sysroot=sysroot)
+            if sbctl:
+                chroot(script, sysroot=sysroot)
 
             else:
-                execute("bash", "-c", script)
+                execute_("bash", "-c", script)
 
         if os.path.isfile(
             os.path.join(
@@ -821,7 +833,12 @@ def update_loader_entries(sysroot: str = "/") -> None:
                 "var/lib/sbctl/keys/db/db.key",
             )
         ):
-            deployment.chroot(f"sbctl sign -s '{outputPath}'", sysroot=sysroot)
+            script = f"sbctl sign -s '{outputPath}'"
+            if sbctl:
+                chroot(script, sysroot=sysroot)
+
+            else:
+                execute_("bash", "-c", script)
 
     assert next_deployment is not None
     for file in staged:
@@ -835,7 +852,7 @@ def update_loader_entries(sysroot: str = "/") -> None:
             os.unlink(file)
 
     if booted_with_systemd_boot() and systemd_boot_installed(sysroot):
-        execute(
+        execute_(
             "bootctl",
             f"--esp-path={efi_path}",
             "set-default",
@@ -866,7 +883,7 @@ def update_bootloader(
         chroot("bootctl install --esp-path=/sysroot/boot/efi")
 
     else:
-        chroot("bootctl update --esp-path=/sysroot/boot/efi")
+        chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
     if not os.path.isfile(
         os.path.join(
