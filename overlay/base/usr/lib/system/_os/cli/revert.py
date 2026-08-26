@@ -8,11 +8,7 @@ from typing import (
     cast,
 )
 
-from ..ostree import (
-    undeploy,
-    update_loader_entries,
-)
-from ..system import is_root
+from ..system import execute
 
 kwds = {"help": "Revert the last system upgrade"}
 
@@ -22,12 +18,7 @@ def register(_: ArgumentParser) -> None:
 
 
 def command(_: Namespace) -> None:
-    if not is_root():
-        print("Must be run as root", file=sys.stderr)
-        sys.exit(1)
-
-    undeploy(0)
-    update_loader_entries()
+    sys.exit(execute("os undeploy 0", check=False))
 
 
 if __name__ == "__main__":
