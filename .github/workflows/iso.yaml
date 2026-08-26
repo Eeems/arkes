@@ -208,36 +208,58 @@ jobs:
       - name: Fix git permissions
         run: git config --global --add safe.directory "$(realpath .)"
 
-      - name: Check for previous release
-        id: release
+      - name: Download previous release ISO
+        id: download-previous
         shell: bash
         run: |
           set -e
-          if out=$(gh release view "variant/${{ inputs.variant }}" 2>&1); then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+          if ! gh release view latest >/dev/null 2>&1; then
+            echo "No latest release found, skipping upgrade test"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "$out"
-          case "$out" in
-            *"not found"*)
-              echo "No previous release for variant/${{ inputs.variant }}, skipping upgrade test"
-              ;;
-            *)
-              echo "::error::Unable to check for previous release of variant/${{ inputs.variant }}"
-              exit 1
-              ;;
-          esac
+
+          body=$(gh release view latest --json body --jq '.body')
+          prefix="arkes-${{ inputs.variant }}-"
+          url=""
+          sha256=""
+          filename=""
+
+          while IFS= read -r line; do
+            if [[ "$line" != *"[$prefix"* || "$line" != *".iso"* ]]; then
+              continue
+            fi
+            url=$(echo "$line" | sed -n 's/.*](\([^)]*\)).*/\1/p')
+            filename=$(echo "$line" | sed -n 's/.*\[\([^]]*\)\].*/\1/p' | head -1)
+            sha256=$(echo "$line" | sed -n 's/.*`\([^`]*\)`.*/\1/p')
+            break
+          done <<< "$body"
+
+          if [[ -z "$url" ]]; then
+            echo "No ISO found for ${{ inputs.variant }} in latest release, skipping upgrade test"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Downloading $filename..."
+          wget --progress=dot:giga --tries=3 --output-document "/var/lib/system/$filename" "$url"
+
+          echo "$sha256  /var/lib/system/$filename" > /tmp/iso.sha256
+          sha256sum --check /tmp/iso.sha256
+
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "path=/var/lib/system/$filename" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade path test
-        if: steps.release.outputs.exists == 'true'
+        if: steps.download-previous.outputs.exists == 'true'
         uses: ./.github/actions/run-with-podman-service
         timeout-minutes: 90
         with:
           run: >-
             ./make.py test
-            --from ${{ inputs.variant }}
+            --from ${{ steps.download-previous.outputs.path }}
             --branch ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
