@@ -37,6 +37,24 @@ from .boot import (
 )
 from .ref import ref
 
+
+def reboot(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    send(proc, b"sudo systemctl reboot\n")
+    if expect(proc, [b"reboot: Restarting system"]) != b"reboot: Restarting system":
+        print("boot-test: reboot failed", file=sys.stderr)
+        error_exit(proc, cidfile)
+
+    if not login(proc, b"root", b"live"):
+        print("boot-test: login failed after reboot", file=sys.stderr)
+        error_exit(proc, cidfile)
+
+
+def validate(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    if not check(proc, "os validate --verbose"):
+        print("boot-test: os validate failed", file=sys.stderr)
+        error_exit(proc, cidfile)
+
+
 kwds: dict[str, str] = {
     "help": "Boot an iso in qemu and run validation against it",
 }
@@ -195,10 +213,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not check(proc, "os validate --verbose"):
-                print("boot-test: live iso failed os validate", file=sys.stderr)
-                error_exit(proc, cidfile)
-
+            validate(proc, cidfile)
             if not partition_disk(proc):
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
@@ -254,13 +269,7 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            if not check(proc, "os validate --verbose"):
-                print(
-                    "boot-test: installed system failed os validate",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
+            validate(proc, cidfile)
             if variant is not None and not check(
                 proc,
                 """
@@ -331,32 +340,8 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            send(proc, b"sudo systemctl reboot\n")
-            match = expect(
-                proc,
-                [
-                    b"reboot: Restarting system",
-                    b"Operation inhibited",
-                ],
-            )
-            if match != b"reboot: Restarting system":
-                print("boot-test: reboot never started", file=sys.stderr)
-                error_exit(proc, cidfile)
-
-            if not login(proc, b"root", b"live"):
-                print(
-                    "boot-test: upgraded system never reached a shell",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
-            if not check(proc, "os validate --verbose"):
-                print(
-                    "boot-test: upgraded system failed os validate",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
+            reboot(proc, cidfile)
+            validate(proc, cidfile)
             if not check(
                 proc,
                 """os status --json | python -c '
@@ -372,6 +357,20 @@ def command(args: Namespace) -> None:
                 )
                 _ = check(proc, "os status")
                 error_exit(proc, cidfile)
+
+            if variant is not None:
+                if not check(
+                    proc,
+                    "os upgrade --no-pull",
+                ):
+                    print(
+                        "boot-test: second os upgrade failed",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
+
+                reboot(proc, cidfile)
+                validate(proc, cidfile)
 
             if not stop(proc):
                 print("boot-test: phase 2 shutdown failed", file=sys.stderr)

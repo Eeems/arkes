@@ -167,6 +167,7 @@ def undeploy(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
+    ostree("config", "set", "sysroot.bootloader", "none")
     execute(
         "ostree",
         "admin",
@@ -490,6 +491,7 @@ def deploy(
     if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
         stateroot = current_deployment().stateroot
 
+    ostree("config", "set", "sysroot.bootloader", "none")
     execute(
         "ostree",
         "admin",
@@ -874,7 +876,6 @@ def update_bootloader(
         onstderr=onstderr,
     )
     if not systemd_boot_installed(sysroot):
-        ostree("config", "set", "sysroot.bootloader", "none")
         chroot("bootctl install --esp-path=/sysroot/boot/efi")
 
     else:
