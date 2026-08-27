@@ -92,6 +92,7 @@ bytes_to_stderr = cast(
     _os.console.bytes_to_stderr,  # pyright: ignore[reportUnknownMemberType]
 )
 
+OS_NAME = cast(str, _os.OS_NAME)
 IMAGE = cast(str, _os.IMAGE)
 REGISTRY = cast(str, _os.REGISTRY)
 REPO = cast(str, _os.REPO)

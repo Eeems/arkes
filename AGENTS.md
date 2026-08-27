@@ -84,6 +84,7 @@ Templates create variant combinations using `-` separator:
 - basedpyright warnings should also be addressed.
 - Prefer early exits instead of if/else at the end of a statement.
 - Try to reduce the levels on indentation in a method if possible. You can early exit, hoist common code, etc to accomplish this.
+- Add a blank newline after any unindent. For example after unindenting from an if statment, the next line of code should have a newline between it and the if statement's body
 
 ### Go
 - Use gofmt for formatting, go vet for static analysis

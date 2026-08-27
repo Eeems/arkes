@@ -167,6 +167,14 @@ def undeploy(
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
+    ostree(
+        "config",
+        "set",
+        "sysroot.bootloader",
+        "none",
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
     execute(
         "ostree",
         "admin",
@@ -490,6 +498,14 @@ def deploy(
     if not os.path.exists(os.path.join(sysroot, "ostree/deploy", OS_NAME)):
         stateroot = current_deployment().stateroot
 
+    ostree(
+        "config",
+        "set",
+        "sysroot.bootloader",
+        "none",
+        onstdout=onstdout,
+        onstderr=onstderr,
+    )
     execute(
         "ostree",
         "admin",
@@ -742,7 +758,12 @@ def systemd_boot_installed(sysroot: str = "/") -> bool:
     )
 
 
-def update_loader_entries(sysroot: str = "/") -> None:
+def update_loader_entries(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    execute_ = partial(execute, onstdout=onstdout, onstderr=onstderr)
     sysroot = os.path.normpath(sysroot)
     staged: set[str] = set()
     binaries: set[str] = set()
@@ -782,17 +803,30 @@ def update_loader_entries(sysroot: str = "/") -> None:
         if os.path.isfile(ukiPath):
             continue
 
+        def execOrChroot(deployment: Deployment, script: str) -> None:
+            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                deployment.chroot(
+                    script, sysroot=sysroot, onstdout=onstdout, onstderr=onstderr
+                )
+
+            else:
+                execute_("bash", "-c", script)
+
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
-            outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
-            deployment.chroot(
+            root = "/sysroot" if os.path.exists(
+                os.path.join(deployment.path, "usr/bin/sbctl")
+            ) else sysroot
+            outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
+            execOrChroot(
+                deployment,
                 "\n".join(
                     [
                         "set -e",
-                        "export ESP_PATH=/sysroot/boot/efi",
+                        f"export ESP_PATH={root}/boot/efi",
                         shlex.join(
                             [
                                 "sbctl",
@@ -800,15 +834,14 @@ def update_loader_entries(sysroot: str = "/") -> None:
                                 "--cmdline",
                                 cmdlineFile.name,
                                 "--kernel-img",
-                                f"/sysroot{props['linux']}",
+                                f"{root}{props['linux']}",
                                 "--initramfs",
-                                f"/sysroot{props['initrd']}",
+                                f"{root}{props['initrd']}",
                                 outputPath,
                             ]
                         ),
                     ]
                 ),
-                sysroot=sysroot,
             )
 
         if os.path.isfile(
@@ -819,7 +852,7 @@ def update_loader_entries(sysroot: str = "/") -> None:
                 "var/lib/sbctl/keys/db/db.key",
             )
         ):
-            deployment.chroot(f"sbctl sign -s '{outputPath}'", sysroot=sysroot)
+            execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
     assert next_deployment is not None
     for file in staged:
@@ -833,7 +866,7 @@ def update_loader_entries(sysroot: str = "/") -> None:
             os.unlink(file)
 
     if booted_with_systemd_boot() and systemd_boot_installed(sysroot):
-        execute(
+        execute_(
             "bootctl",
             f"--esp-path={efi_path}",
             "set-default",
@@ -863,7 +896,7 @@ def update_bootloader(
         chroot("bootctl install --esp-path=/sysroot/boot/efi")
 
     else:
-        chroot("bootctl update --esp-path=/sysroot/boot/efi")
+        chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
     if not os.path.isfile(
         os.path.join(

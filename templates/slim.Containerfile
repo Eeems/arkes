@@ -21,7 +21,6 @@ RUN /usr/lib/system/initialize_pacman \
   && chronic pacman -R --noconfirm bleachbit \
   && echo "[system] Removing orphaned packages" \
   && pacman -Qqd | chronic pacman -Rsu --noconfirm - \
-  && /usr/lib/system/remove_pacman_files \
   && echo "[system] Removing unneeded files from /usr" \
   && chronic find /usr/lib -name '.a' -exec rm -v {} \; \
   && chronic rm -rf \

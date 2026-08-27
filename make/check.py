@@ -1,7 +1,10 @@
+import contextlib
 import json
 import os
+import pty
 import shlex
 import shutil
+import subprocess
 import sys
 from argparse import (
     ArgumentParser,
@@ -14,6 +17,8 @@ from typing import (
 
 from . import (
     IMAGE,
+    OS_NAME,
+    REGISTRY,
     REPO,
     _execute,  # pyright: ignore[reportPrivateUsage]
     _osDir,  # pyright: ignore[reportPrivateUsage]
@@ -22,6 +27,10 @@ from . import (
     chronic,
     execute_pipe,
     image_qualified_name,
+)
+from .boot import (
+    expect_prompt,
+    run,
 )
 
 kwds: dict[str, str] = {
@@ -49,6 +58,43 @@ def command(args: Namespace) -> None:
         print(f" Failed: image_qualified_name({json.dumps(name)})")
         print(f"  Expected: {json.dumps(expected)}")
         print(f"  Actual: {json.dumps(image)}")
+        return False
+
+    def _assert_run(cmd: str, expected: bytes) -> bool:
+        env = os.environ.copy()
+        env["PS1"] = "[test@host ~]# "
+        env["TERM"] = "dumb"
+        master_fd, slave_fd = pty.openpty()
+        proc = subprocess.Popen(
+            ["bash", "--norc", "--noprofile", "-i"],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            preexec_fn=os.setsid,  # noqa: PLW1509
+            env=env,
+        )
+        os.close(slave_fd)
+        proc.stdout = os.fdopen(master_fd, "rb", 0)
+        proc.stdin = os.fdopen(os.dup(master_fd), "wb", 0)
+        try:
+            with contextlib.redirect_stdout(open(os.devnull, "w")):
+                if expect_prompt(proc, timeout=2) is None:
+                    return False
+
+                result = run(proc, cmd, timeout=2)
+        finally:
+            proc.stdin.close()
+            proc.stdout.close()
+            proc.kill()
+            _ = proc.wait()
+
+        if result == expected:
+            return True
+
+        print(f" Failed: run({json.dumps(cmd)})")
+        print(f"  Expected: {expected!r}")
+        print(f"  Actual:   {result!r}")
         return False
 
     print("[check] Running tests")
@@ -79,6 +125,23 @@ def command(args: Namespace) -> None:
     )
     failed = failed or not _assert_name(f"{IMAGE}:latest", f"{REPO}:latest")
     failed = failed or not _assert_name(IMAGE, REPO)
+    failed = failed or not _assert_name(OS_NAME, REPO)
+    failed = failed or not _assert_name(f"{REGISTRY}/{IMAGE}", REPO)
+    failed = failed or not _assert_name(
+        f"other.example/{OS_NAME}",
+        f"other.example/{OS_NAME}",
+    )
+    failed = failed or not _assert_run("echo hello", b"hello\r\n")
+    failed = failed or not _assert_run("printf 'a\\nb'", b"a\r\nb")
+    failed = failed or not _assert_run("printf '\\033[32mhello\\033[0m'", b"hello")
+    failed = failed or not _assert_run(
+        "printf '\\033[?2004larkes\\033[?2004h'", b"arkes"
+    )
+    failed = failed or not _assert_run("echo -n hello", b"hello")
+    failed = failed or not _assert_run("printf 'hello\\rX'", b"hello\rX")
+    if failed:
+        sys.exit(1)
+
     if shutil.which("niri") is not None:
         print("[check] Checking niri config", file=sys.stderr)
         cmd = shlex.join(

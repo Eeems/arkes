@@ -82,6 +82,27 @@ def podman(
     )
 
 
+def storage_graph_root() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.GraphRoot}}"),
+        text=True,
+    ).strip()
+
+
+def storage_run_root() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.RunRoot}}"),
+        text=True,
+    ).strip()
+
+
+def storage_graph_driver() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.GraphDriverName}}"),
+        text=True,
+    ).strip()
+
+
 def in_system(
     *args: str,
     target: str = "system:latest",
@@ -320,7 +341,13 @@ def image_name_from_parts(
                 pass
 
             case _:
-                if repo != IMAGE:
+                if repo == OS_NAME:
+                    repo = IMAGE
+
+                if repo == IMAGE:
+                    registry = REGISTRY
+
+                else:
                     registry = "docker.io"
 
     if registry is not None:
@@ -331,8 +358,10 @@ def image_name_from_parts(
 
 def image_qualified_name(image: str) -> str:
     registry, repo, tag, digest = image_name_parts(image)
-    if ((registry or REGISTRY) == REGISTRY) and repo == IMAGE:
+    if ((registry or REGISTRY) == REGISTRY) and repo in (IMAGE, OS_NAME):
         registry = REGISTRY
+        if repo == OS_NAME:
+            repo = IMAGE
 
     if registry == "docker.io" and repo == f"library/{OS_NAME}":
         registry = REGISTRY
@@ -427,18 +456,17 @@ def image_size(image: str) -> int:
 CONTAINER_POST_STEPS = r"""
 ARG KARGS
 ARG PACKAGES
+ARG VERSION_ID
 
-RUN \
+RUN <<EOT
+  set -e
   SOURCE_DATE_EPOCH=0 \
   PACKAGES="${PACKAGES}" \
   KARGS="${KARGS}" \
   /usr/lib/system/post_build
-
-ARG VERSION_ID
-
-RUN \
   VERSION_ID=${VERSION_ID} \
   /usr/lib/system/set_build_id
+EOT
 """
 
 
@@ -492,6 +520,7 @@ def build(
             "--cap-add=SYS_ADMIN",
             *[f"--build-arg={k}={v}" for k, v in _buildArgs.items()],
             f"--volume={cache}:{cache}",
+            "--volume=/etc/pacman.d/gnupg:/etc/pacman.d/gnupg",
             f"--file={containerfile}",
             "--format=oci",
             "--timestamp=1735689640",

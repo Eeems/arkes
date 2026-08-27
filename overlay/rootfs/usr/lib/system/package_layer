@@ -46,4 +46,4 @@ fi
 if [ ${#rm_packages[@]} -gt 0 ]; then
   /usr/lib/system/remove_packages "${rm_packages[@]}"
 fi
-/usr/lib/system/remove_pacman_files
+rm -f /var/lib/dkms/mok.{key,pub}

@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
-
 # Rebind the xHCI controller of the Goodix fingerprint reader after resume.
 
 GOODIX_ID="27c6:609c"
@@ -60,6 +59,13 @@ post)
   # Nothing to do when the reader came back on its own
   if lsusb -d "$GOODIX_ID" >/dev/null 2>&1; then
     log "Goodix reader present, skipping rebind"
+    if ! systemctl is-active --quiet fprintd.service; then
+      if systemctl start --no-block --quiet fprintd.service; then
+        log "Started fprintd.service"
+      else
+        fail "Failed to start fprintd.service"
+      fi
+    fi
     exit 0
   fi
   log "Goodix missing after resume, resetting xHCI controller"
@@ -76,10 +82,10 @@ post)
   sleep 2
   # Verify the fingerprint reader came back after rebinding
   lsusb -d "$GOODIX_ID" >/dev/null 2>&1 || fail "$GOODIX_ID not present after rebind"
+  log "Goodix reader restored after resume"
   # Restart fprintd so it picks up the reader again
   if ! systemctl --no-block try-restart fprintd.service; then
-    log "ERROR: failed to queue restart of fprintd.service"
+    fail "failed to queue restart of fprintd.service"
   fi
-  log "Goodix reader restored after resume"
   ;;
 esac

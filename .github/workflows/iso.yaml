@@ -23,7 +23,6 @@ on:
         required: false
         default: ""
       push:
-        # TODO implement this
         description: Push the generated iso
         type: boolean
         default: false
@@ -33,7 +32,7 @@ on:
         required: false
         type: string
       iso_runner:
-        description: Content hash of the iso runner image to use for boot tests
+        description: Content hash of the iso runner image to use for tests
         required: false
         type: string
   workflow_dispatch:
@@ -120,7 +119,7 @@ jobs:
           path: /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   test-install:
-    name: Boot test arkes:${{ inputs.variant }} iso
+    name: Install test arkes:${{ inputs.variant }} iso
     needs: build
     runs-on: ubuntu-latest
     container:
@@ -195,50 +194,94 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
+      - name: Fix git permissions
+        run: git config --global --add safe.directory "$(realpath .)"
+
+      - name: Check for previous release ISO
+        id: check-previous
+        shell: bash
+        run: |
+          set -e
+          if ! gh release view "variant/${{ inputs.variant }}" >/dev/null 2>&1; then
+            echo "No previous release for variant/${{ inputs.variant }}, skipping upgrade test"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          manifests=$(gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '[.assets[] | select(.name | endswith(".iso.manifest"))] | length')
+          if [ "$manifests" -eq 0 ]; then
+            echo "No ISO manifest in variant/${{ inputs.variant }} release, skipping upgrade test"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Free up space
+        if: steps.check-previous.outputs.available == 'true'
         uses: ./.github/actions/cleanup
         with:
           root: /run/host
 
       - name: Download iso
+        if: steps.check-previous.outputs.available == 'true'
         uses: actions/download-artifact@v6
         with:
           name: arkes-${{ inputs.variant }}.iso
           path: /var/lib/system
 
-      - name: Fix git permissions
-        run: git config --global --add safe.directory "$(realpath .)"
-
-      - name: Check for previous release
-        id: release
+      - name: Download previous release ISO
+        if: steps.check-previous.outputs.available == 'true'
+        id: download-previous
         shell: bash
         run: |
           set -e
-          if out=$(gh release view "variant/${{ inputs.variant }}" 2>&1); then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "$out"
-          case "$out" in
-            *"not found"*)
-              echo "No previous release for variant/${{ inputs.variant }}, skipping upgrade test"
-              ;;
-            *)
-              echo "::error::Unable to check for previous release of variant/${{ inputs.variant }}"
-              exit 1
-              ;;
-          esac
+          download_dir="/tmp/iso-download"
+          rm -rf "$download_dir"
+          mkdir -p "$download_dir"
+
+          manifest_asset=$(gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '.assets[] | select(.name | endswith(".iso.manifest")) | .name')
+
+          gh release download "variant/${{ inputs.variant }}" \
+            --pattern "$manifest_asset" \
+            --dir "$download_dir"
+
+          filename=$(jq -r '.name' "$download_dir/$manifest_asset")
+          sha256=$(jq -r '.hash' "$download_dir/$manifest_asset")
+          chunks=$(jq -r '.chunks[]' "$download_dir/$manifest_asset")
+
+          echo "Downloading $filename ($(( $(echo $chunks | wc -w) )) chunks)..."
+          echo "$chunks" | xargs -P 0 -I {} \
+            gh release download "variant/${{ inputs.variant }}" \
+              --pattern {} \
+              --dir "$download_dir"
+
+          echo "Assembling ISO..."
+          iso_dir="$RUNNER_TEMP/previous"
+          mkdir -p "$iso_dir"
+          echo "$chunks" | xargs -rI {} printf '%s\0' "$download_dir/{}" \
+            | xargs -r0 cat > "$iso_dir/$filename"
+          rm -rf "$download_dir"
+
+          echo "$sha256  $iso_dir/$filename" > /tmp/iso.sha256
+          sha256sum --check /tmp/iso.sha256
+
+          echo "path=$iso_dir/$filename" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade path test
-        if: steps.release.outputs.exists == 'true'
+        if: steps.check-previous.outputs.available == 'true'
         uses: ./.github/actions/run-with-podman-service
         timeout-minutes: 90
         with:
           run: >-
             ./make.py test
-            --from ${{ inputs.variant }}
+            --from ${{ steps.download-previous.outputs.path }}
             --branch ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
@@ -275,7 +318,7 @@ jobs:
       - name: Fix git permissions
         run: git config --global --add safe.directory "$(realpath .)"
 
-      - name: Remove old release
+      - name: Prepare release
         shell: bash
         run: |
           set -e
@@ -283,12 +326,6 @@ jobs:
           git push -f origin "refs/tags/variant/${{ inputs.variant }}"
 
           truncate --size 0 /tmp/body.txt
-          {
-            echo "<!-- START_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
-            echo "> [!WARNING]"
-            echo "> New ISO is being uploaded."
-            echo "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
-          } > /tmp/body.txt
 
           if gh release view "variant/${{ inputs.variant }}" 1>/dev/null 2>/dev/null; then
             gh release edit "variant/${{ inputs.variant }}" \
@@ -304,12 +341,7 @@ jobs:
 
           gh release view "variant/${{ inputs.variant }}" \
             --json assets \
-            --jq '.assets.[].name' \
-          | xargs -rI{} \
-            gh release delete-asset \
-              "variant/${{ inputs.variant }}" \
-              "{}" \
-              --yes
+            --jq '.assets.[].name' > /tmp/old_assets.txt
 
           mv /var/lib/system/arkes-${{ inputs.variant }}-*.iso .
         env:
@@ -328,6 +360,69 @@ jobs:
           draft: false
           prerelease: true
           worker_url: "https://gh-releases.nathaniel-van-diepen.workers.dev"
+
+      - name: Remove old release assets
+        shell: bash
+        run: |
+          set -e
+          while read -r asset; do
+            [ -z "$asset" ] && continue
+            gh release delete-asset \
+              "variant/${{ inputs.variant }}" \
+              "$asset" \
+              --yes
+          done < /tmp/old_assets.txt
+
+          gh release view "variant/${{ inputs.variant }}" \
+            --json body --jq '.body' > /tmp/release_body.txt
+          gh release view "variant/${{ inputs.variant }}" \
+            --json assets --jq '.assets.[].name' > /tmp/current_assets.txt
+
+          python3 << 'PYEOF'
+          import re
+
+          with open("/tmp/release_body.txt") as f:
+              body = f.read()
+
+          with open("/tmp/current_assets.txt") as f:
+              assets = set(line.strip() for line in f if line.strip())
+
+          tag_start = "<!-- START_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
+          tag_end = "<!-- END_BIG_ASSET_LIST_DO_NOT_REMOVE -->"
+
+          lines = body.split("\n")
+          result = []
+          in_grid = False
+          for line in lines:
+              if tag_start in line:
+                  in_grid = True
+                  result.append(line)
+                  continue
+
+              if tag_end in line:
+                  in_grid = False
+                  result.append(line)
+                  continue
+
+              if in_grid and "|" in line and "[" in line:
+                  match = re.search(r"\[([^\]]+)\]", line)
+                  if match:
+                      filename = match.group(1)
+                      if filename in assets or f"{filename}.manifest" in assets:
+                          result.append(line)
+
+                  continue
+
+              result.append(line)
+
+          with open("/tmp/new_body.txt", "w") as f:
+              f.write("\n".join(result))
+          PYEOF
+
+          gh release edit "variant/${{ inputs.variant }}" \
+            --notes-file /tmp/new_body.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update latest release
         shell: bash

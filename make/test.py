@@ -18,6 +18,7 @@ import requests
 from . import (
     BUILDER,
     execute,
+    image_qualified_name,
     podman,
     podman_cmd,
 )
@@ -31,11 +32,30 @@ from .boot import (
     login,
     partition_disk,
     qemu_cmd,
+    run,
     send,
     stop,
     workspace_path,
 )
 from .ref import ref
+
+
+def reboot(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    send(proc, b"sudo systemctl reboot\n")
+    if expect(proc, [b"reboot: Restarting system"]) != b"reboot: Restarting system":
+        print("boot-test: reboot failed", file=sys.stderr)
+        error_exit(proc, cidfile)
+
+    if not login(proc, b"root", b"live"):
+        print("boot-test: login failed after reboot", file=sys.stderr)
+        error_exit(proc, cidfile)
+
+
+def validate(proc: subprocess.Popen[bytes], cidfile: str) -> None:
+    if not check(proc, "os validate --verbose"):
+        print("boot-test: os validate failed", file=sys.stderr)
+        error_exit(proc, cidfile)
+
 
 kwds: dict[str, str] = {
     "help": "Boot an iso in qemu and run validation against it",
@@ -76,6 +96,7 @@ def command(args: Namespace) -> None:
         if variant is not None:
             if os.path.isfile(variant):
                 iso = variant
+
             else:
                 res = requests.get(
                     "https://api.github.com/repos/Eeems/arkes/releases/tags/latest",
@@ -195,10 +216,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
                 error_exit(proc, cidfile)
 
-            if not check(proc, "os validate --verbose"):
-                print("boot-test: live iso failed os validate", file=sys.stderr)
-                error_exit(proc, cidfile)
-
+            validate(proc, cidfile)
             if not partition_disk(proc):
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
@@ -254,52 +272,74 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            if not check(proc, "os validate --verbose"):
+            if variant is None:
+                validate(proc, cidfile)
+
+            elif not check(
+                proc,
+                """
+                  echo '[test] mounting iso'
+                  sudo mkdir -p /mnt/iso /mnt/sfs
+                  sudo mount -o ro /dev/sr0 /mnt/iso
+                  sudo modprobe loop
+                  sudo modprobe squashfs
+                  sudo mount -o loop,ro /mnt/iso/arkes/x86_64/airootfs.sfs /mnt/sfs
+                  sudo mkdir -p /var/tmp/sfs-upper /var/tmp/sfs-work
+                  sudo mount -t overlay overlay \\
+                    -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
+                    /mnt/sfs/var/lib/containers/storage
+                """,
+            ):
                 print(
-                    "boot-test: installed system failed os validate",
+                    "boot-test: failed to mount iso",
                     file=sys.stderr,
                 )
                 error_exit(proc, cidfile)
 
-            if variant is not None and not check(
-                proc,
-                """
-                  (
-                    set -e
-                    set -o pipefail
-                    echo '[test] mounting iso'
-                    sudo mkdir -p /mnt/iso /mnt/sfs
-                    sudo mount -o ro /dev/sr0 /mnt/iso
-                    sudo modprobe loop
-                    sudo modprobe squashfs
-                    sudo mount -o loop,ro /mnt/iso/arkes/x86_64/airootfs.sfs /mnt/sfs
-                    sudo mkdir -p /var/tmp/sfs-upper /var/tmp/sfs-work
-                    sudo mount -t overlay overlay \\
-                      -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
-                      /mnt/sfs/var/lib/containers/storage
-                    image=$(awk '$1=="FROM"{print $2; exit}' /mnt/sfs/etc/system/Systemfile)
-                    echo '[test] copying image'
-                    sudo podman \\
-                      --root=/mnt/sfs/var/lib/containers/storage \\
-                      --runroot=/var/tmp/podman-runroot \\
-                      --storage-driver=overlay \\
-                      --events-backend=file \\
-                      save --multi-image-archive "$image" |
-                    sudo podman load
-                  )
-                """,
-            ):
-                print(
-                    "boot-test: failed to load build into installed system",
-                    file=sys.stderr,
+            if variant is not None:
+                output = run(
+                    proc,
+                    "awk 'NR==1{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
+                    timeout=5,
                 )
-                error_exit(proc, cidfile)
+                if output is None:
+                    print(
+                        "boot-test: failed to read FROM line",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
+
+                image = image_qualified_name(output.decode().strip())
+                if not check(
+                    proc,
+                    f"""
+                      echo '[test] copying image {image}'
+                      sudo skopeo --insecure-policy copy \\
+                        "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]{image}" \\
+                        "containers-storage:{image}"
+                    """,
+                ):
+                    print(
+                        "boot-test: failed to load build into installed system",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
+
+                if not check(
+                    proc,
+                    """
+                      sudo cp /mnt/sfs/etc/system/Systemfile /etc/system/Systemfile
+                      sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+                    """,
+                ):
+                    print("boot-test: failed to patch Systemfile", file=sys.stderr)
+                    error_exit(proc, cidfile)
 
             # Run the upgrade in the background while verifying that the
             # os-daemon holds a logind inhibitor lock for its duration.
             if not check(
                 proc,
-                """(
+                """
                   os upgrade --no-pull &
                   pid=$!
                   found=0
@@ -323,7 +363,7 @@ def command(args: Namespace) -> None:
                     exit 1
                   fi
                   exit $rc
-                )""",
+                """,
             ):
                 print(
                     "boot-test: os upgrade failed or inhibitor not held/released",
@@ -331,32 +371,8 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            send(proc, b"sudo systemctl reboot\n")
-            match = expect(
-                proc,
-                [
-                    b"reboot: Restarting system",
-                    b"Operation inhibited",
-                ],
-            )
-            if match != b"reboot: Restarting system":
-                print("boot-test: reboot never started", file=sys.stderr)
-                error_exit(proc, cidfile)
-
-            if not login(proc, b"root", b"live"):
-                print(
-                    "boot-test: upgraded system never reached a shell",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
-            if not check(proc, "os validate --verbose"):
-                print(
-                    "boot-test: upgraded system failed os validate",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
-
+            reboot(proc, cidfile)
+            validate(proc, cidfile)
             if not check(
                 proc,
                 """os status --json | python -c '
@@ -372,6 +388,20 @@ def command(args: Namespace) -> None:
                 )
                 _ = check(proc, "os status")
                 error_exit(proc, cidfile)
+
+            if variant is not None:
+                if not check(
+                    proc,
+                    "os upgrade --no-pull",
+                ):
+                    print(
+                        "boot-test: second os upgrade failed",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
+
+                reboot(proc, cidfile)
+                validate(proc, cidfile)
 
             if not stop(proc):
                 print("boot-test: phase 2 shutdown failed", file=sys.stderr)
