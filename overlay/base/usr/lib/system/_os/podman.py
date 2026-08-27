@@ -82,6 +82,27 @@ def podman(
     )
 
 
+def storage_graph_root() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.GraphRoot}}"),
+        text=True,
+    ).strip()
+
+
+def storage_run_root() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.RunRoot}}"),
+        text=True,
+    ).strip()
+
+
+def storage_graph_driver() -> str:
+    return subprocess.check_output(
+        podman_cmd("info", "--format", "{{.Store.GraphDriverName}}"),
+        text=True,
+    ).strip()
+
+
 def in_system(
     *args: str,
     target: str = "system:latest",

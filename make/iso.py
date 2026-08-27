@@ -1,3 +1,5 @@
+import json
+import subprocess
 import sys
 from argparse import (
     ArgumentParser,
@@ -12,6 +14,7 @@ from . import (
     REPO,
     in_system,
     is_root,
+    podman_cmd,
 )
 
 kwds: dict[str, str] = {
@@ -34,6 +37,17 @@ def command(args: Namespace) -> None:
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
+    storage_info = json.loads(
+        subprocess.check_output(
+            [*podman_cmd("info"), "--format", "json"],
+            text=True,
+        )
+    )
+    store = storage_info["store"]
+    graph_root = store["graphRoot"]
+    run_root = store["runRoot"]
+    driver = store["graphDriverName"]
+
     for target in cast(list[str], args.target):
         image = f"{REPO}:{target}"
         _ = in_system(
@@ -46,7 +60,14 @@ def command(args: Namespace) -> None:
             "iso",
             *([] if cast(bool, args.localImage) else ["--no-local-image"]),
             check=True,
-            flags=["cap-add=SYS_ADMIN"],
+            flags=[
+                "cap-add=SYS_ADMIN",
+                f"env=HOST_STORAGE_DRIVER={driver}",
+            ],
+            volumes=[
+                f"{graph_root}:/host-storage",
+                f"{run_root}:/host-runroot",
+            ],
         )
 
 

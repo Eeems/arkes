@@ -803,13 +803,16 @@ def update_loader_entries(
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
-            outputPath = f"/sysroot/boot/efi/EFI/arkes/{name}"
+            root = "/sysroot" if os.path.exists(
+                os.path.join(deployment.path, "usr/bin/sbctl")
+            ) else sysroot
+            outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
             execOrChroot(
                 deployment,
                 "\n".join(
                     [
                         "set -e",
-                        "export ESP_PATH=/sysroot/boot/efi",
+                        f"export ESP_PATH={root}/boot/efi",
                         shlex.join(
                             [
                                 "sbctl",
@@ -817,9 +820,9 @@ def update_loader_entries(
                                 "--cmdline",
                                 cmdlineFile.name,
                                 "--kernel-img",
-                                f"/sysroot{props['linux']}",
+                                f"{root}{props['linux']}",
                                 "--initramfs",
-                                f"/sysroot{props['initrd']}",
+                                f"{root}{props['initrd']}",
                                 outputPath,
                             ]
                         ),

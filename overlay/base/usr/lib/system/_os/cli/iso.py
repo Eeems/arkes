@@ -1,6 +1,5 @@
 import atexit
 import os
-import shlex
 import shutil
 import sys
 from argparse import (
@@ -21,7 +20,9 @@ from .. import (
 from ..podman import (
     export,
     podman,
-    podman_cmd,
+    storage_graph_driver,
+    storage_graph_root,
+    storage_run_root,
 )
 from ..system import (
     baseImage,
@@ -89,26 +90,24 @@ def iso() -> str:
 
     atexit.unregister(exitFunc1)
     podman("rmi", f"system:iso-{uuid}")
+    dest_storage = os.path.join(ROOTFS_PATH, "var/lib/containers/storage")
+    if os.path.isdir("/host-storage"):
+        src_root = "/host-storage"
+        src_runroot = "/host-runroot"
+        driver = os.environ.get("HOST_STORAGE_DRIVER", "overlay")
+
+    else:
+        src_root = storage_graph_root()
+        src_runroot = storage_run_root()
+        driver = storage_graph_driver()
+
     execute(
-        "bash",
-        "-c",
-        " | ".join(
-            [
-                shlex.join(podman_cmd("save", buildImage)),
-                shlex.join(
-                    [
-                        "podman",
-                        f"--root={ROOTFS_PATH}/var/lib/containers/storage",
-                        "--runroot=/tmp/podman-runroot",
-                        "--storage-driver=overlay",
-                        "--events-backend=file",
-                        "load",
-                    ]
-                ),
-            ]
-        ),
+        "skopeo",
+        "--insecure-policy",
+        "copy",
+        f"containers-storage:[{driver}@{src_root}+{src_runroot}]{buildImage}",
+        f"containers-storage:[overlay@{dest_storage}]{buildImage}",
     )
-    os.unlink(os.path.join(ROOTFS_PATH, "var/lib/containers/storage/db.sql"))
     _ = shutil.copytree(os.path.join(ROOTFS_PATH, "etc/system/archiso"), "archiso")
     for path in [
         "loader/entries/01-archiso-x86_64-linux.conf",

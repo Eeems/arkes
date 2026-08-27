@@ -26,7 +26,8 @@ from ..ostree import (
 from ..podman import (
     build,
     image_qualified_name,
-    podman_cmd,
+    storage_graph_root,
+    storage_run_root,
 )
 from ..system import (
     baseImage,
@@ -116,26 +117,21 @@ def copy_images(sysroot: str, result: dict[str, str]) -> None:
         storage = os.path.join(
             sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
         )
-        src_root = subprocess.check_output(
-            podman_cmd("info", "--format", "{{.Store.GraphRoot}}"),
-            text=True,
-        ).strip()
-        src_runroot = subprocess.check_output(
-            podman_cmd("info", "--format", "{{.Store.RunRoot}}"),
-            text=True,
-        ).strip()
         for image in ("system:latest", baseImage()):
             image = image_qualified_name(image)  # noqa: PLW2901
             execute(
                 "skopeo",
                 "--insecure-policy",
                 "copy",
-                f"containers-storage:[overlay@{src_root}+{src_runroot}]{image}",
+                (
+                    f"containers-storage:[overlay@{storage_graph_root()}"
+                    f"+{storage_run_root()}]{image}"
+                ),
                 f"containers-storage:[overlay@{storage}]{image}",
                 onstdout=output.extend,
                 onstderr=output.extend,
             )
-        os.unlink(os.path.join(storage, "db.sql"))
+
         os.sync()
         execute("umount", "/var/tmp")  # noqa: S108
         os.rmdir(tmp)
