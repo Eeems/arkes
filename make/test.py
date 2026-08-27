@@ -309,31 +309,31 @@ def command(args: Namespace) -> None:
                     )
                     error_exit(proc, cidfile)
 
-            image = image_qualified_name(output.decode().strip())
-            if not check(
-                proc,
-                f"""
-                  echo '[test] copying image {image}'
-                  sudo skopeo --insecure-policy copy \\
-                    "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]{image}" \\
-                    "containers-storage:{image}"
-                """,
-            ):
-                print(
-                    "boot-test: failed to load build into installed system",
-                    file=sys.stderr,
-                )
-                error_exit(proc, cidfile)
+                image = image_qualified_name(output.decode().strip())
+                if not check(
+                    proc,
+                    f"""
+                      echo '[test] copying image {image}'
+                      sudo skopeo --insecure-policy copy \\
+                        "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]{image}" \\
+                        "containers-storage:{image}"
+                    """,
+                ):
+                    print(
+                        "boot-test: failed to load build into installed system",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
 
-            if variant is not None and not check(
-                proc,
-                """
-                  sudo cp /mnt/sfs/etc/system/Systemfile /etc/system/Systemfile
-                  sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
-                """,
-            ):
-                print("boot-test: failed to patch Systemfile", file=sys.stderr)
-                error_exit(proc, cidfile)
+                if not check(
+                    proc,
+                    """
+                      sudo cp /mnt/sfs/etc/system/Systemfile /etc/system/Systemfile
+                      sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+                    """,
+                ):
+                    print("boot-test: failed to patch Systemfile", file=sys.stderr)
+                    error_exit(proc, cidfile)
 
             # Run the upgrade in the background while verifying that the
             # os-daemon holds a logind inhibitor lock for its duration.
