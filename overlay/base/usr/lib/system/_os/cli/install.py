@@ -25,6 +25,7 @@ from ..ostree import (
 )
 from ..podman import (
     build,
+    image_qualified_name,
     podman_cmd,
 )
 from ..system import (
@@ -124,6 +125,7 @@ def copy_images(sysroot: str, result: dict[str, str]) -> None:
             text=True,
         ).strip()
         for image in ("system:latest", baseImage()):
+            image = image_qualified_name(image)  # noqa: PLW2901
             execute(
                 "skopeo",
                 "--insecure-policy",
