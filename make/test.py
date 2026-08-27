@@ -296,17 +296,18 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            output = run(
-                proc,
-                "awk 'NR==1{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
-                timeout=5,
-            )
-            if output is None:
-                print(
-                    "boot-test: failed to read FROM line",
-                    file=sys.stderr,
+            if variant is not None:
+                output = run(
+                    proc,
+                    "awk 'NR==1{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
+                    timeout=5,
                 )
-                error_exit(proc, cidfile)
+                if output is None:
+                    print(
+                        "boot-test: failed to read FROM line",
+                        file=sys.stderr,
+                    )
+                    error_exit(proc, cidfile)
 
             image = image_qualified_name(output.decode().strip())
             if not check(
