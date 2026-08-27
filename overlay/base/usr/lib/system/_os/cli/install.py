@@ -26,6 +26,7 @@ from ..ostree import (
 from ..podman import (
     build,
     image_qualified_name,
+    storage_graph_driver,
     storage_graph_root,
     storage_run_root,
 )
@@ -124,7 +125,7 @@ def copy_images(sysroot: str, result: dict[str, str]) -> None:
                 "--insecure-policy",
                 "copy",
                 (
-                    f"containers-storage:[overlay@{storage_graph_root()}"
+                    f"containers-storage:[{storage_graph_driver()}@{storage_graph_root()}"
                     f"+{storage_run_root()}]{image}"
                 ),
                 f"containers-storage:[overlay@{storage}]{image}",

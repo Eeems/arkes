@@ -358,7 +358,7 @@ def image_name_from_parts(
 
 def image_qualified_name(image: str) -> str:
     registry, repo, tag, digest = image_name_parts(image)
-    if ((registry or REGISTRY) == REGISTRY) and repo == IMAGE or repo == OS_NAME:
+    if ((registry or REGISTRY) == REGISTRY) and repo in (IMAGE, OS_NAME):
         registry = REGISTRY
         if repo == OS_NAME:
             repo = IMAGE

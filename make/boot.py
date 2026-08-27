@@ -558,6 +558,10 @@ def run(
             if remaining <= 0:
                 return None
 
+            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
+            if not readable:
+                return None
+
         data: bytes = read(proc)
         if not data:
             if proc.poll() is not None:

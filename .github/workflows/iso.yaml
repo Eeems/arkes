@@ -263,7 +263,8 @@ jobs:
           echo "Assembling ISO..."
           iso_dir="$RUNNER_TEMP/previous"
           mkdir -p "$iso_dir"
-          cat $download_dir/$chunks > "$iso_dir/$filename"
+          echo "$chunks" | xargs -rI {} printf '%s\0' "$download_dir/{}" \
+            | xargs -r0 cat > "$iso_dir/$filename"
           rm -rf "$download_dir"
 
           echo "$sha256  $iso_dir/$filename" > /tmp/iso.sha256

@@ -127,6 +127,10 @@ def command(args: Namespace) -> None:
     failed = failed or not _assert_name(IMAGE, REPO)
     failed = failed or not _assert_name(OS_NAME, REPO)
     failed = failed or not _assert_name(f"{REGISTRY}/{IMAGE}", REPO)
+    failed = failed or not _assert_name(
+        f"other.example/{OS_NAME}",
+        f"other.example/{OS_NAME}",
+    )
     failed = failed or not _assert_run("echo hello", b"hello\r\n")
     failed = failed or not _assert_run("printf 'a\\nb'", b"a\r\nb")
     failed = failed or not _assert_run("printf '\\033[32mhello\\033[0m'", b"hello")

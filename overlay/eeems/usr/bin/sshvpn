@@ -6,6 +6,15 @@ fi
 log() {
   echo "$@" 1>&2
 }
+fw_remove() {
+  if ! err=$(iptables -D "$@" 2>&1); then
+    grep -q "does a matching rule exist in that chain?" <<<"$err" ||
+      {
+        echo "$err" 1>&2
+        return 1
+      }
+  fi
+}
 up() {
   log "Setting up kernel..."
   sysctl net.ipv4.conf.all.rp_filter=0 1>&2
@@ -35,8 +44,8 @@ down() {
   ip route del default via 192.18.0.1 dev tun0 metric 1
   ip link set dev tun0 down
   ip tuntap del mode tun dev tun0
-  iptables -D FORWARD -i tun0 -j ACCEPT || true
-  iptables -D FORWARD -o tun0 -j ACCEPT || true
+  fw_remove FORWARD -i tun0 -j ACCEPT
+  fw_remove FORWARD -o tun0 -j ACCEPT
   log "Stopped."
 }
 ipaddr() {
