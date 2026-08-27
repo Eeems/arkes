@@ -379,18 +379,15 @@ def install(
     return check(
         proc,
         f"""
-          (
-            set -e
-            sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
-            sudo os install \\
-              --system-partition=/dev/vda2 \\
-              --boot-partition=/dev/vda1 \\
-              --format-partitions \\
-              --password=live \\
-              --kernel-commandline=console=ttyS0,115200 \\
-              {"--fast-install" if fastInstall else ""} \\
-              $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
-         )
+          sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+          sudo os install \\
+            --system-partition=/dev/vda2 \\
+            --boot-partition=/dev/vda1 \\
+            --format-partitions \\
+            --password=live \\
+              --kernel-commandline="console=ttyS0,115200" \\
+            {"--fast-install" if fastInstall else ""} \\
+            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
         """,
     )
 
@@ -428,7 +425,12 @@ def login(
         case _:
             return False
 
-    return expect_prompt(proc, timeout=60) is not None
+    if expect_prompt(proc, timeout=60) is None:
+        return False
+
+    send(proc, b"TERM=dumb bash -l\n")
+    _ = expect_prompt(proc, timeout=5)
+    return True
 
 
 def send(proc: subprocess.Popen[bytes], data: bytes) -> None:
@@ -491,7 +493,7 @@ def error_exit(proc: subprocess.Popen[bytes], cidfile: str) -> NoReturn:
 
 
 def check(proc: subprocess.Popen[bytes], cmd: str) -> bool:
-    send(proc, f"{cmd.strip()} 2>&1; echo __RC__=$?\n".encode())
+    send(proc, f"(set -e; {cmd.strip()}); echo __RC__=$?\n".encode())
     res = -1
     buffer = b""
     prompt = -1
@@ -556,25 +558,54 @@ def run(
             if remaining <= 0:
                 return None
 
-            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
-            if not readable:
-                return None
-
         data: bytes = read(proc)
         if not data:
+            if proc.poll() is not None:
+                break
+
             continue
 
         buffer += data
-        for pattern in [b"~]$", b"~]#"]:
-            idx = buffer.find(pattern)
-            if idx != -1:
-                output = buffer[:idx]
-                # Strip the echoed command line from the serial console
-                first_newline = output.find(b"\n")
-                if first_newline != -1:
-                    output = output[first_newline + 1 :]
+        output_start: int = buffer.find(b"\n")
+        if output_start == -1:
+            continue
 
-                return output.strip()
+        output_start += 1
+        prompt_pos: int = -1
+        for pattern in [b"~]$", b"~]#"]:
+            pos: int = buffer.find(pattern, output_start)
+            if pos != -1:
+                prompt_pos = pos
+                break
+
+        if prompt_pos == -1:
+            continue
+
+        bracket: int = buffer.rfind(b"[", output_start, prompt_pos)
+        if bracket == -1:
+            return None
+
+        if output_start >= bracket:
+            continue
+
+        result = bytearray()
+        i: int = output_start
+        while i < bracket:
+            if buffer[i] == 0x1B:
+                i += 1
+                if i < bracket and buffer[i] == 0x5B:
+                    i += 1
+
+                while i < bracket and not 0x40 <= buffer[i] <= 0x7E:
+                    i += 1
+
+                i += 1
+                continue
+
+            result.append(buffer[i])
+            i += 1
+
+        return bytes(result)
 
     return None
 

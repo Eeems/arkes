@@ -278,19 +278,16 @@ def command(args: Namespace) -> None:
             elif not check(
                 proc,
                 """
-                  (
-                    set -e
-                    echo '[test] mounting iso'
-                    sudo mkdir -p /mnt/iso /mnt/sfs
-                    sudo mount -o ro /dev/sr0 /mnt/iso
-                    sudo modprobe loop
-                    sudo modprobe squashfs
-                    sudo mount -o loop,ro /mnt/iso/arkes/x86_64/airootfs.sfs /mnt/sfs
-                    sudo mkdir -p /var/tmp/sfs-upper /var/tmp/sfs-work
-                    sudo mount -t overlay overlay \\
-                      -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
-                      /mnt/sfs/var/lib/containers/storage
-                  )
+                  echo '[test] mounting iso'
+                  sudo mkdir -p /mnt/iso /mnt/sfs
+                  sudo mount -o ro /dev/sr0 /mnt/iso
+                  sudo modprobe loop
+                  sudo modprobe squashfs
+                  sudo mount -o loop,ro /mnt/iso/arkes/x86_64/airootfs.sfs /mnt/sfs
+                  sudo mkdir -p /var/tmp/sfs-upper /var/tmp/sfs-work
+                  sudo mount -t overlay overlay \\
+                    -o lowerdir=/mnt/sfs/var/lib/containers/storage,upperdir=/var/tmp/sfs-upper,workdir=/var/tmp/sfs-work \\
+                    /mnt/sfs/var/lib/containers/storage
                 """,
             ):
                 print(
@@ -301,7 +298,8 @@ def command(args: Namespace) -> None:
 
             output = run(
                 proc,
-                "awk '$1==\"FROM\"{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
+                "awk 'NR==1{print $2; exit}' /mnt/sfs/etc/system/Systemfile",
+                timeout=5,
             )
             if output is None:
                 print(
@@ -310,11 +308,11 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            image = image_qualified_name(output.decode())
+            image = image_qualified_name(output.decode().strip())
             if not check(
                 proc,
                 f"""
-                  echo '[test] copying image'
+                  echo '[test] copying image {image}'
                   sudo skopeo --insecure-policy copy \\
                     "containers-storage:[overlay@/mnt/sfs/var/lib/containers/storage+/var/tmp/podman-runroot]{image}" \\
                     "containers-storage:{image}"
@@ -326,7 +324,7 @@ def command(args: Namespace) -> None:
                 )
                 error_exit(proc, cidfile)
 
-            if variant is not None and check(
+            if variant is not None and not check(
                 proc,
                 """
                   sudo cp /mnt/sfs/etc/system/Systemfile /etc/system/Systemfile
@@ -340,7 +338,7 @@ def command(args: Namespace) -> None:
             # os-daemon holds a logind inhibitor lock for its duration.
             if not check(
                 proc,
-                """(
+                """
                   os upgrade --no-pull &
                   pid=$!
                   found=0
@@ -364,7 +362,7 @@ def command(args: Namespace) -> None:
                     exit 1
                   fi
                   exit $rc
-                )""",
+                """,
             ):
                 print(
                     "boot-test: os upgrade failed or inhibitor not held/released",
