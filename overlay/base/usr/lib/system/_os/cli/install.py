@@ -115,34 +115,24 @@ def copy_images(sysroot: str, result: dict[str, str]) -> None:
         storage = os.path.join(
             sysroot, "ostree/deploy", OS_NAME, "var/lib/containers/storage"
         )
-        execute(
-            "bash",
-            "-c",
-            " | ".join(
-                [
-                    shlex.join(
-                        podman_cmd(
-                            "save",
-                            "--multi-image-archive",
-                            "system:latest",
-                            baseImage(),
-                        )
-                    ),
-                    shlex.join(
-                        [
-                            "podman",
-                            f"--root={storage}",
-                            "--runroot=/tmp/podman-runroot",
-                            "--storage-driver=overlay",
-                            "--events-backend=file",
-                            "load",
-                        ]
-                    ),
-                ]
-            ),
-            onstdout=output.extend,
-            onstderr=output.extend,
-        )
+        src_root = subprocess.check_output(
+            podman_cmd("info", "--format", "{{.Store.GraphRoot}}"),
+            text=True,
+        ).strip()
+        src_runroot = subprocess.check_output(
+            podman_cmd("info", "--format", "{{.Store.RunRoot}}"),
+            text=True,
+        ).strip()
+        for image in ("system:latest", baseImage()):
+            execute(
+                "skopeo",
+                "--insecure-policy",
+                "copy",
+                f"containers-storage:[overlay@{src_root}+{src_runroot}]{image}",
+                f"containers-storage:[overlay@{storage}]{image}",
+                onstdout=output.extend,
+                onstderr=output.extend,
+            )
         os.unlink(os.path.join(storage, "db.sql"))
         os.sync()
         execute("umount", "/var/tmp")  # noqa: S108
