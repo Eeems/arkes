@@ -21,11 +21,14 @@ up() {
   sysctl -w net.ipv4.ip_forward=1 1>&2
   log "Setting up networking..."
   if [ -n "$3" ]; then
-    ip route add "$2"/32 via "$3"
+    for ip in $4; do
+      ip route add "$ip"/32 via "$3"
+    done
   fi
   ip tuntap add mode tun dev tun0
   ip addr add 192.18.0.1/15 dev tun0
   ip link set dev tun0 up
+  sysctl net.ipv4.conf.tun0.rp_filter=0 1>&2
   log "Setting up firewall..."
   iptables -A FORWARD -i tun0 -j ACCEPT
   iptables -A FORWARD -o tun0 -j ACCEPT
@@ -41,12 +44,17 @@ up() {
 }
 down() {
   log "Stopping background jobs..."
-  if [ -n "$2" ]; then
-    ip route del "$1"/32 via "$2" || true
+  jobs_list=$(jobs -p)
+  if [ -n "$jobs_list" ]; then
+    kill $jobs_list 2>/dev/null || true
+    wait $jobs_list 2>/dev/null || true
   fi
-  ip route del default via 192.18.0.1 dev tun0 metric 1
-  kill $(jobs -p)
-  wait $(jobs -p)
+  if [ -n "$2" ]; then
+    for ip in $3; do
+      ip route del "$ip"/32 via "$2" || true
+    done
+  fi
+  ip route del default via 192.18.0.1 dev tun0 metric 1 || true
   log "Stopping networking..."
   ip link set dev tun0 down
   ip tuntap del mode tun dev tun0
@@ -77,12 +85,13 @@ main() {
   ipaddr 1>&2
   ssh_target=$(sudo -u eeems ssh -G "$1" | awk '$1 == "hostname" {print $2; exit}')
   ssh_ip=$(getent ahostsv4 "$ssh_target" | awk 'NR==1 {print $1}')
+  ssh_ips=$(getent ahostsv4 "$ssh_target" | awk '{print $1}')
   ssh_gateway=
   if [ -n "$ssh_ip" ]; then
     ssh_gateway=$(ip route get "$ssh_ip" | sed -n 's/.* via \([^ ]*\).*/\1/p')
   fi
-  up "$1" "$ssh_ip" "$ssh_gateway"
-  trap "down '$ssh_ip' '$ssh_gateway'" EXIT
+  up "$1" "$ssh_ip" "$ssh_gateway" "$ssh_ips"
+  trap "down '$ssh_ip' '$ssh_gateway' '$ssh_ips'" EXIT
   ipaddr
   log "VPN connected!"
   wait $(jobs -p)
