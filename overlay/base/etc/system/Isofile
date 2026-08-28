@@ -1,4 +1,30 @@
 ARG BASE_IMAGE=arkes:base
+ARG CLOVER_VERSION=5174
+
+# Build the Clover bootloader in its own stage so the download and extraction
+# are cached and reused, and all the temporary files die with this stage. The
+# main image only receives the finished Clover files.
+FROM ${BASE_IMAGE} AS clover
+
+ARG CLOVER_VERSION
+
+RUN <<EOT
+  set -e
+  pacman -Sy --noconfirm --needed curl libarchive
+  mkdir -p /clover
+  cd /clover
+  curl -fL -o Clover.iso.7z \
+    "https://github.com/CloverHackyColor/CloverBootloader/releases/download/${CLOVER_VERSION}/Clover-${CLOVER_VERSION}-X64.iso.7z"
+  bsdtar -xf Clover.iso.7z
+  bsdtar -xf "Clover-${CLOVER_VERSION}-X64.iso" \
+    'EFI/CLOVER' \
+    'usr/standalone/i386/cdboot'
+  rm -f Clover.iso.7z "Clover-${CLOVER_VERSION}-X64.iso"
+  # cdboot is Clover's El Torito "no emulation" image used to boot legacy BIOS.
+  mv usr/standalone/i386/cdboot /clover/cdboot
+  mv EFI/CLOVER /clover/CLOVER
+  rm -rf EFI usr
+EOT
 
 FROM ${BASE_IMAGE}
 
@@ -25,7 +51,6 @@ EOT
 RUN /usr/lib/system/package_layer \
   arch-install-scripts \
   edk2-shell \
-  grub \
   man-db \
   man-pages \
   memtest86+ \
@@ -54,11 +79,14 @@ RUN /usr/lib/system/package_layer \
   amd-ucode \
   intel-ucode
 
+COPY --from=clover /clover /etc/system/clover
+
 RUN <<EOT
   set -e
   sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso
   /usr/lib/system/post_build.d/95-build_kernel
-  /usr/lib/system/create_live_bootloader
+  /usr/lib/system/create_live_bootloader "${UUID}"
+  rm -rf /etc/system/clover
   /usr/lib/system/post_build.d/99-cleanup_kernel
   systemctl disable atomic-state-overlay.service
   printf '%s\n' \
