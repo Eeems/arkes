@@ -309,6 +309,12 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v6
 
+      - name: Setup container
+        uses: ./.github/actions/setup-container
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
       - name: Download iso
         uses: actions/download-artifact@v6
         with:

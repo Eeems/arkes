@@ -31,9 +31,6 @@ runs:
         fi
         echo "TMPDIR=${{ runner.temp }}" >> "$GITHUB_ENV"
         ln -s /__w /home/runner/work
-        if [ ! -L /home/runner/work ] && [ -d /__w/_actions ]; then
-          ln -s /__w/_actions /home/runner/work/_actions
-        fi
 
     - name: Debug information
       shell: bash
