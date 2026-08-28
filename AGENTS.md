@@ -11,7 +11,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 - Never modify AGENTS.md
 
 ## Build Commands
-- `./make.py check` - Run linting, formatting, and type checking (use `--fix` to auto-fix)
+- `./make.py check --quiet --fix` - Run some unit tests, linting, formatting, and type checking
 - `./make.py build <variant>` - Build container image(s) for specific variant
 - `./make.py workflow` - Regenerate GitHub workflow file after changes to make/workflow.py
 - `./make.py scan <variant>` - Security scan with Trivy
@@ -19,7 +19,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 - `./make.py config -p` - Show dependency chain and template mappings
 - `./make.py iso <variant>` - Build ISO locally for testing
 - `./make.py test <iso>` - Test built ISO
-- No separate test framework - use `./make.py check` for validation
+- No separate test framework - use `./make.py check --quiet --fix` for validation
 Website in the `web` folder has its own makefile that will generate the site if you run `make` or `make prod` from inside the `web` folder.
 
 ## Development Workflow
@@ -116,7 +116,7 @@ Templates create variant combinations using `-` separator:
 - Commands are automatically discovered after creation
 - New command will be available as `./make.py <name>`
 - Edit the generated file to implement your command logic
-- Test with `./make.py <name> --help` and validate with `./make.py check`
+- Test with `./make.py <name> --help` and validate with `./make.py check --quiet --fix`
 
 ## Project Structure
 - Container variants in `variants/` with templates in `templates/`

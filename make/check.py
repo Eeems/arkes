@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import json
 import os
@@ -6,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -44,11 +46,47 @@ def register(parser: ArgumentParser) -> None:
         action="store_true",
         help="Apply any automatic fixes that can be applied",
     )
+    _ = parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Only show output when a check fails",
+    )
 
 
 def command(args: Namespace) -> None:
     failed = False
     fix = cast(bool, args.fix)
+    quiet = cast(bool, args.quiet)
+
+    if quiet:
+        current_stdout = sys.stdout
+        current_stderr = sys.stderr
+        saved_out_fd = os.dup(1)
+        saved_err_fd = os.dup(2)
+        cap = tempfile.TemporaryFile()  # noqa: SIM115  (closed in atexit)
+        _ = os.dup2(cap.fileno(), 1)
+        _ = os.dup2(cap.fileno(), 2)
+        sys.stdout = os.fdopen(os.dup(cap.fileno()), "w")
+        sys.stderr = os.fdopen(os.dup(cap.fileno()), "w")
+
+        def _restore() -> None:
+            _ = sys.stdout.flush()
+            _ = sys.stderr.flush()
+            _ = os.dup2(saved_out_fd, 1)
+            _ = os.dup2(saved_err_fd, 2)
+            os.close(saved_out_fd)
+            os.close(saved_err_fd)
+            sys.stdout = current_stdout
+            sys.stderr = current_stderr
+            if failed:
+                _ = cap.seek(0)
+                data = cap.read()
+                if data:
+                    _ = os.write(2, data)
+
+            cap.close()
+
+        _ = atexit.register(_restore)
 
     def _assert_name(name: str, expected: str) -> bool:
         image = image_qualified_name(name)
