@@ -85,7 +85,7 @@ main() {
   ipaddr 1>&2
   ssh_target=$(sudo -u eeems ssh -G "$1" | awk '$1 == "hostname" {print $2; exit}')
   ssh_ip=$(getent ahostsv4 "$ssh_target" | awk 'NR==1 {print $1}')
-  ssh_ips=$(getent ahostsv4 "$ssh_target" | awk '{print $1}')
+  ssh_ips=$(getent ahostsv4 "$ssh_target" | awk '{print $1}' | sort -u)
   ssh_gateway=
   if [ -n "$ssh_ip" ]; then
     ssh_gateway=$(ip route get "$ssh_ip" | sed -n 's/.* via \([^ ]*\).*/\1/p')

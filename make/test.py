@@ -211,6 +211,7 @@ def command(args: Namespace) -> None:
             stderr=subprocess.STDOUT,
             bufsize=0,
         )
+        print("boot-test: phase 1: booting live iso", file=sys.stderr)
         try:
             if not login(proc):
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
@@ -221,6 +222,7 @@ def command(args: Namespace) -> None:
                 print("boot-test: failed to partition /dev/vda", file=sys.stderr)
                 error_exit(proc, cidfile)
 
+            print("boot-test: phase 1: installing to target disk", file=sys.stderr)
             if not install(proc, fastInstall=variant is not None):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
@@ -264,6 +266,7 @@ def command(args: Namespace) -> None:
             bufsize=0,
         )
 
+        print("boot-test: phase 2: booting installed system", file=sys.stderr)
         try:
             if not login(proc, b"root", b"live"):
                 print(
@@ -290,10 +293,7 @@ def command(args: Namespace) -> None:
                     /mnt/sfs/var/lib/containers/storage
                 """,
             ):
-                print(
-                    "boot-test: failed to mount iso",
-                    file=sys.stderr,
-                )
+                print("boot-test: failed to mount iso", file=sys.stderr)
                 error_exit(proc, cidfile)
 
             if variant is not None:
@@ -303,10 +303,7 @@ def command(args: Namespace) -> None:
                     timeout=5,
                 )
                 if output is None:
-                    print(
-                        "boot-test: failed to read FROM line",
-                        file=sys.stderr,
-                    )
+                    print("boot-test: failed to read FROM line", file=sys.stderr)
                     error_exit(proc, cidfile)
 
                 image = image_qualified_name(output.decode().strip())
@@ -337,6 +334,7 @@ def command(args: Namespace) -> None:
 
             # Run the upgrade in the background while verifying that the
             # os-daemon holds a logind inhibitor lock for its duration.
+            print("boot-test: phase 2: upgrading system", file=sys.stderr)
             if not check(
                 proc,
                 """
@@ -383,13 +381,16 @@ def command(args: Namespace) -> None:
                 '""",
             ):
                 print(
-                    "boot-test: upgrade did not create two deployments",
-                    file=sys.stderr,
+                    "boot-test: upgrade did not create two deployments", file=sys.stderr
                 )
                 _ = check(proc, "os status")
                 error_exit(proc, cidfile)
 
             if variant is not None:
+                print(
+                    "boot-test: phase 2: performing second upgrade",
+                    file=sys.stderr,
+                )
                 if not check(
                     proc,
                     "os upgrade --no-pull",
