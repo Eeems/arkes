@@ -6,37 +6,31 @@ fi
 log() {
   echo "$@" 1>&2
 }
-dns_nameservers() {
-  awk '/^nameserver[[:space:]]+/ {print $2}' /etc/resolv.conf |
-    grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' |
-    grep -v '^127\.' |
-    awk '!seen[$0]++'
-}
 up() {
   log "Setting up vpn..."
   local args=()
   local dns_flags=()
-  local list=""
+  local tunneled=()
   local net
   local ns
-  local nonlocal=()
   while read -r net; do
     args+=("--exclude" "$net")
   done < <(ip route | awk '$1 ~ /\// && $2 == "dev" {print $1}')
-  if [ -n "$SSHVPN_TUNNEL_DNS" ]; then
-    for ns in $(dns_nameservers); do
-      if ip route get "$ns" | grep -q ' via '; then
-        nonlocal+=("$ns")
-      fi
-    done
-    if [ ${#nonlocal[@]} -gt 0 ]; then
-      list=$(printf '%s,' "${nonlocal[@]}" | sed 's/,$//')
-      dns_flags=("--ns-hosts" "$list" "--to-ns" "${nonlocal[0]}")
+  while read -r ns; do
+    if [ -n "$ns" ] && ip route get "$ns" | grep -q ' via '; then
+      tunneled+=("$ns")
     fi
+  done < <(sed -n 's/^nameserver[[:space:]]\+//p' /etc/resolv.conf |
+    grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' |
+    grep -v '^127\.' |
+    awk '!seen[$0]++')
+  if [ ${#tunneled[@]} -gt 0 ]; then
+    dns_flags=(--ns-hosts "$(printf '%s,' "${tunneled[@]}" | sed 's/,$//')")
   fi
   sshuttle \
     --ssh-cmd 'sudo -u eeems ssh' \
     --remote "$1" \
+    --listen 0.0.0.0:0 \
     "${dns_flags[@]}" \
     "${args[@]}" \
     0/0 >/dev/null &
