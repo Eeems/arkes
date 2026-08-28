@@ -239,7 +239,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          download_dir="/tmp/iso-download"
+          download_dir="$RUNNER_TEMP/iso-download"
           rm -rf "$download_dir"
           mkdir -p "$download_dir"
 
@@ -254,7 +254,7 @@ jobs:
           sha256=$(jq -r '.hash' "$download_dir/$manifest_asset")
           chunks=$(jq -r '.chunks[]' "$download_dir/$manifest_asset")
 
-          echo "Downloading $filename ($(( $(echo $chunks | wc -w) )) chunks)..."
+          echo "Downloading $filename ($(( $(echo "$chunks" | wc -w) )) chunks)..."
           echo "$chunks" | xargs -P 0 -I {} \
             gh release download "variant/${{ inputs.variant }}" \
               --pattern {} \

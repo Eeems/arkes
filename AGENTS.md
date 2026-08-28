@@ -13,7 +13,7 @@ For project overview and variant details, see `web/src/*.rst` files.
 ## Build Commands
 - `./make.py check` - Run linting, formatting, and type checking (use `--fix` to auto-fix)
 - `./make.py build <variant>` - Build container image(s) for specific variant
-- `./make.py workflow` - Regenerate GitHub workflow files after changes
+- `./make.py workflow` - Regenerate GitHub workflow file after changes to make/workflow.py
 - `./make.py scan <variant>` - Security scan with Trivy
 - `./make.py add-command <name>` - Create new commands from template
 - `./make.py config -p` - Show dependency chain and template mappings
