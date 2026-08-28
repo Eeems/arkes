@@ -6,65 +6,49 @@ fi
 log() {
   echo "$@" 1>&2
 }
-fw_remove() {
-  if ! err=$(iptables -D "$@" 2>&1); then
-    grep -q "does a matching rule exist in that chain?" <<<"$err" ||
-      {
-        echo "$err" 1>&2
-        return 1
-      }
-  fi
+dns_nameservers() {
+  awk '/^nameserver[[:space:]]+/ {print $2}' /etc/resolv.conf |
+    grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' |
+    grep -v '^127\.' |
+    awk '!seen[$0]++'
 }
 up() {
-  log "Setting up kernel..."
-  sysctl net.ipv4.conf.all.rp_filter=0 1>&2
-  sysctl -w net.ipv4.ip_forward=1 1>&2
-  log "Setting up networking..."
-  if [ -n "$3" ]; then
-    for ip in $4; do
-      ip route add "$ip"/32 via "$3"
+  log "Setting up vpn..."
+  local args=()
+  local dns_flags=()
+  local list=""
+  local net
+  local ns
+  local nonlocal=()
+  while read -r net; do
+    args+=("--exclude" "$net")
+  done < <(ip route | awk '$1 ~ /\// && $2 == "dev" {print $1}')
+  if [ -n "$SSHVPN_TUNNEL_DNS" ]; then
+    for ns in $(dns_nameservers); do
+      if ip route get "$ns" | grep -q ' via '; then
+        nonlocal+=("$ns")
+      fi
     done
+    if [ ${#nonlocal[@]} -gt 0 ]; then
+      list=$(printf '%s,' "${nonlocal[@]}" | sed 's/,$//')
+      dns_flags=("--ns-hosts" "$list" "--to-ns" "${nonlocal[0]}")
+    fi
   fi
-  ip tuntap add mode tun dev tun0
-  ip addr add 192.18.0.1/15 dev tun0
-  ip link set dev tun0 up
-  sysctl net.ipv4.conf.tun0.rp_filter=0 1>&2
-  log "Setting up firewall..."
-  iptables -A FORWARD -i tun0 -j ACCEPT
-  iptables -A FORWARD -o tun0 -j ACCEPT
-  log "Starting ssh connection..."
-  sudo -u eeems ssh -TND 4711 "$1" >/dev/null &
-  log "Starting vpn..."
-  tun2socks \
-    --device tun0 \
-    --proxy socks5://localhost:4711 \
-    --loglevel error \
-    >/dev/null &
-  dns_gateway=$(ip route get 1.1.1.1 | sed -n 's/.* via \([^ ]*\).*/\1/p')
-  if [ -n "$dns_gateway" ]; then
-    ip route add 1.1.1.1/32 via "$dns_gateway"
-  fi
-  ip route add default via 192.18.0.1 dev tun0 metric 1
+  sshuttle \
+    --ssh-cmd 'sudo -u eeems ssh' \
+    --remote "$1" \
+    "${dns_flags[@]}" \
+    "${args[@]}" \
+    0/0 >/dev/null &
 }
 down() {
-  log "Stopping background jobs..."
+  log "Stopping vpn..."
+  local jobs_list
   jobs_list=$(jobs -p)
   if [ -n "$jobs_list" ]; then
     kill $jobs_list 2>/dev/null || true
     wait $jobs_list 2>/dev/null || true
   fi
-  if [ -n "$2" ]; then
-    for ip in $3; do
-      ip route del "$ip"/32 via "$2" || true
-    done
-  fi
-  ip route del 1.1.1.1/32 || true
-  ip route del default via 192.18.0.1 dev tun0 metric 1 || true
-  log "Stopping networking..."
-  ip link set dev tun0 down
-  ip tuntap del mode tun dev tun0
-  fw_remove FORWARD -i tun0 -j ACCEPT
-  fw_remove FORWARD -o tun0 -j ACCEPT
   log "Stopped."
 }
 ipaddr() {
@@ -79,6 +63,25 @@ ipaddr() {
   log -n "ipv4: "
   echo "$ip"
 }
+wait_for_tunnel_ip() {
+  local attempts=30
+  local new_ip=""
+  while [ $attempts -gt 0 ]; do
+    set +e
+    new_ip=$(curl -s4 --max-time 5 icanhazip.com)
+    local ret=$?
+    set -e
+    if [ "$ret" -eq 0 ] && [ -n "$new_ip" ] && [ "$new_ip" != "$1" ]; then
+      log -n "ipv4: "
+      echo "$new_ip"
+      return 0
+    fi
+    attempts=$((attempts - 1))
+    [ $attempts -gt 0 ] && sleep 2
+  done
+  log "WARNING: tunnel seems broken, exit ip still $1"
+  return 1
+}
 help() {
   log "Usage: $0 <host>"
 }
@@ -88,16 +91,9 @@ main() {
     return 1
   fi
   ipaddr 1>&2
-  ssh_target=$(sudo -u eeems ssh -G "$1" | awk '$1 == "hostname" {print $2; exit}')
-  ssh_ip=$(getent ahostsv4 "$ssh_target" | awk 'NR==1 {print $1}')
-  ssh_ips=$(getent ahostsv4 "$ssh_target" | awk '{print $1}' | sort -u)
-  ssh_gateway=
-  if [ -n "$ssh_ip" ]; then
-    ssh_gateway=$(ip route get "$ssh_ip" | sed -n 's/.* via \([^ ]*\).*/\1/p')
-  fi
-  trap "down '$ssh_ip' '$ssh_gateway' '$ssh_ips'" EXIT
-  up "$1" "$ssh_ip" "$ssh_gateway" "$ssh_ips"
-  ipaddr
+  trap down EXIT
+  up "$1"
+  wait_for_tunnel_ip "$ip" || exit 1
   log "VPN connected!"
   wait $(jobs -p)
 }
