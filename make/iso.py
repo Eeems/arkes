@@ -1,4 +1,6 @@
+import glob
 import json
+import os
 import subprocess
 import sys
 from argparse import (
@@ -49,6 +51,9 @@ def command(args: Namespace) -> None:
     driver = store["graphDriverName"]
 
     for target in cast(list[str], args.target):
+        for path in glob.glob(f"/var/lib/system/arkes-{target}-*.iso"):
+            os.unlink(path)
+
         image = f"{REPO}:{target}"
         _ = in_system(
             "_build",
