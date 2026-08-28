@@ -1,12 +1,11 @@
 ARG BASE_IMAGE=arkes:base
 ARG CLOVER_VERSION=5174
+ARG CLOVER_ISO_SHA256=50c546054dd9b2ff973c02617670ea4bc4dc8920749abc0ee5ab8e3045778942
 
-# Build the Clover bootloader in its own stage so the download and extraction
-# are cached and reused, and all the temporary files die with this stage. The
-# main image only receives the finished Clover files.
 FROM ${BASE_IMAGE} AS clover
 
 ARG CLOVER_VERSION
+ARG CLOVER_ISO_SHA256
 
 RUN <<EOT
   set -e
@@ -15,12 +14,12 @@ RUN <<EOT
   cd /clover
   curl -fL -o Clover.iso.7z \
     "https://github.com/CloverHackyColor/CloverBootloader/releases/download/${CLOVER_VERSION}/Clover-${CLOVER_VERSION}-X64.iso.7z"
+  echo "${CLOVER_ISO_SHA256}  Clover.iso.7z" | sha256sum --check -
   bsdtar -xf Clover.iso.7z
   bsdtar -xf "Clover-${CLOVER_VERSION}-X64.iso" \
     'EFI/CLOVER' \
     'usr/standalone/i386/cdboot'
   rm -f Clover.iso.7z "Clover-${CLOVER_VERSION}-X64.iso"
-  # cdboot is Clover's El Torito "no emulation" image used to boot legacy BIOS.
   mv usr/standalone/i386/cdboot /clover/cdboot
   mv EFI/CLOVER /clover/CLOVER
   rm -rf EFI usr

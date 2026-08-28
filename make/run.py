@@ -14,6 +14,7 @@ from . import (
     in_system,
     is_root,
 )
+from .config import all_targets
 
 kwds: dict[str, str] = {
     "help": "Run a command in a specific variant",
@@ -42,10 +43,15 @@ def command(args: Namespace) -> None:
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
+    target = cast(str, args.target)
+    if target not in all_targets():
+        print(f"Invalid variant: {target}", file=sys.stderr)
+        sys.exit(1)
+
     ret = in_system(
         "-c",
         shlex.join(cast(list[str], args.command)),
-        target=f"{REPO}:{cast(str, args.target)}",
+        target=f"{REPO}:{target}",
         entrypoint="/bin/bash",
     )
     if ret:
