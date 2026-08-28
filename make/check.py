@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -68,8 +69,10 @@ def command(args: Namespace) -> None:
         _ = os.dup2(cap.fileno(), 2)
         sys.stdout = os.fdopen(os.dup(cap.fileno()), "w")
         sys.stderr = os.fdopen(os.dup(cap.fileno()), "w")
+        _orig_excepthook = sys.excepthook
 
         def _restore() -> None:
+            sys.excepthook = _orig_excepthook
             _ = sys.stdout.flush()
             _ = sys.stderr.flush()
             _ = os.dup2(saved_out_fd, 1)
@@ -87,6 +90,17 @@ def command(args: Namespace) -> None:
             cap.close()
 
         _ = atexit.register(_restore)
+
+        def _excepthook(
+            exc_type: type[BaseException],
+            exc_value: BaseException,
+            exc_tb: types.TracebackType | None,
+        ) -> None:
+            nonlocal failed
+            failed = True
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+        sys.excepthook = _excepthook
 
     def _assert_name(name: str, expected: str) -> bool:
         image = image_qualified_name(name)
@@ -135,6 +149,31 @@ def command(args: Namespace) -> None:
         print(f"  Actual:   {result!r}")
         return False
 
+    def _assert_quiet_traceback() -> bool:
+        code = (
+            "import make.check as _check\n"
+            "from argparse import Namespace\n"
+            "def _bad(name):\n"
+            "    raise RuntimeError('forced-check-exception')\n"
+            "_check.image_qualified_name = _bad\n"
+            "_check.command(Namespace(fix=False, quiet=True))\n"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        if "forced-check-exception" in proc.stderr:
+            return True
+
+        print(" Failed: quiet mode did not replay traceback on exception")
+        print(f"  stderr: {proc.stderr.strip()!r}")
+        return False
+
     print("[check] Running tests")
     failed = failed or not _assert_name(
         "hello-world:latest@sha256:123",
@@ -177,6 +216,7 @@ def command(args: Namespace) -> None:
     )
     failed = failed or not _assert_run("echo -n hello", b"hello")
     failed = failed or not _assert_run("printf 'hello\\rX'", b"hello\rX")
+    failed = failed or not _assert_quiet_traceback()
     if failed:
         sys.exit(1)
 
