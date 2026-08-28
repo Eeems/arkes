@@ -90,8 +90,8 @@ main() {
   if [ -n "$ssh_ip" ]; then
     ssh_gateway=$(ip route get "$ssh_ip" | sed -n 's/.* via \([^ ]*\).*/\1/p')
   fi
-  up "$1" "$ssh_ip" "$ssh_gateway" "$ssh_ips"
   trap "down '$ssh_ip' '$ssh_gateway' '$ssh_ips'" EXIT
+  up "$1" "$ssh_ip" "$ssh_gateway" "$ssh_ips"
   ipaddr
   log "VPN connected!"
   wait $(jobs -p)
