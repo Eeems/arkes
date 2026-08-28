@@ -5,7 +5,7 @@ echo "[system] Creating live bootloader"
 
 touch "/etc/system/archiso/${UUID}.uuid"
 truncate -s 256MB /etc/system/efiboot.img
-chronic mkfs.vfat /etc/system/efiboot.img
+chronic mkfs.vfat -n EFI /etc/system/efiboot.img
 chronic mmd -i /etc/system/efiboot.img EFI EFI/boot EFI/systemd EFI/CLOVER
 
 chronic mcopy -i /etc/system/efiboot.img \

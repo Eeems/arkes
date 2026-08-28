@@ -81,6 +81,16 @@ def parse_all_config() -> Config:
     }
 
 
+def all_targets() -> set[str]:
+    targets: set[str] = {"rootfs"}
+    for variant, data in parse_all_config()["variants"].items():
+        targets.add(variant)
+        for template in cast(list[str], data["templates"]):
+            targets.add(f"{variant}-{template}")
+
+    return targets
+
+
 if __name__ == "__main__":
     kwds["description"] = kwds["help"]
     del kwds["help"]

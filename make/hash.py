@@ -1,4 +1,5 @@
 import os
+import sys
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -18,7 +19,10 @@ from . import (
 from . import (
     file_hash as _file_hash,
 )
-from .config import parse_config
+from .config import (
+    all_targets,
+    parse_config,
+)
 
 kwds: dict[str, str] = {
     "help": "Get the variant hash",
@@ -40,7 +44,16 @@ def register(parser: ArgumentParser) -> None:
 
 
 def command(args: Namespace) -> None:
-    for target in cast(list[str], args.target):
+    targets = cast(list[str], args.target)
+    invalid = [target for target in targets if target not in all_targets()]
+    if invalid:
+        print(
+            f"Invalid variant(s): {', '.join(invalid)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    for target in targets:
         if not cast(bool, args.debug):
             print(f"{target}: {hash(target)[:9]}")
             continue
