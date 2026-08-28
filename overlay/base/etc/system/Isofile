@@ -7,9 +7,12 @@ FROM ${BASE_IMAGE} AS clover
 ARG CLOVER_VERSION
 ARG CLOVER_ISO_SHA256
 
+RUN /usr/lib/system/package_layer \
+  curl \
+  libarchive
+
 RUN <<EOT
   set -e
-  pacman -Sy --noconfirm --needed curl libarchive
   mkdir -p /clover
   cd /clover
   curl -fL -o Clover.iso.7z \
