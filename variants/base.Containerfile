@@ -58,7 +58,7 @@ RUN <<EOT
     xdelta3 \
     xfsprogs \
     xorriso
-  rm /usr/bin/su
+  rm /usr/bin/{su,resolvectl,systemd-resolve}
   ln -s /usr/bin/su{-rs,}
   ln -s /usr/bin/sudo{-rs,}
   ln -s /usr/bin/visudo{-rs,}
