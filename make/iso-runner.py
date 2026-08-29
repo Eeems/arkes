@@ -26,6 +26,7 @@ def register(_: ArgumentParser) -> None:
 def command(_: Namespace) -> None:
     podman(
         "build",
+        "--cap-add=SYS_ADMIN",
         f"--tag={IMAGE}",
         "--file=tools/iso-runner/Containerfile",
         "tools/iso-runner",

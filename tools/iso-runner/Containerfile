@@ -1,18 +1,8 @@
-FROM ubuntu:24.04
+FROM arkes:base-slim_2026.08.29.1824386
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Dependencies for booting an iso under qemu. No driver logic here, that
-# lives in make/boot.py and make/test.py.
-RUN <<EOT
-  set -e
-  apt-get update
-  apt-get install -y --no-install-recommends \
-    genisoimage \
-    ovmf \
-    qemu-system-gui \
-    qemu-system-x86 \
-    qemu-utils
-  apt-get clean
-  rm -rf /var/lib/apt/lists/*
-EOT
+RUN /usr/lib/system/package_layer \
+  ovmf \
+  qemu-img \
+  qemu-system-x86 \
+  qemu-system-x86-firmware \
+  qemu-ui-gtk
