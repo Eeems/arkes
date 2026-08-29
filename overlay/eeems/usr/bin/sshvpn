@@ -34,6 +34,7 @@ up() {
     "${dns_flags[@]}" \
     "${args[@]}" \
     0/0 >/dev/null &
+  sshuttle_pid=$!
 }
 down() {
   log "Stopping vpn..."
@@ -50,7 +51,7 @@ ipaddr() {
   ret=1
   while [ $ret != 0 ]; do
     set +e
-    ip=$(curl -s4 icanhazip.com)
+    ip=$(curl -s4 https://icanhazip.com)
     ret=$?
     set -e
   done
@@ -61,8 +62,12 @@ wait_for_tunnel_ip() {
   local attempts=30
   local new_ip=""
   while [ $attempts -gt 0 ]; do
+    if ! kill -0 "$2" 2>/dev/null; then
+      log "ERROR: sshuttle exited before the tunnel was ready"
+      return 1
+    fi
     set +e
-    new_ip=$(curl -s4 --max-time 5 icanhazip.com)
+    new_ip=$(curl -s4 --max-time 5 https://icanhazip.com)
     local ret=$?
     set -e
     if [ "$ret" -eq 0 ] && [ -n "$new_ip" ] && [ "$new_ip" != "$1" ]; then
@@ -87,7 +92,7 @@ main() {
   ipaddr 1>&2
   trap down EXIT
   up "$1"
-  wait_for_tunnel_ip "$ip" || exit 1
+  wait_for_tunnel_ip "$ip" "$sshuttle_pid" || exit 1
   log "VPN connected!"
   wait $(jobs -p)
 }
