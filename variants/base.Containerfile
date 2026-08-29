@@ -59,7 +59,7 @@ RUN <<EOT
     xfsprogs \
     xorriso
   rm \
-    /usr/bin/{su,resolvectl,systemd-resolve} \
+    /usr/bin/su \
     /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook \
     /usr/share/libalpm/hooks/zz-sbctl.hook
   ln -s /usr/bin/su{-rs,}
