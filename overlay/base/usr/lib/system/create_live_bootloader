@@ -35,6 +35,9 @@ mkdir -p /etc/system/archiso/{boot/grub,EFI/CLOVER,arkes/x86_64}
 
 cp /etc/system/clover/cdboot /etc/system/archiso/boot/grub/eltorito.img
 cp -a /etc/system/clover/CLOVER/. /etc/system/archiso/EFI/CLOVER/
+mkdir -p /etc/system/archiso/EFI/systemd
+cp -a /usr/lib/systemd/boot/efi/systemd-bootx64.efi \
+  /etc/system/archiso/EFI/systemd/
 
 cp -a /usr/lib/modules/*/vmlinuz /etc/system/archiso/arkes/x86_64
 cp -a /usr/lib/modules/*/initramfs.img /etc/system/archiso/arkes/x86_64

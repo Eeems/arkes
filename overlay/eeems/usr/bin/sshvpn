@@ -8,13 +8,14 @@ log() {
 }
 up() {
   log "Setting up vpn..."
-  local args=()
+  local args=("--exclude" "127.0.0.0/8")
   local dns_flags=()
   local tunneled=()
   local net
   local ns
   while read -r net; do
     args+=("--exclude" "$net")
+    echo "Excluding $net"
   done < <(ip route | awk '$1 ~ /\// && $2 == "dev" {print $1}')
   while read -r ns; do
     if [ -n "$ns" ] && ip route get "$ns" | grep -q ' via '; then

@@ -156,13 +156,17 @@ def qemu_cmd(
     cdrom: bool = False,
     kernel: tuple[str, str, str] | None = None,
     uefi: bool = True,
+    qmp_port: int | None = None,
+    kvm: bool | None = None,
 ) -> list[str]:
-    kvm: bool = os.path.exists("/dev/kvm")
+    if kvm is None or kvm:
+        kvm = os.path.exists("/dev/kvm")
+
     return [
         "-machine",
         "q35",
         "-cpu",
-        "host" if kvm else "max",
+        "host" if kvm else ("max" if uefi else "qemu64"),
         "-accel",
         "kvm" if kvm else "tcg",
         "-m",
@@ -174,7 +178,13 @@ def qemu_cmd(
         *(
             ["-display", "sdl", "-vga", "std", "-serial", "none"]
             if graphical
-            else ["-nographic"]
+            else (
+                # Legacy BIOS boots through clover, whose eltorito loader
+                # needs a VGA device.
+                ["-serial", "stdio", "-display", "none", "-vga", "std"]
+                if not uefi
+                else ["-nographic"]
+            )
         ),
         *([] if graphical or monitor else ["-monitor", "none"]),
         *(
@@ -213,6 +223,15 @@ def qemu_cmd(
             ]
             if kernel is not None
             else []
+        ),
+        *(
+            []
+            if qmp_port is None
+            else [
+                # Bind all interfaces so podman port publishing can reach it.
+                "-qmp",
+                f"tcp:0.0.0.0:{qmp_port},server=on,wait=off",
+            ]
         ),
     ]
 
@@ -404,8 +423,9 @@ def login(
     proc: subprocess.Popen[bytes],
     user: bytes = b"live",
     password: bytes = b"",
+    timeout: float = 60,
 ) -> bool:
-    match expect_prompt(proc, b"login:", timeout=60):
+    match expect_prompt(proc, b"login:", timeout=timeout):
         case b"~]$" | b"~]#":
             return True
 
@@ -415,7 +435,7 @@ def login(
         case _:
             return False
 
-    match expect_prompt(proc, b"Password:", timeout=60):
+    match expect_prompt(proc, b"Password:", timeout=timeout):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -425,7 +445,7 @@ def login(
         case _:
             return False
 
-    if expect_prompt(proc, timeout=60) is None:
+    if expect_prompt(proc, timeout=timeout) is None:
         return False
 
     send(proc, b"TERM=dumb bash -l\n")
