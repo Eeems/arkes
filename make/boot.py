@@ -65,6 +65,7 @@ def register(parser: ArgumentParser) -> None:
 
 def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
     args: list[str] = [
+        "--entrypoint=qemu-system-x86_64",
         f"--volume={iso}:/iso:ro",
         f"--volume={workspace}:/workspace",
         "--security-opt=label=disable",
@@ -156,7 +157,7 @@ def qemu_cmd(
     cdrom: bool = False,
     kernel: tuple[str, str, str] | None = None,
     uefi: bool = True,
-    qmp_port: int | None = None,
+    qmp: bool = False,
     kvm: bool | None = None,
 ) -> list[str]:
     if kvm is None or kvm:
@@ -176,21 +177,15 @@ def qemu_cmd(
         "-audiodev",
         "none,id=noaudio",
         *(
-            ["-display", "sdl", "-vga", "std", "-serial", "none"]
+            ["-display", "gtk", "-vga", "std", "-serial", "none"]
             if graphical
-            else (
-                # Legacy BIOS boots through clover, whose eltorito loader
-                # needs a VGA device.
-                ["-serial", "stdio", "-display", "none", "-vga", "std"]
-                if not uefi
-                else ["-nographic"]
-            )
+            else ["-nographic"]
         ),
         *([] if graphical or monitor else ["-monitor", "none"]),
         *(
             [
                 "-drive",
-                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/x64/OVMF_CODE_4M.secboot.fd",
                 "-drive",
                 "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
             ]
@@ -225,13 +220,13 @@ def qemu_cmd(
             else []
         ),
         *(
-            []
-            if qmp_port is None
-            else [
-                # Bind all interfaces so podman port publishing can reach it.
+            [
+                # Bind unix socket for qmp connection.
                 "-qmp",
-                f"tcp:0.0.0.0:{qmp_port},server=on,wait=off",
+                "unix:/workspace/qmp.sock,server=on,wait=off",
             ]
+            if qmp
+            else []
         ),
     ]
 
@@ -269,7 +264,7 @@ def command(args: Namespace) -> None:
             image,
             "bash",
             "-c",
-            "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
+            "cp /usr/share/OVMF/x64/OVMF_VARS.4m.fd /workspace/OVMF_VARS.4m.fd",
         )
         disk: str | None = None
         if addDisk:
@@ -278,6 +273,7 @@ def command(args: Namespace) -> None:
                 "--rm",
                 f"--volume={workspace}:/workspace",
                 "--security-opt=label=disable",
+                "--entrypoint",
                 image,
                 "qemu-img",
                 "create",
@@ -296,7 +292,6 @@ def command(args: Namespace) -> None:
                     "-it",
                     *qemu_args(iso, workspace, graphical),
                     image,
-                    "qemu-system-x86_64",
                     *qemu_cmd(graphical=graphical, monitor=True, disk=disk, cdrom=True),
                 )
             )
@@ -325,7 +320,6 @@ def command(args: Namespace) -> None:
                 *pod_args,
                 f"--volume={iso}:/iso:ro",
                 image,
-                "qemu-system-x86_64",
                 *qemu_cmd(
                     graphical=False,
                     monitor=False,
@@ -371,7 +365,6 @@ def command(args: Namespace) -> None:
                 "-it",
                 *pod_args,
                 image,
-                "qemu-system-x86_64",
                 *qemu_cmd(
                     graphical=graphical,
                     monitor=True,
@@ -415,8 +408,9 @@ def expect_prompt(
     proc: subprocess.Popen[bytes],
     *extras: bytes,
     timeout: float | None = None,
+    idle_timeout: float | None = None,
 ) -> bytes | None:
-    return expect(proc, [*extras, b"~]$", b"~]#"], timeout)
+    return expect(proc, [*extras, b"~]$", b"~]#"], timeout, idle_timeout)
 
 
 def login(
@@ -425,31 +419,43 @@ def login(
     password: bytes = b"",
     timeout: float = 60,
 ) -> bool:
-    match expect_prompt(proc, b"login:", timeout=timeout):
+    print("boot-test: login: waiting for login prompt", file=sys.stderr)
+    match expect_prompt(proc, b"login:", timeout=timeout, idle_timeout=timeout):
         case b"~]$" | b"~]#":
+            print("boot-test: login: already at shell", file=sys.stderr)
             return True
 
         case b"login:":
+            print(f"boot-test: login: sending user {user!r}", file=sys.stderr)
             send(proc, user + b"\n")
 
-        case _:
+        case matched:
+            print(f"boot-test: login: unexpected match {matched!r}", file=sys.stderr)
             return False
 
-    match expect_prompt(proc, b"Password:", timeout=timeout):
+    print("boot-test: login: waiting for password prompt", file=sys.stderr)
+    match expect_prompt(proc, b"Password:", timeout=timeout, idle_timeout=timeout):
         case b"Password:":
+            print("boot-test: login: sending password", file=sys.stderr)
             send(proc, password + b"\n")
 
         case b"~]$" | b"~]#":
+            print("boot-test: login: no password needed", file=sys.stderr)
             return True
 
-        case _:
+        case matched:
+            print(f"boot-test: login: unexpected match {matched!r}", file=sys.stderr)
             return False
 
-    if expect_prompt(proc, timeout=timeout) is None:
+    print("boot-test: login: waiting for shell prompt", file=sys.stderr)
+    if expect_prompt(proc, timeout=timeout, idle_timeout=timeout) is None:
+        print("boot-test: login: shell prompt timeout", file=sys.stderr)
         return False
 
+    print("boot-test: login: sending TERM=dumb bash -l", file=sys.stderr)
     send(proc, b"TERM=dumb bash -l\n")
-    _ = expect_prompt(proc, timeout=5)
+    _ = expect_prompt(proc, timeout=5, idle_timeout=5)
+    print("boot-test: login: success", file=sys.stderr)
     return True
 
 
@@ -638,32 +644,69 @@ def expect(
     proc: subprocess.Popen[bytes],
     patterns: list[bytes],
     timeout: float | None = None,
+    idle_timeout: float | None = None,
 ) -> bytes | None:
     assert proc.stdout is not None
     buffer = b""
     max_len: int = max(len(pattern) for pattern in patterns)
-    deadline: float | None = None
+    start_time = time.monotonic()
+
     if timeout is not None:
-        deadline = time.monotonic() + timeout
+        # Wall-clock timeout (original behavior, ignore idle)
+        absolute_deadline = start_time + timeout
+        last_data_time: float | None = None
+    elif idle_timeout is not None:
+        # Idle timeout: reset timer on each data receipt, max 300s total
+        absolute_deadline = start_time + max(idle_timeout, 300)
+        last_data_time = start_time
+    else:
+        absolute_deadline = None
+        last_data_time = None
 
     while proc.poll() is None:
-        if deadline is not None:
-            remaining: float = deadline - time.monotonic()
+        # Determine select timeout
+        if absolute_deadline is not None:
+            remaining = absolute_deadline - time.monotonic()
             if remaining <= 0:
                 return None
+            select_timeout = remaining
+        else:
+            select_timeout = None
 
-            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
-            if not readable:
+        readable, _, _ = select.select([proc.stdout.fileno()], [], [], select_timeout)
+
+        if not readable:
+            # In idle mode, check if idle timeout has elapsed
+            if (
+                idle_timeout is not None
+                and last_data_time is not None
+                and time.monotonic() - last_data_time > idle_timeout
+            ):
                 return None
+            continue
 
         data: bytes = read(proc)
         if not data:
             continue
 
+        # For idle mode, update last_data_time on receipt
+        if idle_timeout is not None:
+            last_data_time = time.monotonic()
+
         buffer = (buffer + data)[-(max_len + len(data)) :]
+        print(f"boot-test: expect buffer: {buffer!r}", file=sys.stderr)
         for pattern in patterns:
             if pattern in buffer:
+                print(f"boot-test: expect matched: {pattern!r}", file=sys.stderr)
                 return pattern
+
+    # Process ended – check idle timeout if applicable
+    if (
+        idle_timeout is not None
+        and last_data_time is not None
+        and time.monotonic() - last_data_time > idle_timeout
+    ):
+        return None
 
     return None
 

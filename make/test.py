@@ -1,12 +1,11 @@
 import atexit
-import base64
 import json
 import os
+import shlex
 import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import traceback
 from argparse import (
@@ -88,117 +87,92 @@ def register(parser: ArgumentParser) -> None:
     )
 
 
-def free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return cast(int, sock.getsockname()[1])
-
-
 def qmp_connect(
-    port: int,
+    workspace: str,
     timeout: float,
 ) -> tuple[socket.socket, IO[bytes]] | None:
+    socket_path = os.path.join(workspace, "qmp.sock")
+    print(f"boot-test: waiting for qmp socket at {socket_path}", file=sys.stderr)
     deadline: float = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if not os.path.exists(socket_path):
+            time.sleep(0.5)
+            continue
+        print("boot-test: socket exists, connecting...", file=sys.stderr)
+        sock: socket.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
-            sock: socket.socket = socket.create_connection(
-                ("127.0.0.1", port), timeout=2
-            )
-        except OSError:
-            time.sleep(1)
+            sock.connect(socket_path)
+        except OSError as ex:
+            print(f"boot-test: connect failed: {ex}", file=sys.stderr)
+            time.sleep(0.5)
             continue
 
-        try:
-            sock.settimeout(5)
-            reader: IO[bytes] = sock.makefile("rb")
-            if not reader.readline():
-                sock.close()
-                continue
+        print("boot-test: connected, doing handshake...", file=sys.stderr)
+        sock.settimeout(timeout)
+        reader: IO[bytes] = sock.makefile("rb")
+        if not reader.readline():
+            print("boot-test: no greeting from qemu", file=sys.stderr)
+            sock.close()
+            time.sleep(0.5)
+            continue
 
-            response = qmp_execute(sock, reader, {"execute": "qmp_capabilities"})
-            if response is not None and "error" not in response:
-                return sock, reader
+        response = qmp_execute(sock, reader, {"execute": "qmp_capabilities"})
+        if response is not None and "error" not in response:
+            print("boot-test: qmp handshake successful", file=sys.stderr)
+            return sock, reader
 
-        except (OSError, ValueError):
-            pass
-
+        print(f"boot-test: handshake failed: {response}", file=sys.stderr)
         sock.close()
+        time.sleep(0.5)
 
+    print("boot-test: timeout waiting for qmp socket", file=sys.stderr)
     return None
 
 
 def qmp_execute(
     sock: socket.socket,
     reader: IO[bytes],
-    request: dict[str, object],
+    request: dict[str, str | dict[str, str]],
 ) -> dict[str, object] | None:
     _ = sock.sendall((json.dumps(request) + "\n").encode())
     response = reader.readline()
     if not response:
         return None
 
-    return json.loads(response)
+    return json.loads(response)  # pyright: ignore[reportAny]
 
 
-def press_enter(port: int, workspace: str) -> None:
-    deadline: float = time.monotonic() + 120
-    dump_at: float = time.monotonic() + 60
-    dumped: bool = False
-    connected: bool = False
-    while time.monotonic() < deadline:
-        connection = qmp_connect(port, deadline - time.monotonic())
-        if connection is None:
-            break
-
-        connected = True
-        sock, reader = connection
-        try:
-            while time.monotonic() < deadline:
-                if not dumped and time.monotonic() >= dump_at:
-                    dumped = True
-                    request = {
-                        "execute": "human-monitor-command",
-                        "arguments": {
-                            "command-line": "screendump /workspace/diag.png"
-                        },
-                    }
-                    _ = qmp_execute(sock, reader, request)
-                    try:
-                        with open(
-                            os.path.join(workspace, "diag.png"), "rb"
-                        ) as dump_file:
-                            dump = base64.b64encode(dump_file.read()).decode()
-                        print(f"boot-test: screendump:\n{dump}", file=sys.stderr)
-                    except OSError:
-                        pass
-
-                    break
-
-                request = {
-                    "execute": "human-monitor-command",
-                    "arguments": {"command-line": "sendkey ret"},
-                }
-                response = qmp_execute(sock, reader, request)
-                if response is None:
-                    break
-
-                if "error" in response:
-                    print(
-                        f"boot-test: sendkey error: {response['error']}",
-                        file=sys.stderr,
-                    )
-                    break
-
-                time.sleep(3)
-
-        finally:
-            sock.close()
-
-    if not connected:
+def press_enter(workspace: str) -> None:
+    connection = qmp_connect(workspace, 30)
+    if connection is None:
         print(
             "boot-test: qemu monitor never became reachable, no keys sent",
             file=sys.stderr,
         )
+        return
+
+    sock, reader = connection
+    try:
+        request = {
+            "execute": "human-monitor-command",
+            "arguments": {"command-line": "sendkey ret"},
+        }
+        response = qmp_execute(sock, reader, request)
+        if response is None:
+            print(
+                "boot-test: no response from qemu monitor",
+                file=sys.stderr,
+            )
+        elif "error" in response:
+            print(
+                f"boot-test: sendkey error: {response['error']}",
+                file=sys.stderr,
+            )
+        else:
+            print("boot-test: enter keypress sent", file=sys.stderr)
+
+    finally:
+        sock.close()
 
 
 def command(args: Namespace) -> None:
@@ -231,7 +205,8 @@ def command(args: Namespace) -> None:
                 res.raise_for_status()
                 prefix = f"arkes-{variant}-"
                 for line in cast(
-                    str, cast(dict[str, Any], res.json())["body"]
+                    str,
+                    cast(dict[str, Any], res.json())["body"],  # pyright: ignore[reportExplicitAny]
                 ).splitlines():
                     cells = [
                         cell.strip() for cell in line.strip().strip("|").split("|")
@@ -280,17 +255,14 @@ def command(args: Namespace) -> None:
             "--security-opt=label=disable",
             *(["--device=/dev/kvm"] if kvm else []),
         ]
-        qmp_port: int | None = None
-        if bios:
-            qmp_port = free_port()
-            pod_args.append(f"--publish=127.0.0.1:{qmp_port}:{qmp_port}")
 
         podman(
             "run",
             "--rm",
             *pod_args,
-            image,
+            "--entrypoint",
             "qemu-img",
+            image,
             "create",
             "-f",
             "qcow2",
@@ -302,9 +274,8 @@ def command(args: Namespace) -> None:
             "--rm",
             *pod_args,
             image,
-            "bash",
             "-c",
-            "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
+            "cp /usr/share/OVMF/x64/OVMF_VARS.4m.fd /workspace/OVMF_VARS.4m.fd",
         )
         disk: str = "/workspace/disk.qcow2"
         # Phase 1: boot the iso, validate, install to the target disk.
@@ -318,28 +289,30 @@ def command(args: Namespace) -> None:
         if variant is not None:
             kernel = extract_boot(iso, workspace, branch)
 
-        proc: subprocess.Popen[bytes] = subprocess.Popen(
-            podman_cmd(
-                "run",
-                "--rm",
-                "-i",
-                "--cidfile",
-                cidfile,
-                *pod_args,
-                f"--volume={iso}:/iso:ro",
-                image,
-                "qemu-system-x86_64",
-                *qemu_cmd(
-                    graphical=False,
-                    monitor=False,
-                    disk=disk,
-                    cdrom=kernel is None,
-                    kernel=kernel,
-                    uefi=not bios,
-                    qmp_port=qmp_port,
-                    kvm=kvm,
-                ),
+        cmd = podman_cmd(
+            "run",
+            "--rm",
+            "--cidfile",
+            cidfile,
+            *pod_args,
+            f"--volume={iso}:/iso:ro",
+            "--entrypoint",
+            "qemu-system-x86_64",
+            image,
+            *qemu_cmd(
+                graphical=False,
+                monitor=False,
+                disk=disk,
+                cdrom=kernel is None,
+                kernel=kernel,
+                uefi=not bios,
+                qmp=bios,
+                kvm=kvm,
             ),
+        )
+        print(f"boot-test: {shlex.join(cmd)}", file=sys.stderr)
+        proc: subprocess.Popen[bytes] = subprocess.Popen(
+            cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -347,14 +320,11 @@ def command(args: Namespace) -> None:
         )
         print("boot-test: phase 1: booting live iso", file=sys.stderr)
         if bios:
-            _ = threading.Thread(
-                target=press_enter,
-                args=(cast(int, qmp_port), workspace),
-                daemon=True,
-            ).start()
+            time.sleep(5)
+            press_enter(workspace)
 
         try:
-            if not login(proc, timeout=120 if bios else 60):
+            if not login(proc, timeout=60):
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
                 error_exit(proc, cidfile)
 
@@ -384,6 +354,16 @@ def command(args: Namespace) -> None:
             phase2_args.append(f"--volume={targetIso}:/iso:ro")
             cdrom = True
 
+        qemu = qemu_cmd(
+            graphical=False,
+            monitor=False,
+            disk=disk,
+            cdrom=cdrom,
+            uefi=not bios,
+            qmp=bios,
+            kvm=kvm,
+        )
+        print(f"boot-test: {shlex.join(qemu)}", file=sys.stderr)
         proc = subprocess.Popen(
             podman_cmd(
                 "run",
@@ -393,16 +373,7 @@ def command(args: Namespace) -> None:
                 cidfile,
                 *phase2_args,
                 image,
-                "qemu-system-x86_64",
-                *qemu_cmd(
-                    graphical=False,
-                    monitor=False,
-                    disk=disk,
-                    cdrom=cdrom,
-                    uefi=not bios,
-                    qmp_port=qmp_port,
-                    kvm=kvm,
-                ),
+                *qemu,
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -412,11 +383,8 @@ def command(args: Namespace) -> None:
 
         print("boot-test: phase 2: booting installed system", file=sys.stderr)
         if bios:
-            _ = threading.Thread(
-                target=press_enter,
-                args=(cast(int, qmp_port), workspace),
-                daemon=True,
-            ).start()
+            time.sleep(5)
+            press_enter(workspace)
 
         try:
             if not login(proc, b"root", b"live"):
