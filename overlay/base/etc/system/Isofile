@@ -88,6 +88,7 @@ RUN <<EOT
   sed -i '/11-dm-initramfs.rules/d' /usr/lib/initcpio/install/archiso
   /usr/lib/system/post_build.d/95-build_kernel
   /usr/lib/system/create_live_bootloader "${UUID}"
+  cp /etc/system/clover-config.plist /etc/system/archiso/EFI/CLOVER/config.plist
   rm -rf /etc/system/clover
   /usr/lib/system/post_build.d/99-cleanup_kernel
   systemctl disable atomic-state-overlay.service
