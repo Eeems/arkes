@@ -58,14 +58,14 @@ RUN <<EOT
     xdelta3 \
     xfsprogs \
     xorriso
-  rm /usr/bin/{su,resolvectl,systemd-resolve}
+  rm \
+    /usr/bin/{su,resolvectl,systemd-resolve} \
+    /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook \
+    /usr/share/libalpm/hooks/zz-sbctl.hook
   ln -s /usr/bin/su{-rs,}
   ln -s /usr/bin/sudo{-rs,}
   ln -s /usr/bin/visudo{-rs,}
   chmod u+s /usr/bin/new{u,g}idmap
-  rm \
-    /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook \
-    /usr/share/libalpm/hooks/zz-sbctl.hook
   /usr/lib/system/package_layer \
     broadcom-wl-dkms
 EOT
