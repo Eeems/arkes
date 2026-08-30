@@ -1,3 +1,4 @@
+import subprocess
 from argparse import (
     ArgumentParser,
     Namespace,
@@ -14,20 +15,40 @@ from . import (
 
 IMAGE = f"{BUILDER}:iso-runner"
 
+DEFAULT_SOURCE_URL = "https://github.com/Eeems/arkes"
+
 kwds: dict[str, str] = {
     "help": "Build the iso-runner tool image",
 }
 
 
-def register(_: ArgumentParser) -> None:
-    pass
+def register(parser: ArgumentParser) -> None:
+    _ = parser.add_argument(
+        "--source-url",
+        default=DEFAULT_SOURCE_URL,
+        help="org.opencontainers.image.source label",
+    )
+    _ = parser.add_argument(
+        "--revision",
+        default=None,
+        help="org.opencontainers.image.revision label",
+    )
 
 
-def command(_: Namespace) -> None:
+def command(args: Namespace) -> None:
+    revision = cast(str | None, args.revision)
+    if not revision:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True
+        ).strip()
+
+    source_url = cast(str, args.source_url)
     podman(
         "build",
         "--cap-add=SYS_ADMIN",
         f"--tag={IMAGE}",
+        f"--label=org.opencontainers.image.source={source_url}",
+        f"--label=org.opencontainers.image.revision={revision}",
         "--file=tools/iso-runner/Containerfile",
         "tools/iso-runner",
     )

@@ -99,11 +99,14 @@ jobs:
 
   tool-iso-runner:
     name: Build iso runner image
+    needs: builder
     uses: ./.github/workflows/tool-iso-runner.yaml
     secrets: inherit
     permissions:
       contents: read
       packages: write
+    with:
+      builder: ${{ needs.builder.outputs.unique_tag }}
 
   check:
     name: Ensure config is valid
