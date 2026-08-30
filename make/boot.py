@@ -103,8 +103,8 @@ def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
             "run",
             "--rm",
             f"--volume={iso}:/iso:ro",
+            "--entrypoint=isoinfo",
             f"{BUILDER}:{branch}",
-            "isoinfo",
             "-R",
             "-i",
             "/iso",
@@ -134,8 +134,8 @@ def extract(iso: str, workspace: str, path: str, branch: str) -> str:
                 "run",
                 "--rm",
                 f"--volume={iso}:/iso:ro",
+                "--entrypoint=isoinfo",
                 f"{BUILDER}:{branch}",
-                "isoinfo",
                 "-R",
                 "-i",
                 "/iso",
@@ -185,9 +185,9 @@ def qemu_cmd(
         *(
             [
                 "-drive",
-                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/x64/OVMF_CODE_4M.secboot.fd",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/x64/OVMF_CODE.secboot.4m.fd",
                 "-drive",
-                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS.4m.fd",
             ]
             if uefi
             else []
