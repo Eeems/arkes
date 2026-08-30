@@ -395,7 +395,7 @@ def install(
         f"""
           sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
           args="{secure_boot_args}"
-          if [ -n "$args" ] && ! os --help | grep -q -- '--secure-boot'; then
+          if [ -n "$args" ] && ! mountpoint -q /sys/firmware/efi/efivars || ! ls /sys/firmware/efi/efivars/SetupMode-* >/dev/null 2>&1 || ! os install --help 2>&1 | grep -qF -- '--secure-boot'; then
             echo "boot: --secure-boot not supported by os, skipping" >&2
             args=""
           fi
