@@ -1,6 +1,7 @@
 FROM arkes:base-slim_2026.08.29.1824386
 
 RUN /usr/lib/system/package_layer \
+  cdrtools \
   ovmf \
   qemu-img \
   qemu-system-x86 \
