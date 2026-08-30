@@ -1,4 +1,4 @@
-FROM arkes:base-slim_2026.08.29.1824386
+FROM quay.io/eeems/arkes:base-slim_2026.08.29.1824386
 
 RUN /usr/lib/system/package_layer \
   cdrtools \
