@@ -27,6 +27,7 @@ from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
     baseImage,
     execute,
+    file_hash,
     is_root,
     mount,
 )
@@ -894,19 +895,37 @@ def update_clover(
         onstderr(b"Skipping clover upgrade\n")
         return
 
+    def copy(src: str, dst: str) -> str:
+        if os.path.isfile(dst) and file_hash(src) == file_hash(dst):
+            return dst
+
+        return shutil.copyfile(src, dst)
+
     efi_path = os.path.join(sysroot, "boot/efi")
-    _ = shutil.copyfile(f"{clover}/i386/x64/boot6", os.path.join(efi_path, "boot"))
+    _ = copy(f"{clover}/i386/x64/boot6", os.path.join(efi_path, "boot"))
     _ = shutil.copytree(
         f"{clover}/CLOVER",
         os.path.join(efi_path, "EFI/CLOVER"),
-        copy_function=shutil.copyfile,
+        copy_function=copy,
         dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("config.plist"),
     )
     config = os.path.join(efi_path, "EFI/CLOVER/config.plist")
-    with open("/etc/system/clover-config.plist") as template, open(config, "w") as out:
-        _ = out.write(
-            template.read().replace("<string>EFI</string>", "<string>SYS_BOOT</string>")
+    with open("/etc/system/clover-config.plist") as template:
+        config_content = template.read().replace(
+            "<string>EFI</string>", "<string>SYS_BOOT</string>"
         )
+
+    existing = ""
+    if os.path.isfile(config):
+        with open(config, encoding="utf-8") as f:
+            existing = f.read()
+
+    if existing == config_content:
+        return
+
+    with open(config, "w", encoding="utf-8") as out:
+        _ = out.write(config_content)
 
 
 def install_clover(
@@ -961,8 +980,6 @@ def install_clover(
         _ = f.write(boot0ss)
         os.fsync(f.fileno())
 
-    update_clover(sysroot, onstderr=onstderr)
-
 
 def update_bootloader(
     sysroot: str = "/",
@@ -988,11 +1005,10 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
-    if clover_installed(sysroot):
-        update_clover(sysroot, onstdout=onstdout, onstderr=onstderr)
-
-    else:
+    if not clover_installed(sysroot):
         install_clover(sysroot, onstdout=onstdout, onstderr=onstderr)
+
+    update_clover(sysroot, onstdout=onstdout, onstderr=onstderr)
 
     if not os.path.isfile(
         os.path.join(
