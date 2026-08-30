@@ -373,6 +373,8 @@ def command(args: Namespace) -> None:
                 "--cidfile",
                 cidfile,
                 *phase2_args,
+                "--entrypoint",
+                "qemu-system-x86_64",
                 image,
                 *qemu,
             ),

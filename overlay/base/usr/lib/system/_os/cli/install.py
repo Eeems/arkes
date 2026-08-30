@@ -184,6 +184,24 @@ def install(
         print(f"Boot partition {dev_boot} is not on a GPT disk", file=sys.stderr)
         sys.exit(1)
 
+    uefi: bool = os.path.ismount("/sys/firmware/efi/efivars") and any(
+        iglob("/sys/firmware/efi/efivars/SetupMode-*")
+    )
+
+    if secureBoot and not uefi:
+        if not os.path.ismount("/sys/firmware/efi/efivars"):
+            print(
+                "Secure boot requires UEFI firmware with accessible EFI variables, but /sys/firmware/efi/efivars is not available",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print(
+            "Secure boot cannot be enabled. The SetupMode EFI variable is missing.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     setattr(ostree, "repo", os.path.normpath(f"{sysroot}/{getattr(ostree, 'repo')}"))
     if os.path.ismount(sysroot):
         execute("umount", "--recursive", sysroot)
@@ -191,6 +209,9 @@ def install(
     if formatPartitions:
         execute("mkfs.vfat", "-n", "SYS_BOOT", "-F", "32", dev_boot)
         execute("mkfs.ext4", "-L", "SYS_ROOT", "-F", dev_sys)
+
+    if not uefi:
+        execute("dosfslabel", dev_boot, "SYS_BOOT")
 
     execute("mount", "--mkdir", dev_sys, sysroot)
     execute("mount", "--mkdir", dev_boot, os.path.join(sysroot, "boot/efi"))
@@ -262,6 +283,7 @@ def install(
 
     update_loader_entries(sysroot)
     update_bootloader(sysroot, deployment=deployment)
+
     deployment.chroot(
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
         sysroot=sysroot,
