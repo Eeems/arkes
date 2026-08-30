@@ -9,7 +9,7 @@ on:
     outputs:
       hash:
         description: Content hash of the iso runner image
-        value: ${{ jobs.builder.outputs.hash }}
+        value: ${{ jobs.iso-runner.outputs.hash }}
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,7 @@ permissions:
   packages: write
 
 jobs:
-  builder:
+  iso-runner:
     runs-on: ubuntu-latest
     outputs:
       hash: ${{ steps.meta.outputs.hash }}
@@ -43,6 +43,13 @@ jobs:
         with:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Login to ghcr
+        uses: docker/login-action@v4
+        with:
+          username: ${{github.actor}}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
 
       - name: Generate tags
         id: meta
@@ -71,7 +78,7 @@ jobs:
             for tag in iso-runner "$HASH"; do
               podman push \
                 --retry=5 \
-                --compression-format=zst:chunked \
+                --compression-format=zstd:chunked \
                 ghcr.io/eeems/arkes-builder:${tag}
             done
         env:
