@@ -419,43 +419,31 @@ def login(
     password: bytes = b"",
     timeout: float = 60,
 ) -> bool:
-    print("boot-test: login: waiting for login prompt", file=sys.stderr)
     match expect_prompt(proc, b"login:", timeout=timeout, idle_timeout=timeout):
         case b"~]$" | b"~]#":
-            print("boot-test: login: already at shell", file=sys.stderr)
             return True
 
         case b"login:":
-            print(f"boot-test: login: sending user {user!r}", file=sys.stderr)
             send(proc, user + b"\n")
 
-        case matched:
-            print(f"boot-test: login: unexpected match {matched!r}", file=sys.stderr)
+        case _:
             return False
 
-    print("boot-test: login: waiting for password prompt", file=sys.stderr)
     match expect_prompt(proc, b"Password:", timeout=timeout, idle_timeout=timeout):
         case b"Password:":
-            print("boot-test: login: sending password", file=sys.stderr)
             send(proc, password + b"\n")
 
         case b"~]$" | b"~]#":
-            print("boot-test: login: no password needed", file=sys.stderr)
             return True
 
-        case matched:
-            print(f"boot-test: login: unexpected match {matched!r}", file=sys.stderr)
+        case _:
             return False
 
-    print("boot-test: login: waiting for shell prompt", file=sys.stderr)
     if expect_prompt(proc, timeout=timeout, idle_timeout=timeout) is None:
-        print("boot-test: login: shell prompt timeout", file=sys.stderr)
         return False
 
-    print("boot-test: login: sending TERM=dumb bash -l", file=sys.stderr)
     send(proc, b"TERM=dumb bash -l\n")
     _ = expect_prompt(proc, timeout=5, idle_timeout=5)
-    print("boot-test: login: success", file=sys.stderr)
     return True
 
 
@@ -694,10 +682,8 @@ def expect(
             last_data_time = time.monotonic()
 
         buffer = (buffer + data)[-(max_len + len(data)) :]
-        print(f"boot-test: expect buffer: {buffer!r}", file=sys.stderr)
         for pattern in patterns:
             if pattern in buffer:
-                print(f"boot-test: expect matched: {pattern!r}", file=sys.stderr)
                 return pattern
 
     # Process ended – check idle timeout if applicable

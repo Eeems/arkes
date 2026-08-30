@@ -292,6 +292,7 @@ def command(args: Namespace) -> None:
         cmd = podman_cmd(
             "run",
             "--rm",
+            "-i",
             "--cidfile",
             cidfile,
             *pod_args,
@@ -324,7 +325,7 @@ def command(args: Namespace) -> None:
             press_enter(workspace)
 
         try:
-            if not login(proc, timeout=60):
+            if not login(proc, b"live", b"", timeout=60):
                 print("boot-test: live iso never reached a shell", file=sys.stderr)
                 error_exit(proc, cidfile)
 
