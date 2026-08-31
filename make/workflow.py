@@ -45,7 +45,7 @@ def command(args: Namespace) -> None:
             "rootfs": {
                 "depends": "check",
                 "cleanup": False,
-                "iso": True,
+                "iso": False,
             }
         }
         indegree: Indegree = {"rootfs": 0}
@@ -130,9 +130,17 @@ def command(args: Namespace) -> None:
         ]
 
     def comment(title: str) -> list[str]:
+        # Calculate padding so the closing # always aligns at the same column.
+        # Line format: "  #" + spaces + title + spaces + "#"
+        # Total available for spaces+title is 35 chars (37 - 2 for "# ")
+        # title should be centered, remaining space is padding on both sides
+        available = 35
+        padding = available - len(title)
+        left = padding // 2
+        right = padding - left
         return [
             "  ######################################",
-            f"  #             {title:<19}#",
+            f"  #{' ' * (1 + left)}{title}{' ' * right}#",
             "  ######################################",
         ]
 
@@ -150,7 +158,6 @@ def command(args: Namespace) -> None:
             "  permissions: *permissions",
             "  with:",
             f"    variant: {job_id}",
-            "    push: ${{ github.event_name != 'pull_request' }}",
             "    builder: ${{ needs.builder.outputs.unique_tag }}",
         ]
         if job_id != "rootfs":
@@ -213,6 +220,30 @@ def command(args: Namespace) -> None:
             ]
         )
 
+    def render_push(job_id: str) -> list[str]:
+        d = graph[job_id]
+        extra_needs: list[str] = []
+        if d["iso"]:
+            extra_needs.append(f"iso_{job_id}")
+        return indent(
+            [
+                f"push_{job_id}:",
+                f"  name: Push {IMAGE}:{job_id} image",
+                f"  if: github.event_name != 'pull_request' && fromJson(needs['{job_id}'].outputs.updates)",
+                "  needs:",
+                "    - builder",
+                f"    - {job_id}",
+                *[f"    - {dep}" for dep in extra_needs],
+                "  uses: ./.github/workflows/push-variant.yaml",
+                "  secrets: inherit",
+                "  permissions: *permissions",
+                "  with:",
+                f"    variant: {job_id}",
+                f"    digest: ${{{{ needs['{job_id}'].outputs.digest }}}}",
+                "    builder: ${{ needs.builder.outputs.unique_tag }}",
+            ]
+        )
+
     build_order = topological_sort(graph, indegree)
 
     sections = [
@@ -235,6 +266,7 @@ def command(args: Namespace) -> None:
             "      - .github/workflows/build-variant.yaml",
             "      - .github/workflows/iso.yaml",
             "      - .github/workflows/manifest.yaml",
+            "      - .github/workflows/push-variant.yaml",
             "      - .github/workflows/scan.yaml",
             '      - ".github/actions/**"',
             '      - "tools/dockerfile2llbjson/**"',
@@ -372,7 +404,7 @@ def command(args: Namespace) -> None:
                 '  if: "!cancelled()"',
                 "  needs:",
                 "    - builder",
-                *[f"    - {j}" for j in sorted(build_order)],
+                *[f"    - push_{j}" for j in sorted(build_order)],
                 "  uses: ./.github/workflows/manifest.yaml",
                 "  secrets: inherit",
                 "  permissions: &permissions",
@@ -391,6 +423,8 @@ def command(args: Namespace) -> None:
         *[render_scan(j) for j in build_order],
         comment("ISO"),
         *[render_iso(j) for j in build_order if j != "rootfs"],
+        comment("PUSH"),
+        *[render_push(j) for j in build_order],
     ]
 
     workflow: list[str] = []

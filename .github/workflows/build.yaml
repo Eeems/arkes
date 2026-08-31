@@ -16,6 +16,7 @@ on:
       - .github/workflows/build-variant.yaml
       - .github/workflows/iso.yaml
       - .github/workflows/manifest.yaml
+      - .github/workflows/push-variant.yaml
       - .github/workflows/scan.yaml
       - ".github/actions/**"
       - "tools/dockerfile2llbjson/**"
@@ -66,7 +67,7 @@ concurrency:
 jobs:
 
   ######################################
-  #             UNIQUE             #
+  #               UNIQUE               #
   ######################################
 
   notifications:
@@ -154,20 +155,20 @@ jobs:
     if: "!cancelled()"
     needs:
       - builder
-      - atomic
-      - atomic-nvidia
-      - base
-      - base-rolling
-      - base-slim
-      - cosmic
-      - eeems
-      - eeems-framework
-      - eeems-nvidia
-      - eeems-system76
-      - gnome
-      - graphical
-      - kde
-      - rootfs
+      - push_atomic
+      - push_atomic-nvidia
+      - push_base
+      - push_base-rolling
+      - push_base-slim
+      - push_cosmic
+      - push_eeems
+      - push_eeems-framework
+      - push_eeems-nvidia
+      - push_eeems-system76
+      - push_gnome
+      - push_graphical
+      - push_kde
+      - push_rootfs
     uses: ./.github/workflows/manifest.yaml
     secrets: inherit
     permissions: &permissions
@@ -180,7 +181,7 @@ jobs:
       builder: ${{ needs.builder.outputs.unique_tag }}
 
   ######################################
-  #             BUILD              #
+  #                BUILD               #
   ######################################
 
   rootfs:
@@ -193,7 +194,6 @@ jobs:
     permissions: *permissions
     with:
       variant: rootfs
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
 
   base:
@@ -206,7 +206,6 @@ jobs:
     permissions: *permissions
     with:
       variant: base
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['rootfs'].outputs.updates) }}
       artifact: rootfs
@@ -222,7 +221,6 @@ jobs:
     permissions: *permissions
     with:
       variant: base-rolling
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
@@ -238,7 +236,6 @@ jobs:
     permissions: *permissions
     with:
       variant: base-slim
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
@@ -254,7 +251,6 @@ jobs:
     permissions: *permissions
     with:
       variant: graphical
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['base'].outputs.updates) }}
       artifact: base
@@ -270,7 +266,6 @@ jobs:
     permissions: *permissions
     with:
       variant: atomic
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['graphical'].outputs.updates) }}
       artifact: graphical
@@ -286,7 +281,6 @@ jobs:
     permissions: *permissions
     with:
       variant: atomic-nvidia
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
@@ -302,7 +296,6 @@ jobs:
     permissions: *permissions
     with:
       variant: cosmic
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['graphical'].outputs.updates) }}
       artifact: graphical
@@ -318,7 +311,6 @@ jobs:
     permissions: *permissions
     with:
       variant: eeems
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['atomic'].outputs.updates) }}
       artifact: atomic
@@ -335,7 +327,6 @@ jobs:
     permissions: *permissions
     with:
       variant: eeems-framework
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
@@ -352,7 +343,6 @@ jobs:
     permissions: *permissions
     with:
       variant: eeems-nvidia
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
@@ -369,7 +359,6 @@ jobs:
     permissions: *permissions
     with:
       variant: eeems-system76
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['eeems'].outputs.updates) }}
       artifact: eeems
@@ -386,7 +375,6 @@ jobs:
     permissions: *permissions
     with:
       variant: gnome
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['graphical'].outputs.updates) }}
       artifact: graphical
@@ -402,14 +390,13 @@ jobs:
     permissions: *permissions
     with:
       variant: kde
-      push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       updates: ${{ fromJson(needs['graphical'].outputs.updates) }}
       artifact: graphical
       digest: ${{ needs['graphical'].outputs.digest }}
 
   ######################################
-  #             SCAN               #
+  #                SCAN                #
   ######################################
 
   scan_rootfs:
@@ -637,7 +624,7 @@ jobs:
       builder: ${{ needs.builder.outputs.unique_tag }}
 
   ######################################
-  #             ISO                #
+  #                 ISO                #
   ######################################
 
   iso_base:
@@ -856,3 +843,215 @@ jobs:
       push: ${{ github.event_name != 'pull_request' }}
       builder: ${{ needs.builder.outputs.unique_tag }}
       iso_runner: ${{ needs.tool-iso-runner.outputs.hash }}
+
+  ######################################
+  #                PUSH                #
+  ######################################
+
+  push_rootfs:
+    name: Push eeems/arkes:rootfs image
+    if: github.event_name != 'pull_request' && fromJson(needs['rootfs'].outputs.updates)
+    needs:
+      - builder
+      - rootfs
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: rootfs
+      digest: ${{ needs['rootfs'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_base:
+    name: Push eeems/arkes:base image
+    if: github.event_name != 'pull_request' && fromJson(needs['base'].outputs.updates)
+    needs:
+      - builder
+      - base
+      - iso_base
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base
+      digest: ${{ needs['base'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_base-rolling:
+    name: Push eeems/arkes:base-rolling image
+    if: github.event_name != 'pull_request' && fromJson(needs['base-rolling'].outputs.updates)
+    needs:
+      - builder
+      - base-rolling
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base-rolling
+      digest: ${{ needs['base-rolling'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_base-slim:
+    name: Push eeems/arkes:base-slim image
+    if: github.event_name != 'pull_request' && fromJson(needs['base-slim'].outputs.updates)
+    needs:
+      - builder
+      - base-slim
+      - iso_base-slim
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: base-slim
+      digest: ${{ needs['base-slim'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_graphical:
+    name: Push eeems/arkes:graphical image
+    if: github.event_name != 'pull_request' && fromJson(needs['graphical'].outputs.updates)
+    needs:
+      - builder
+      - graphical
+      - iso_graphical
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: graphical
+      digest: ${{ needs['graphical'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_atomic:
+    name: Push eeems/arkes:atomic image
+    if: github.event_name != 'pull_request' && fromJson(needs['atomic'].outputs.updates)
+    needs:
+      - builder
+      - atomic
+      - iso_atomic
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: atomic
+      digest: ${{ needs['atomic'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_atomic-nvidia:
+    name: Push eeems/arkes:atomic-nvidia image
+    if: github.event_name != 'pull_request' && fromJson(needs['atomic-nvidia'].outputs.updates)
+    needs:
+      - builder
+      - atomic-nvidia
+      - iso_atomic-nvidia
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: atomic-nvidia
+      digest: ${{ needs['atomic-nvidia'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_cosmic:
+    name: Push eeems/arkes:cosmic image
+    if: github.event_name != 'pull_request' && fromJson(needs['cosmic'].outputs.updates)
+    needs:
+      - builder
+      - cosmic
+      - iso_cosmic
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: cosmic
+      digest: ${{ needs['cosmic'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_eeems:
+    name: Push eeems/arkes:eeems image
+    if: github.event_name != 'pull_request' && fromJson(needs['eeems'].outputs.updates)
+    needs:
+      - builder
+      - eeems
+      - iso_eeems
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems
+      digest: ${{ needs['eeems'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_eeems-framework:
+    name: Push eeems/arkes:eeems-framework image
+    if: github.event_name != 'pull_request' && fromJson(needs['eeems-framework'].outputs.updates)
+    needs:
+      - builder
+      - eeems-framework
+      - iso_eeems-framework
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-framework
+      digest: ${{ needs['eeems-framework'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_eeems-nvidia:
+    name: Push eeems/arkes:eeems-nvidia image
+    if: github.event_name != 'pull_request' && fromJson(needs['eeems-nvidia'].outputs.updates)
+    needs:
+      - builder
+      - eeems-nvidia
+      - iso_eeems-nvidia
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-nvidia
+      digest: ${{ needs['eeems-nvidia'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_eeems-system76:
+    name: Push eeems/arkes:eeems-system76 image
+    if: github.event_name != 'pull_request' && fromJson(needs['eeems-system76'].outputs.updates)
+    needs:
+      - builder
+      - eeems-system76
+      - iso_eeems-system76
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: eeems-system76
+      digest: ${{ needs['eeems-system76'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_gnome:
+    name: Push eeems/arkes:gnome image
+    if: github.event_name != 'pull_request' && fromJson(needs['gnome'].outputs.updates)
+    needs:
+      - builder
+      - gnome
+      - iso_gnome
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: gnome
+      digest: ${{ needs['gnome'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
+
+  push_kde:
+    name: Push eeems/arkes:kde image
+    if: github.event_name != 'pull_request' && fromJson(needs['kde'].outputs.updates)
+    needs:
+      - builder
+      - kde
+      - iso_kde
+    uses: ./.github/workflows/push-variant.yaml
+    secrets: inherit
+    permissions: *permissions
+    with:
+      variant: kde
+      digest: ${{ needs['kde'].outputs.digest }}
+      builder: ${{ needs.builder.outputs.unique_tag }}
