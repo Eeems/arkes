@@ -9,6 +9,8 @@ from typing import (
     cast,
 )
 
+from dbus.exceptions import DBusException  # pyright:ignore [reportMissingTypeStubs]
+
 from ..dbus import (
     checkupdates,
     pull,
@@ -46,7 +48,11 @@ def command(args: Namespace) -> None:
     try:
         updates = checkupdates(force)
 
-    except BaseException:
+    except DBusException as e:
+        print(e.get_dbus_message(), file=sys.stderr)
+        sys.exit(1)
+
+    except Exception:
         traceback.print_exc()
         sys.exit(1)
 
