@@ -1,0 +1,99 @@
+name: Push a variant image
+
+on:
+  workflow_call:
+    inputs:
+      variant:
+        description: Variant to push
+        type: string
+        required: true
+      digest:
+        description: Expected digest of the image
+        type: string
+        required: false
+        default: ""
+      builder:
+        description: Builder tag to use
+        type: string
+        required: false
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Variant to push
+        type: string
+        required: true
+      digest:
+        description: Expected digest of the image
+        type: string
+        required: false
+        default: ""
+      builder:
+        description: Builder tag to use
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  run:
+    name: arkes:${{ inputs.variant }} push
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt seccomp=unconfined
+        --security-opt apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device /dev/fuse
+        --tmpfs /tmp
+        --tmpfs /run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Setup container
+        uses: ./.github/actions/setup-container
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Free up space
+        uses: ./.github/actions/cleanup
+        with:
+          root: /run/host
+
+      - name: Import ${{ inputs.variant }} image
+        uses: ./.github/actions/import-container
+        with:
+          artifact: ${{ inputs.variant }}
+          image: quay.io/eeems/arkes:${{ inputs.variant }}
+
+      - name: Get manifest cache
+        uses: ./.github/actions/manifest-cache-restore
+        with:
+          key: manifest_${{ inputs.variant }}
+          artifact: true
+
+      - name: Force digest
+        if: inputs.digest != ''
+        uses: ./.github/actions/force-image-digest
+        with:
+          tag: ${{ inputs.variant }}
+          digest: ${{ inputs.digest }}
+
+      - name: Push
+        uses: ./.github/actions/run-with-podman-service
+        with:
+          run: ./make.py push ${{ inputs.variant }}
+
+      - name: Save manifest cache
+        uses: ./.github/actions/manifest-cache-update
+        with:
+          key: manifest_${{ inputs.variant }}
+          artifact: true
