@@ -96,15 +96,16 @@ def qmp_connect(
     deadline: float = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if not os.path.exists(socket_path):
-            time.sleep(0.5)
+            time.sleep(0.1)
             continue
         print("boot-test: socket exists, connecting...", file=sys.stderr)
         sock: socket.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(socket_path)
+
         except OSError as ex:
             print(f"boot-test: connect failed: {ex}", file=sys.stderr)
-            time.sleep(0.5)
+            time.sleep(0.1)
             continue
 
         print("boot-test: connected, doing handshake...", file=sys.stderr)
@@ -113,7 +114,7 @@ def qmp_connect(
         if not reader.readline():
             print("boot-test: no greeting from qemu", file=sys.stderr)
             sock.close()
-            time.sleep(0.5)
+            time.sleep(0.1)
             continue
 
         response = qmp_execute(sock, reader, {"execute": "qmp_capabilities"})
@@ -123,7 +124,7 @@ def qmp_connect(
 
         print(f"boot-test: handshake failed: {response}", file=sys.stderr)
         sock.close()
-        time.sleep(0.5)
+        time.sleep(0.1)
 
     print("boot-test: timeout waiting for qmp socket", file=sys.stderr)
     return None
@@ -159,15 +160,11 @@ def press_enter(workspace: str) -> None:
         }
         response = qmp_execute(sock, reader, request)
         if response is None:
-            print(
-                "boot-test: no response from qemu monitor",
-                file=sys.stderr,
-            )
+            print("boot-test: no response from qemu monitor", file=sys.stderr)
+
         elif "error" in response:
-            print(
-                f"boot-test: sendkey error: {response['error']}",
-                file=sys.stderr,
-            )
+            print(f"boot-test: sendkey error: {response['error']}", file=sys.stderr)
+
         else:
             print("boot-test: enter keypress sent", file=sys.stderr)
 
@@ -269,14 +266,18 @@ def command(args: Namespace) -> None:
             "/workspace/disk.qcow2",
             "32G",
         )
-        podman(
-            "run",
-            "--rm",
-            *pod_args,
-            image,
-            "-c",
-            "cp /usr/share/OVMF/x64/OVMF_VARS.4m.fd /workspace/OVMF_VARS.4m.fd",
-        )
+        if not bios:
+            podman(
+                "run",
+                "--rm",
+                *pod_args,
+                image,
+                "--entrypoint",
+                "cp",
+                "/usr/share/OVMF/x64/OVMF_VARS.4m.fd",
+                "/workspace/OVMF_VARS.4m.fd",
+            )
+
         disk: str = "/workspace/disk.qcow2"
         # Phase 1: boot the iso, validate, install to the target disk.
         cidfile: str = os.path.join(workspace, "phase1.cid")
@@ -321,7 +322,7 @@ def command(args: Namespace) -> None:
         )
         print("boot-test: phase 1: booting live iso", file=sys.stderr)
         if bios:
-            time.sleep(5)
+            time.sleep(3)
             press_enter(workspace)
 
         try:
@@ -385,9 +386,6 @@ def command(args: Namespace) -> None:
         )
 
         print("boot-test: phase 2: booting installed system", file=sys.stderr)
-        if bios:
-            time.sleep(5)
-            press_enter(workspace)
 
         try:
             if not login(proc, b"root", b"live"):

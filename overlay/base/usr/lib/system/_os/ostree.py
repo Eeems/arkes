@@ -887,7 +887,7 @@ def clover_installed(sysroot: str = "/") -> bool:
 
 def update_clover(
     sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,  # pyright: ignore[reportUnusedParameter]
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
     clover = "/etc/system/clover"
@@ -902,6 +902,7 @@ def update_clover(
         return shutil.copyfile(src, dst)
 
     efi_path = os.path.join(sysroot, "boot/efi")
+    onstdout(b"Updating Clover files\n")
     _ = copy(f"{clover}/i386/x64/boot6", os.path.join(efi_path, "boot"))
     _ = shutil.copytree(
         f"{clover}/CLOVER",
@@ -930,7 +931,7 @@ def update_clover(
 
 def install_clover(
     sysroot: str = "/",
-    onstdout: Callable[[bytes], None] = bytes_to_stdout,  # pyright: ignore[reportUnusedParameter]
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
     efi_path = os.path.join(sysroot, "boot/efi")
@@ -943,21 +944,26 @@ def install_clover(
         onstderr(b"Skipping clover install\n")
         return
 
-    with open("/proc/self/mounts") as f:
-        mounts = {
-            mountpoint: source
-            for source, mountpoint, *_ in (line.split() for line in f)
-        }
-
-    dev_boot = mounts.get(efi_path, "")
+    dev_boot = (
+        subprocess.check_output(
+            ["findmnt", "--noheadings", "--output", "SOURCE", "--target", efi_path]
+        )
+        .decode()
+        .strip()
+        .split("[", 1)[0]
+    )
     if not dev_boot:
-        onstderr(f"Unable to find the filesystem mounted at {efi_path}\n".encode())
+        onstderr(
+            f"Skipping clover install: Unable to find the filesystem mounted at {efi_path}\n".encode()
+        )
         return
 
+    onstdout(f"Installing Clover boot records to {dev_boot}\n".encode())
     parent = os.path.realpath(
         os.path.join("/sys/class/block", os.path.basename(dev_boot), "..")
     )
     disk = os.path.basename(parent)
+    onstdout(f"Clover disk: /dev/{disk}\n".encode())
     if not os.path.isdir(f"/sys/class/block/{disk}"):
         onstderr(f"Unable to find the disk containing {dev_boot}\n".encode())
         return
@@ -973,12 +979,20 @@ def install_clover(
         _ = f.write(boot1)
         os.fsync(f.fileno())
 
-    with open(f"{clover}/i386/boot0ss", "rb") as f:
-        boot0ss = f.read(440)
+    onstdout(f"Clover PBR written to {dev_boot}\n".encode())
+    with open(f"/dev/{disk}", "rb") as f:
+        _ = f.read(512)
+        gpt_signature = f.read(8)
+
+    boot0 = "boot0md" if gpt_signature == b"EFI PART" else "boot0ss"
+    with open(f"{clover}/i386/{boot0}", "rb") as f:
+        boot0_code = f.read(440)
 
     with open(f"/dev/{disk}", "r+b") as f:
-        _ = f.write(boot0ss)
+        _ = f.write(boot0_code)
         os.fsync(f.fileno())
+
+    onstdout(f"Clover MBR ({boot0}) written to /dev/{disk}\n".encode())
 
 
 def update_bootloader(
