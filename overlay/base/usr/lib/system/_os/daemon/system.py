@@ -112,7 +112,7 @@ class Object(dbus.service.Object):
         try:
             assert sender is not None
             if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
-                error("Permission denied")
+                error(Exception("Permission denied"))
                 return
 
             if self._upgrade_status == "pending":
@@ -128,7 +128,7 @@ class Object(dbus.service.Object):
             success()
 
         except BaseException as e:
-            error(f"Exception: {e}\n{traceback.format_exc()}")
+            error(Exception(f"Exception: {e}\n{traceback.format_exc()}"))
 
     def _upgrade(self, sender: str) -> None | bool:
         self.notify_all("Starting system upgrade", "upgrade")
@@ -360,7 +360,7 @@ class Object(dbus.service.Object):
         try:
             assert sender is not None
             if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
-                error("Permission denied")
+                error(Exception("Permission denied"))
                 return
 
             if self._build_status == "pending":
@@ -374,7 +374,7 @@ class Object(dbus.service.Object):
             success()
 
         except BaseException as e:
-            error(f"Exception: {e}\n{traceback.format_exc()}")
+            error(Exception(f"Exception: {e}\n{traceback.format_exc()}"))
 
     def _emit_build_progress(self) -> None:
         status_current, status_total = self._build_step_progress_status
@@ -529,7 +529,7 @@ class Object(dbus.service.Object):
         try:
             assert sender is not None
             if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
-                error("Permission denied")
+                error(Exception("Permission denied"))
                 return
 
             if self._checkupdates_status == "pending":
@@ -543,7 +543,7 @@ class Object(dbus.service.Object):
             success()
 
         except BaseException as e:
-            error(f"Exception: {e}\n{traceback.format_exc()}")
+            error(Exception(f"Exception: {e}\n{traceback.format_exc()}"))
 
     def _checkupdates(self) -> None | bool:
         try:
@@ -621,7 +621,7 @@ class Object(dbus.service.Object):
         try:
             assert sender is not None
             if not {"adm", "wheel", "root"} & groups_for_sender(self, sender):
-                error("Permission denied")
+                error(Exception("Permission denied"))
                 return
 
             if self._pull_status == "pending":
@@ -635,7 +635,7 @@ class Object(dbus.service.Object):
             success()
 
         except BaseException as e:
-            error(f"Exception: {e}\n{traceback.format_exc()}")
+            error(Exception(f"Exception: {e}\n{traceback.format_exc()}"))
 
     def _pull(self) -> None | bool:
         self.notify_all("Pulling base image", "pull")
