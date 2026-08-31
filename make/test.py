@@ -382,6 +382,9 @@ def command(args: Namespace) -> None:
         )
 
         print("boot-test: phase 2: booting installed system", file=sys.stderr)
+        if bios:
+            time.sleep(3)
+            press_enter(workspace)
 
         try:
             if not login(proc, b"root", b"live"):
