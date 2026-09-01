@@ -319,6 +319,7 @@ def checkupdates(image: str | None = None) -> list[str]:
                     ]
                 ),
                 etc="overlay",
+                overlays=["/var/lib/system"],
             )
             .strip()
             .decode("utf-8")

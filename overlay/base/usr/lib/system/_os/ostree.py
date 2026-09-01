@@ -628,15 +628,18 @@ def in_nspawn_system_cmd(
     if var == "rw":
         var = "bind"
 
+    stateroot = f"/sysroot/ostree/deploy/{deployment.stateroot}"
+    os.makedirs(f"{stateroot}{cache}", exist_ok=True)
+    os.makedirs(f"{stateroot}/var/lib/system", exist_ok=True)
     match var:
         case "overlay":
-            overlays.append(f"+/sysroot/ostree/deploy/{deployment.stateroot}/var::/var")
+            overlays.append(f"+{stateroot}/var::/var")
 
         case "bind":
             binds.append("/var")
 
         case "ro":
-            binds_ro.append(f"/sysroot/ostree/deploy/{deployment.stateroot}/var:/var")
+            binds_ro.append(f"{stateroot}/var:/var")
 
         case _:
             raise NotImplementedError(f"Unknown var setting: {var}")
@@ -817,9 +820,11 @@ def update_loader_entries(
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
-            root = "/sysroot" if os.path.exists(
-                os.path.join(deployment.path, "usr/bin/sbctl")
-            ) else sysroot
+            root = (
+                "/sysroot"
+                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
+                else sysroot
+            )
             outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
             execOrChroot(
                 deployment,
