@@ -6,3 +6,4 @@ tools/dockerfile2llbjson/dockerfile2llbjson
 .opencode/
 .local/
 .pi/
+.codebase-index/

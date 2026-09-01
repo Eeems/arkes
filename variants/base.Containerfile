@@ -66,8 +66,6 @@ RUN <<EOT
   rm \
     /usr/share/libalpm/hooks/7*-dkms-{install,upgrade,remove}.hook \
     /usr/share/libalpm/hooks/zz-sbctl.hook
-  /usr/lib/system/package_layer \
-    broadcom-wl-dkms
 EOT
 
 COPY overlay/base /
