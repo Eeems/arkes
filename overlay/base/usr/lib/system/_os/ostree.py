@@ -774,6 +774,21 @@ def systemd_boot_installed(sysroot: str = "/") -> bool:
     )
 
 
+def sbctl_keys_path(sysroot: str, deployment: Deployment) -> str:
+    """Path to the sbctl db key, wherever it is stored.
+
+    On a booted system the keys live under the stateroot var, which is
+    visible at /var/lib/sbctl (or bind-mounted there). During install the
+    sysroot has no /var yet, so fall back to the stateroot var directly.
+    """
+    root = os.path.join(sysroot, "var/lib/sbctl")
+    if not os.path.isdir(root):
+        root = os.path.join(
+            sysroot, "ostree/deploy", deployment.stateroot, "var/lib/sbctl"
+        )
+    return os.path.join(root, "keys/db/db.key")
+
+
 def update_loader_entries(
     sysroot: str = "/",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
@@ -821,10 +836,13 @@ def update_loader_entries(
 
         def execOrChroot(deployment: Deployment, script: str) -> None:
             if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                keys_dir = os.path.join(sysroot, "var/lib/sbctl")
                 deployment.chroot(
                     script,
                     sysroot=sysroot,
-                    binds=[(os.path.join(sysroot, "var/lib/sbctl"), "/var/lib/sbctl")],
+                    binds=(
+                        [(keys_dir, "/var/lib/sbctl")] if os.path.isdir(keys_dir) else None
+                    ),
                     onstdout=onstdout,
                     onstderr=onstderr,
                 )
@@ -866,7 +884,7 @@ def update_loader_entries(
                 ),
             )
 
-        if os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
+        if os.path.isfile(sbctl_keys_path(sysroot, deployment)):
             execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
     assert next_deployment is not None
@@ -913,15 +931,18 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
-    if not os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
+    if not os.path.isfile(sbctl_keys_path(sysroot, deployment)):
         return
 
     def execOrChroot(deployment: Deployment, script: str) -> None:
         if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+            keys_dir = os.path.join(sysroot, "var/lib/sbctl")
             deployment.chroot(
                 script,
                 sysroot=sysroot,
-                binds=[(os.path.join(sysroot, "var/lib/sbctl"), "/var/lib/sbctl")],
+                binds=(
+                    [(keys_dir, "/var/lib/sbctl")] if os.path.isdir(keys_dir) else None
+                ),
                 onstdout=onstdout,
                 onstderr=onstderr,
             )
