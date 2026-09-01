@@ -29,6 +29,7 @@ RUN /usr/lib/system/package_layer \
   man-db \
   man-pages \
   memtest86+ \
+  broadcom-wl-dkms \
   memtest86+-efi \
   mkinitcpio-archiso \
   mtools \
