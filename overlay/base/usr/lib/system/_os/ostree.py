@@ -335,6 +335,7 @@ class Deployment:
         self,
         cmd: str,
         sysroot: str = "/",
+        binds: list[str | tuple[str, str]] | None = None,
         onstdout: Callable[[bytes], None] = bytes_to_stdout,
         onstderr: Callable[[bytes], None] = bytes_to_stderr,
     ) -> None:
@@ -403,6 +404,18 @@ class Deployment:
                         rbind=True,
                     )
                 )
+
+            if binds:
+                for bind in binds:
+                    if isinstance(bind, str):
+                        path = bind.lstrip("/")
+
+                    else:
+                        bind, path = bind  # noqa: PLW2901
+
+                    stack.enter_context(
+                        _mount(bind, os.path.join(self.path, path), bind=True)
+                    )
 
             execute(
                 "chroot",
@@ -809,7 +822,11 @@ def update_loader_entries(
         def execOrChroot(deployment: Deployment, script: str) -> None:
             if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
                 deployment.chroot(
-                    script, sysroot=sysroot, onstdout=onstdout, onstderr=onstderr
+                    script,
+                    sysroot=sysroot,
+                    binds=[(os.path.join(sysroot, "var/lib/sbctl"), "/var/lib/sbctl")],
+                    onstdout=onstdout,
+                    onstderr=onstderr,
                 )
 
             else:
@@ -849,14 +866,7 @@ def update_loader_entries(
                 ),
             )
 
-        if os.path.isfile(
-            os.path.join(
-                sysroot,
-                "ostree/deploy",
-                deployment.stateroot,
-                "var/lib/sbctl/keys/db/db.key",
-            )
-        ):
+        if os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
             execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
     assert next_deployment is not None
@@ -903,20 +913,33 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
-    if not os.path.isfile(
-        os.path.join(
-            sysroot,
-            "ostree/deploy",
-            deployment.stateroot,
-            "var/lib/sbctl/keys/db/db.key",
-        )
-    ):
+    if not os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
         return
 
-    chroot(
+    def execOrChroot(deployment: Deployment, script: str) -> None:
+        if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+            deployment.chroot(
+                script,
+                sysroot=sysroot,
+                binds=[(os.path.join(sysroot, "var/lib/sbctl"), "/var/lib/sbctl")],
+                onstdout=onstdout,
+                onstderr=onstderr,
+            )
+
+        else:
+            execute(
+                "bash",
+                "-c",
+                script,
+                onstdout=onstdout,
+                onstderr=onstderr,
+            )
+
+    execOrChroot(
+        deployment,
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
         sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
-        """
+        """,
     )
