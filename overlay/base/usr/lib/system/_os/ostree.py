@@ -1,6 +1,7 @@
 # pyright: reportImportCycles=false
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ from .system import (
     _execute,  # pyright:ignore [reportPrivateUsage]
     baseImage,
     execute,
+    file_hash,
     is_root,
     mount,
 )
@@ -817,9 +819,11 @@ def update_loader_entries(
         ) as cmdlineFile:
             _ = cmdlineFile.write(f"{props['options']}\n")
             cmdlineFile.flush()
-            root = "/sysroot" if os.path.exists(
-                os.path.join(deployment.path, "usr/bin/sbctl")
-            ) else sysroot
+            root = (
+                "/sysroot"
+                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
+                else sysroot
+            )
             outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
             execOrChroot(
                 deployment,
@@ -874,6 +878,123 @@ def update_loader_entries(
         )
 
 
+def clover_installed(sysroot: str = "/") -> bool:
+    efi_path = os.path.join(sysroot, "boot/efi")
+    return os.path.isfile(os.path.join(efi_path, "boot")) and os.path.isfile(
+        os.path.join(efi_path, "EFI/CLOVER/CLOVERX64.efi")
+    )
+
+
+def update_clover(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    clover = "/etc/system/clover"
+    if not os.path.isdir(f"{clover}/CLOVER"):
+        onstderr(b"Skipping clover upgrade\n")
+        return
+
+    def copy(src: str, dst: str) -> str:
+        if os.path.isfile(dst) and file_hash(src) == file_hash(dst):
+            return dst
+
+        return shutil.copyfile(src, dst)
+
+    efi_path = os.path.join(sysroot, "boot/efi")
+    onstdout(b"Updating Clover files\n")
+    _ = copy(f"{clover}/i386/x64/boot6", os.path.join(efi_path, "boot"))
+    _ = shutil.copytree(
+        f"{clover}/CLOVER",
+        os.path.join(efi_path, "EFI/CLOVER"),
+        copy_function=copy,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("config.plist"),
+    )
+    config = os.path.join(efi_path, "EFI/CLOVER/config.plist")
+    with open("/etc/system/clover-config.plist") as template:
+        config_content = template.read().replace(
+            "<string>EFI</string>", "<string>SYS_BOOT</string>"
+        )
+
+    existing = ""
+    if os.path.isfile(config):
+        with open(config, encoding="utf-8") as f:
+            existing = f.read()
+
+    if existing == config_content:
+        return
+
+    with open(config, "w", encoding="utf-8") as out:
+        _ = out.write(config_content)
+
+
+def install_clover(
+    sysroot: str = "/",
+    onstdout: Callable[[bytes], None] = bytes_to_stdout,
+    onstderr: Callable[[bytes], None] = bytes_to_stderr,
+) -> None:
+    efi_path = os.path.join(sysroot, "boot/efi")
+    clover = "/etc/system/clover"
+    if (
+        not os.path.isdir(efi_path)
+        or os.path.ismount("/sys/firmware/efi/efivars")
+        and any(iglob("/sys/firmware/efi/efivars/SetupMode-*"))
+    ) or not os.path.isdir(f"{clover}/CLOVER"):
+        onstderr(b"Skipping clover install\n")
+        return
+
+    dev_boot = (
+        subprocess.check_output(
+            ["findmnt", "--noheadings", "--output", "SOURCE", "--target", efi_path]
+        )
+        .decode()
+        .strip()
+        .split("[", 1)[0]
+    )
+    if not dev_boot:
+        onstderr(
+            f"Skipping clover install: Unable to find the filesystem mounted at {efi_path}\n".encode()
+        )
+        return
+
+    onstdout(f"Installing Clover boot records to {dev_boot}\n".encode())
+    parent = os.path.realpath(
+        os.path.join("/sys/class/block", os.path.basename(dev_boot), "..")
+    )
+    disk = os.path.basename(parent)
+    onstdout(f"Clover disk: /dev/{disk}\n".encode())
+    if not os.path.isdir(f"/sys/class/block/{disk}"):
+        onstderr(f"Unable to find the disk containing {dev_boot}\n".encode())
+        return
+
+    with open(dev_boot, "rb") as f:
+        original_pbr = f.read(512)
+
+    with open(f"{clover}/i386/boot1f32", "rb") as f:
+        boot1 = bytearray(f.read(512))
+
+    boot1[3:90] = original_pbr[3:90]
+    with open(dev_boot, "r+b") as f:
+        _ = f.write(boot1)
+        os.fsync(f.fileno())
+
+    onstdout(f"Clover PBR written to {dev_boot}\n".encode())
+    with open(f"/dev/{disk}", "rb") as f:
+        _ = f.read(512)
+        gpt_signature = f.read(8)
+
+    boot0 = "boot0md" if gpt_signature == b"EFI PART" else "boot0ss"
+    with open(f"{clover}/i386/{boot0}", "rb") as f:
+        boot0_code = f.read(440)
+
+    with open(f"/dev/{disk}", "r+b") as f:
+        _ = f.write(boot0_code)
+        os.fsync(f.fileno())
+
+    onstdout(f"Clover MBR ({boot0}) written to /dev/{disk}\n".encode())
+
+
 def update_bootloader(
     sysroot: str = "/",
     deployment: Deployment | None = None,
@@ -898,6 +1019,11 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
+    if not clover_installed(sysroot):
+        install_clover(sysroot, onstdout=onstdout, onstderr=onstderr)
+
+    update_clover(sysroot, onstdout=onstdout, onstderr=onstderr)
+
     if not os.path.isfile(
         os.path.join(
             sysroot,
@@ -906,6 +1032,7 @@ def update_bootloader(
             "var/lib/sbctl/keys/db/db.key",
         )
     ):
+        onstderr(b"Skipping signing\n")
         return
 
     chroot(

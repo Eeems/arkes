@@ -14,6 +14,7 @@ from . import (
     in_system,
     is_root,
 )
+from .config import all_targets
 
 kwds: dict[str, str] = {
     "help": "Scan a container",
@@ -31,6 +32,11 @@ def register(parser: ArgumentParser) -> None:
 def command(args: Namespace) -> None:
     if not is_root():
         print("Must be run as root", file=sys.stderr)
+        sys.exit(1)
+
+    target = cast(str, args.target)
+    if target not in all_targets():
+        print(f"Invalid variant: {target}", file=sys.stderr)
         sys.exit(1)
 
     os.makedirs(".trivy", exist_ok=True)
@@ -87,7 +93,7 @@ def command(args: Namespace) -> None:
                 /trivy/report.json
         fi
         """,
-        target=f"{REPO}:{cast(str, args.target)}",
+        target=f"{REPO}:{target}",
         entrypoint="/bin/bash",
         volumes=volumes,
     )

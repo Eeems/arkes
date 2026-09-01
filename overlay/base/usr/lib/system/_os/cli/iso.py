@@ -111,8 +111,6 @@ def iso() -> str:
     _ = shutil.copytree(os.path.join(ROOTFS_PATH, "etc/system/archiso"), "archiso")
     for path in [
         "loader/entries/01-archiso-x86_64-linux.conf",
-        "grub/grub.cfg",
-        "syslinux/syslinux-linux.cfg",
     ]:
         with open(os.path.join("archiso", path), "r+") as f:
             content = f.read()
@@ -147,7 +145,6 @@ def iso() -> str:
         "-no-emul-boot",
         "-boot-load-size", "4",
         "-boot-info-table",
-        "--grub2-boot-info",
         "-eltorito-alt-boot",
         "-e", "--interval:appended_partition_2:all::",
         "-no-emul-boot",

@@ -166,6 +166,55 @@ jobs:
             --branch ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
+  test-bios:
+    name: BIOS install test arkes:${{ inputs.variant }} iso
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      options: >-
+        --privileged
+        --security-opt=seccomp=unconfined
+        --security-opt=apparmor=unconfined
+        --cap-add=SYS_ADMIN
+        --cap-add=NET_ADMIN
+        --device=/dev/fuse
+        --device=/dev/kvm
+        --tmpfs=/tmp
+        --tmpfs=/run
+        --userns=host
+        --volume=/:/run/host
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Setup container
+        uses: ./.github/actions/setup-container
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Free up space
+        uses: ./.github/actions/cleanup
+        with:
+          root: /run/host
+
+      - name: Download iso
+        uses: actions/download-artifact@v6
+        with:
+          name: arkes-${{ inputs.variant }}.iso
+          path: /var/lib/system
+
+      - name: Boot test iso (BIOS)
+        uses: ./.github/actions/run-with-podman-service
+        timeout-minutes: 60
+        with:
+          run: >-
+            ./make.py test
+            --bios
+            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            /var/lib/system/arkes-${{ inputs.variant }}-*.iso
+
   test-upgrade:
     name: Upgrade test arkes:${{ inputs.variant }} iso
     needs: build
@@ -290,6 +339,7 @@ jobs:
     if: inputs.push
     needs:
       - test-install
+      - test-bios
       - test-upgrade
     runs-on: ubuntu-latest
     container:

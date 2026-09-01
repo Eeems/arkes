@@ -65,6 +65,7 @@ def register(parser: ArgumentParser) -> None:
 
 def qemu_args(iso: str, workspace: str, graphical: bool) -> list[str]:
     args: list[str] = [
+        "--entrypoint=qemu-system-x86_64",
         f"--volume={iso}:/iso:ro",
         f"--volume={workspace}:/workspace",
         "--security-opt=label=disable",
@@ -102,8 +103,8 @@ def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
             "run",
             "--rm",
             f"--volume={iso}:/iso:ro",
+            "--entrypoint=isoinfo",
             f"{BUILDER}:{branch}",
-            "isoinfo",
             "-R",
             "-i",
             "/iso",
@@ -133,8 +134,8 @@ def extract(iso: str, workspace: str, path: str, branch: str) -> str:
                 "run",
                 "--rm",
                 f"--volume={iso}:/iso:ro",
+                "--entrypoint=isoinfo",
                 f"{BUILDER}:{branch}",
-                "isoinfo",
                 "-R",
                 "-i",
                 "/iso",
@@ -156,23 +157,27 @@ def qemu_cmd(
     cdrom: bool = False,
     kernel: tuple[str, str, str] | None = None,
     uefi: bool = True,
+    qmp: bool = False,
+    kvm: bool | None = None,
 ) -> list[str]:
-    kvm: bool = os.path.exists("/dev/kvm")
+    if kvm is None or kvm:
+        kvm = os.path.exists("/dev/kvm")
+
     return [
         "-machine",
         "q35",
         "-cpu",
         "host" if kvm else "max",
         "-accel",
-        "kvm" if kvm else "tcg",
+        "kvm" if kvm else "tcg,thread=multi",
         "-m",
         "4096",
         "-smp",
-        "2",
+        str(os.cpu_count() or 2),
         "-audiodev",
         "none,id=noaudio",
         *(
-            ["-display", "sdl", "-vga", "std", "-serial", "none"]
+            ["-display", "gtk", "-vga", "std", "-serial", "none"]
             if graphical
             else ["-nographic"]
         ),
@@ -180,9 +185,9 @@ def qemu_cmd(
         *(
             [
                 "-drive",
-                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+                "if=pflash,index=0,format=raw,readonly=on,file=/usr/share/OVMF/x64/OVMF_CODE.secboot.4m.fd",
                 "-drive",
-                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS_4M.fd",
+                "if=pflash,index=1,format=raw,file=/workspace/OVMF_VARS.4m.fd",
             ]
             if uefi
             else []
@@ -212,6 +217,15 @@ def qemu_cmd(
                 f"console=ttyS0,115200 archisobasedir=arkes archisosearchuuid={kernel[2]} copytoram=n cow_spacesize=2G",
             ]
             if kernel is not None
+            else []
+        ),
+        *(
+            [
+                # Bind unix socket for qmp connection.
+                "-qmp",
+                "unix:/workspace/qmp.sock,server=on,wait=off",
+            ]
+            if qmp
             else []
         ),
     ]
@@ -250,7 +264,7 @@ def command(args: Namespace) -> None:
             image,
             "bash",
             "-c",
-            "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
+            "cp /usr/share/OVMF/x64/OVMF_VARS.4m.fd /workspace/OVMF_VARS.4m.fd",
         )
         disk: str | None = None
         if addDisk:
@@ -259,6 +273,7 @@ def command(args: Namespace) -> None:
                 "--rm",
                 f"--volume={workspace}:/workspace",
                 "--security-opt=label=disable",
+                "--entrypoint",
                 image,
                 "qemu-img",
                 "create",
@@ -277,7 +292,6 @@ def command(args: Namespace) -> None:
                     "-it",
                     *qemu_args(iso, workspace, graphical),
                     image,
-                    "qemu-system-x86_64",
                     *qemu_cmd(graphical=graphical, monitor=True, disk=disk, cdrom=True),
                 )
             )
@@ -306,7 +320,6 @@ def command(args: Namespace) -> None:
                 *pod_args,
                 f"--volume={iso}:/iso:ro",
                 image,
-                "qemu-system-x86_64",
                 *qemu_cmd(
                     graphical=False,
                     monitor=False,
@@ -352,7 +365,6 @@ def command(args: Namespace) -> None:
                 "-it",
                 *pod_args,
                 image,
-                "qemu-system-x86_64",
                 *qemu_cmd(
                     graphical=graphical,
                     monitor=True,
@@ -387,7 +399,7 @@ def install(
             --password=live \\
               --kernel-commandline="console=ttyS0,115200" \\
             {"--fast-install" if fastInstall else ""} \\
-            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
+            $(mountpoint -q /sys/firmware/efi/efivars && ls /sys/firmware/efi/efivars/SetupMode-* >/dev/null 2>&1 && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
         """,
     )
 
@@ -396,16 +408,18 @@ def expect_prompt(
     proc: subprocess.Popen[bytes],
     *extras: bytes,
     timeout: float | None = None,
+    idle_timeout: float | None = None,
 ) -> bytes | None:
-    return expect(proc, [*extras, b"~]$", b"~]#"], timeout)
+    return expect(proc, [*extras, b"~]$", b"~]#"], timeout, idle_timeout)
 
 
 def login(
     proc: subprocess.Popen[bytes],
     user: bytes = b"live",
     password: bytes = b"",
+    timeout: float = 60,
 ) -> bool:
-    match expect_prompt(proc, b"login:", timeout=60):
+    match expect_prompt(proc, b"login:", timeout=timeout, idle_timeout=timeout):
         case b"~]$" | b"~]#":
             return True
 
@@ -415,7 +429,7 @@ def login(
         case _:
             return False
 
-    match expect_prompt(proc, b"Password:", timeout=60):
+    match expect_prompt(proc, b"Password:", timeout=timeout, idle_timeout=timeout):
         case b"Password:":
             send(proc, password + b"\n")
 
@@ -425,11 +439,11 @@ def login(
         case _:
             return False
 
-    if expect_prompt(proc, timeout=60) is None:
+    if expect_prompt(proc, timeout=timeout, idle_timeout=timeout) is None:
         return False
 
     send(proc, b"TERM=dumb bash -l\n")
-    _ = expect_prompt(proc, timeout=5)
+    _ = expect_prompt(proc, timeout=5, idle_timeout=5)
     return True
 
 
@@ -618,32 +632,67 @@ def expect(
     proc: subprocess.Popen[bytes],
     patterns: list[bytes],
     timeout: float | None = None,
+    idle_timeout: float | None = None,
 ) -> bytes | None:
     assert proc.stdout is not None
     buffer = b""
     max_len: int = max(len(pattern) for pattern in patterns)
-    deadline: float | None = None
+    start_time = time.monotonic()
+
     if timeout is not None:
-        deadline = time.monotonic() + timeout
+        # Wall-clock timeout (original behavior, ignore idle)
+        absolute_deadline = start_time + timeout
+        last_data_time: float | None = None
+    elif idle_timeout is not None:
+        # Idle timeout: reset timer on each data receipt, max 300s total
+        absolute_deadline = start_time + max(idle_timeout, 300)
+        last_data_time = start_time
+    else:
+        absolute_deadline = None
+        last_data_time = None
 
     while proc.poll() is None:
-        if deadline is not None:
-            remaining: float = deadline - time.monotonic()
+        # Determine select timeout
+        if absolute_deadline is not None:
+            remaining = absolute_deadline - time.monotonic()
             if remaining <= 0:
                 return None
+            select_timeout = remaining
+        else:
+            select_timeout = None
 
-            readable, _, _ = select.select([proc.stdout.fileno()], [], [], remaining)
-            if not readable:
+        readable, _, _ = select.select([proc.stdout.fileno()], [], [], select_timeout)
+
+        if not readable:
+            # In idle mode, check if idle timeout has elapsed
+            if (
+                idle_timeout is not None
+                and last_data_time is not None
+                and time.monotonic() - last_data_time > idle_timeout
+            ):
                 return None
+            continue
 
         data: bytes = read(proc)
         if not data:
             continue
 
+        # For idle mode, update last_data_time on receipt
+        if idle_timeout is not None:
+            last_data_time = time.monotonic()
+
         buffer = (buffer + data)[-(max_len + len(data)) :]
         for pattern in patterns:
             if pattern in buffer:
                 return pattern
+
+    # Process ended – check idle timeout if applicable
+    if (
+        idle_timeout is not None
+        and last_data_time is not None
+        and time.monotonic() - last_data_time > idle_timeout
+    ):
+        return None
 
     return None
 
