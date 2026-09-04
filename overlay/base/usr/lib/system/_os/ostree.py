@@ -818,7 +818,7 @@ def update_loader_entries(
             continue
 
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", prefix="arkes-cmdline-"
+            mode="w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
         ) as f:
             _ = f.write(deployment.kargs)
             f.flush()
