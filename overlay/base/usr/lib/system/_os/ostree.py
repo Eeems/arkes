@@ -258,7 +258,7 @@ class Deployment:
 
     @property
     def sysroot_path(self) -> str:
-        path = self.sysroot.get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        path = self.sysroot.get_path().get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         assert isinstance(path, str)
         return path
 
@@ -873,7 +873,7 @@ def update_loader_entries(
     for file in chain(
         iglob(os.path.join(efi, "EFI/arkes", "arkes-*.efi")),
         iglob(os.path.join(efi, "loader/entries", "arkes-*.conf")),
-        iglob(os.path.join(efi, "loader/entries", "ostree-*.conf"))
+        iglob(os.path.join(efi, "loader/entries", "ostree-*.conf")),
     ):
         if file not in binaries | staged:
             os.unlink(file)
@@ -891,7 +891,7 @@ def update_loader_entries(
             "bootctl",
             f"--esp-path={os.path.join(sysroot, 'boot/efi')}",
             "set-default",
-            deployment.loader_entry,
+            os.path.basename(deployment.loader_entry),
         )
         break
 
