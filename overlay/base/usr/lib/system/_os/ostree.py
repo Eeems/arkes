@@ -783,13 +783,11 @@ def update_loader_entries(
 
         def execOrChroot(deployment: Deployment, script: str) -> None:
             if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-                keys_dir = os.path.join(sysroot, "var/lib/sbctl")
+                sbctl = os.path.join(sysroot, "var/lib/sbctl")
                 deployment.chroot(
                     script,
                     binds=(
-                        [(keys_dir, "/var/lib/sbctl")]
-                        if os.path.isdir(keys_dir)
-                        else None
+                        [(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else None
                     ),
                     onstdout=onstdout,
                     onstderr=onstderr,
@@ -845,6 +843,7 @@ def update_loader_entries(
         iglob(os.path.join(efi, "loader/entries", "ostree-*.conf")),
     ):
         if file not in binaries | staged:
+            onstderr(f"Removed stale file: {file}".encode())
             os.unlink(file)
 
     if not booted_with_systemd_boot() or not systemd_boot_installed(sysroot):
@@ -893,12 +892,10 @@ def update_bootloader(
 
     def execOrChroot(deployment: Deployment, script: str) -> None:
         if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-            keys_dir = os.path.join(sysroot, "var/lib/sbctl")
+            sbctl = os.path.join(sysroot, "var/lib/sbctl")
             deployment.chroot(
                 script,
-                binds=(
-                    [(keys_dir, "/var/lib/sbctl")] if os.path.isdir(keys_dir) else None
-                ),
+                binds=([(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else None),
                 onstdout=onstdout,
                 onstderr=onstderr,
             )
