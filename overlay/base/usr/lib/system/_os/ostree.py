@@ -2,6 +2,7 @@
 import os
 import shlex
 import subprocess
+import tempfile
 from collections.abc import (
     Callable,
     Generator,
@@ -352,8 +353,11 @@ class Deployment:
         return initrd
 
     @property
-    def commandline(self) -> str:
-        return os.path.join(self.path, "usr/etc/system/commandline")
+    def kargs(self) -> str:
+        config = self.deployment.get_bootconfig()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        assert config is not None
+        options = cast(str, config.get("options"))  # pyright: ignore[reportUnknownMemberType]
+        return options
 
     @property
     def loader_entry(self) -> str:
@@ -813,28 +817,33 @@ def update_loader_entries(
 
             continue
 
-        execOrChroot(
-            deployment,
-            "\n".join(
-                [
-                    "set -e",
-                    f"export ESP_PATH={root}/boot/efi",
-                    shlex.join(
-                        [
-                            "sbctl",
-                            "bundle",
-                            "--cmdline",
-                            f"{deployment.commandline}",
-                            "--kernel-img",
-                            f"{deployment.kernel}",
-                            "--initramfs",
-                            f"{deployment.initrd}",
-                            outputPath,
-                        ]
-                    ),
-                ]
-            ),
-        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", prefix="arkes-cmdline-"
+        ) as f:
+            _ = f.write(deployment.kargs)
+            f.flush()
+            execOrChroot(
+                deployment,
+                "\n".join(
+                    [
+                        "set -e",
+                        f"export ESP_PATH={root}/boot/efi",
+                        shlex.join(
+                            [
+                                "sbctl",
+                                "bundle",
+                                "--cmdline",
+                                f.name,
+                                "--kernel-img",
+                                f"{deployment.kernel}",
+                                "--initramfs",
+                                f"{deployment.initrd}",
+                                outputPath,
+                            ]
+                        ),
+                    ]
+                ),
+            )
 
         if os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
             execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
