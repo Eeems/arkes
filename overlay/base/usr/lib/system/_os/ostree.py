@@ -444,13 +444,15 @@ class Deployment:
             if binds:
                 for bind in binds:
                     if isinstance(bind, str):
-                        path = bind.lstrip("/")
+                        path = bind
 
                     else:
                         bind, path = bind  # noqa: PLW2901
 
                     stack.enter_context(
-                        _mount(bind, os.path.join(self.path, path), bind=True)
+                        _mount(
+                            bind, os.path.join(self.path, path.lstrip("/")), bind=True
+                        )
                     )
 
             execute(
@@ -773,14 +775,6 @@ def update_loader_entries(
         binaries.add(ukiPath)
         staged.add(entryPath)
 
-        if os.path.isfile(ukiPath):
-            with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
-                _ = f.write(f"title {title}\n")
-                _ = f.write(f"version {version_id}\n")
-                _ = f.write(f"uki /EFI/arkes/{name}\n")
-
-            continue
-
         def execOrChroot(deployment: Deployment, script: str) -> None:
             try:
                 if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
@@ -808,6 +802,17 @@ def update_loader_entries(
             else sysroot
         )
         outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
+        if os.path.isfile(ukiPath):
+            with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
+                _ = f.write(f"title {title}\n")
+                _ = f.write(f"version {version_id}\n")
+                _ = f.write(f"uki /EFI/arkes/{name}\n")
+
+            if os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
+                execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
+
+            continue
+
         execOrChroot(
             deployment,
             "\n".join(
