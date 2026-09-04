@@ -2,7 +2,6 @@
 import os
 import shlex
 import subprocess
-import tempfile
 from collections.abc import (
     Callable,
     Generator,
@@ -338,41 +337,15 @@ class Deployment:
 
     @property
     def kernel(self) -> str:
-        return (
-            subprocess.check_output(
-                ostree_cmd(
-                    "cat", f"{self.stateroot}/{self.checksum}", "/usr/lib/system/kernel"
-                )
-            )
-            .strip()
-            .decode("UTF-8")
-        )
+        return os.path.join(self.path, "usr/lib/system/kernel")
 
     @property
     def initrd(self) -> str:
-        return (
-            subprocess.check_output(
-                ostree_cmd(
-                    "cat", f"{self.stateroot}/{self.checksum}", "/usr/lib/system/initrd"
-                )
-            )
-            .strip()
-            .decode("UTF-8")
-        )
+        return os.path.join(self.path, "usr/lib/system/initrd")
 
     @property
     def commandline(self) -> str:
-        return (
-            subprocess.check_output(
-                ostree_cmd(
-                    "cat",
-                    f"{self.stateroot}/{self.checksum}",
-                    "/usr/etc/system/commandline",
-                )
-            )
-            .strip()
-            .decode("UTF-8")
-        )
+        return os.path.join(self.path, "usr/etc/system/commandline")
 
     @property
     def loader_entry(self) -> str:
@@ -771,13 +744,6 @@ def update_loader_entries(
     binaries: set[str] = set()
 
     for deployment in deployments(sysroot):
-        try:
-            kernel = deployment.kernel
-            initrd = deployment.initrd
-            cmdline = deployment.commandline
-        except subprocess.CalledProcessError:
-            continue
-
         name = f"arkes-{deployment.checksum_str}.efi"
         os_info = deployment.os_info
         version = os_info.get("VERSION", "0")
@@ -824,41 +790,36 @@ def update_loader_entries(
             else:
                 execute_("bash", "-c", script)
 
-        with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
-        ) as cmdlineFile:
-            _ = cmdlineFile.write(f"{cmdline}\n")
-            cmdlineFile.flush()
-            root = (
-                "/sysroot"
-                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
-                else sysroot
-            )
-            outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
-            execOrChroot(
-                deployment,
-                "\n".join(
-                    [
-                        "set -e",
-                        f"export ESP_PATH={root}/boot/efi",
-                        shlex.join(
-                            [
-                                "sbctl",
-                                "bundle",
-                                "--cmdline",
-                                cmdlineFile.name,
-                                "--kernel-img",
-                                f"{root}{kernel}",
-                                "--initramfs",
-                                f"{root}{initrd}",
-                                outputPath,
-                            ]
-                        ),
-                    ]
-                ),
-            )
+        root = (
+            "/sysroot"
+            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
+            else sysroot
+        )
+        outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
+        execOrChroot(
+            deployment,
+            "\n".join(
+                [
+                    "set -e",
+                    f"export ESP_PATH={root}/boot/efi",
+                    shlex.join(
+                        [
+                            "sbctl",
+                            "bundle",
+                            "--cmdline",
+                            f"{root}{deployment.commandline}",
+                            "--kernel-img",
+                            f"{root}{deployment.kernel}",
+                            "--initramfs",
+                            f"{root}{deployment.initrd}",
+                            outputPath,
+                        ]
+                    ),
+                ]
+            ),
+        )
 
-        if os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
+        if os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
             execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
         with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
@@ -919,7 +880,7 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
-    if not os.path.isfile("/var/lib/sbctl/keys/db/db.key"):
+    if not os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
         return
 
     def execOrChroot(deployment: Deployment, script: str) -> None:
