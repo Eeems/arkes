@@ -925,16 +925,16 @@ def update_bootloader(
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
-        sbctl verify 2>&1 |
+        sbctl verify --quiet 2>&1 |
           while read -r line; do
             case "$line" in
             *" does not exist")
-              file="${line##* }"
-              sbctl remove-file "$file"
+              file="${line% does not exist}"
+              sbctl remove-file "${file##* }"
               ;;
             *" is not signed")
-              file="${line##* }"
-              sbctl sign -s "$file"
+              file="${line% is not signed}"
+              sbctl sign -s "${file##* }"
               ;;
             esac
           done
