@@ -337,11 +337,19 @@ class Deployment:
 
     @property
     def kernel(self) -> str:
-        return os.path.join(self.path, "usr/lib/system/kernel")
+        kernel = next(
+            iglob(f"{os.path.join(self.path, 'usr/lib/modules')}/*/vmlinuz"), None
+        )
+        assert kernel is not None
+        return kernel
 
     @property
     def initrd(self) -> str:
-        return os.path.join(self.path, "usr/lib/system/initrd")
+        initrd = next(
+            iglob(f"{os.path.join(self.path, 'usr/lib/modules')}/*/initramfs.img"), None
+        )
+        assert initrd is not None
+        return initrd
 
     @property
     def commandline(self) -> str:
