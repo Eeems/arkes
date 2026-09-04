@@ -925,7 +925,7 @@ def update_bootloader(
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
-        sbctl verify |
+        sbctl verify 2>&1 |
           while read -r line; do
             case "$line" in
             *" does not exist")
