@@ -824,11 +824,11 @@ def update_loader_entries(
                             "sbctl",
                             "bundle",
                             "--cmdline",
-                            f"{root}{deployment.commandline}",
+                            f"{deployment.commandline}",
                             "--kernel-img",
-                            f"{root}{deployment.kernel}",
+                            f"{deployment.kernel}",
                             "--initramfs",
-                            f"{root}{deployment.initrd}",
+                            f"{deployment.initrd}",
                             outputPath,
                         ]
                     ),
@@ -925,9 +925,19 @@ def update_bootloader(
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
-        sbctl verify \
-          | sed -E \
-              -e 's|^.* (/.+) does not exist$|sbctl remove-file "\\1"|e' \
-              -e 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+        sbctl verify |
+          while read -r line; do
+            case "$line" in
+            *" does not exist")
+              file="${line##* }"
+              sbctl remove-file "$file"
+              ;;
+            *" is not signed")
+              file="${line##* }"
+              sbctl sign -s "$file"
+              ;;
+            esac
+          done
+        sbctl verify
         """,
     )
