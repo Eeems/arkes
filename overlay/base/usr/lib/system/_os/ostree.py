@@ -2,7 +2,6 @@
 import os
 import shlex
 import subprocess
-import sys
 import tempfile
 from collections.abc import (
     Callable,
@@ -258,6 +257,12 @@ class Deployment:
         return self.deployment.get_index()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
     @property
+    def sysroot_path(self) -> str:
+        path = self.sysroot.get_path().get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        assert isinstance(path, str)
+        return path
+
+    @property
     def path(self) -> str:
         path = self.sysroot.get_deployment_directory(self.deployment).get_path()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         assert isinstance(path, str)
@@ -331,10 +336,44 @@ class Deployment:
     def image(self) -> str:
         return baseImage(os.path.join(self.path, "etc/system/Systemfile"))
 
+    @property
+    def kernel(self) -> str:
+        kernel = next(
+            iglob(f"{os.path.join(self.path, 'usr/lib/modules')}/*/vmlinuz"), None
+        )
+        assert kernel is not None
+        return kernel
+
+    @property
+    def initrd(self) -> str:
+        initrd = next(
+            iglob(f"{os.path.join(self.path, 'usr/lib/modules')}/*/initramfs.img"), None
+        )
+        assert initrd is not None
+        return initrd
+
+    @property
+    def kargs(self) -> str:
+        config = self.deployment.get_bootconfig()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        assert config is not None
+        options = cast(str, config.get("options"))  # pyright: ignore[reportUnknownMemberType]
+        return options
+
+    @property
+    def loader_entry(self) -> str:
+        efi_path = os.path.join(self.sysroot_path, "boot/efi")
+        entries_dir = os.path.join(efi_path, "loader/entries")
+        return os.path.join(entries_dir, f"arkes-{self.checksum_str}.conf")
+
+    @property
+    def uki(self) -> str:
+        efi_path = os.path.join(self.sysroot_path, "boot/efi")
+        efi_linux_path = os.path.join(efi_path, "EFI/arkes")
+        return os.path.join(efi_linux_path, f"arkes-{self.checksum_str}.efi")
+
     def chroot(
         self,
         cmd: str,
-        sysroot: str = "/",
         binds: list[str | tuple[str, str]] | None = None,
         onstdout: Callable[[bytes], None] = bytes_to_stdout,
         onstderr: Callable[[bytes], None] = bytes_to_stderr,
@@ -347,6 +386,7 @@ class Deployment:
             onstdout=onstdout,
             onstderr=onstderr,
         )
+        sysroot = self.sysroot_path
         with ExitStack() as stack:
             sysroot_partition = (
                 subprocess.check_output(
@@ -408,13 +448,15 @@ class Deployment:
             if binds:
                 for bind in binds:
                     if isinstance(bind, str):
-                        path = bind.lstrip("/")
+                        path = bind
 
                     else:
                         bind, path = bind  # noqa: PLW2901
 
                     stack.enter_context(
-                        _mount(bind, os.path.join(self.path, path), bind=True)
+                        _mount(
+                            bind, os.path.join(self.path, path.lstrip("/")), bind=True
+                        )
                     )
 
             execute(
@@ -680,75 +722,6 @@ def in_nspawn_system_cmd(
     ]
 
 
-def loader_entries(sysroot: str) -> Generator[tuple[str, dict[str, str], Deployment]]:
-    sysroot = os.path.normpath(sysroot)
-    deployments_by_key: dict[tuple[str, str, int], Deployment] = {
-        (deployment.stateroot, deployment.checksum, deployment.serial): deployment
-        for deployment in deployments(sysroot)
-    }
-    for path in iglob(os.path.join(sysroot, "boot/loader/entries", "ostree-*.conf")):
-        props: dict[str, str] = {}
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                key, sep, value = line.strip().partition(" ")
-                if sep:
-                    props[key] = value.strip()
-
-        kernel = props.get("linux")
-        if kernel is None:
-            print(
-                f"Skipping loader entry {path}: missing linux property",
-                file=sys.stderr,
-            )
-            continue
-
-        initrd = props.get("initrd")
-        if initrd is None:
-            print(
-                f"Skipping loader entry {path}: missing initrd property",
-                file=sys.stderr,
-            )
-            continue
-
-        options = props.get("options")
-        if options is None:
-            print(
-                f"Skipping loader entry {path}: missing options property",
-                file=sys.stderr,
-            )
-            continue
-
-        bootlink = next(
-            (
-                arg[len("ostree=") :]
-                for arg in options.split()
-                if arg.startswith("ostree=")
-            ),
-            None,
-        )
-        if bootlink is None:
-            print(
-                f"Skipping loader entry {path}: missing ostree= argument",
-                file=sys.stderr,
-            )
-            continue
-
-        deployment_name = os.path.basename(
-            os.path.realpath(os.path.join(sysroot, bootlink.lstrip("/")))
-        )
-        checksum, serial_str = deployment_name.rsplit(".", 1)
-        serial = int(serial_str)
-        deployment = deployments_by_key.get((bootlink.split("/")[3], checksum, serial))
-        if deployment is None:
-            print(
-                f"Skipping loader entry {path}: could not find deployment",
-                file=sys.stderr,
-            )
-            continue
-
-        yield path, props, deployment
-
-
 def booted_with_systemd_boot() -> bool:
     loader_info = (
         "/sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
@@ -774,21 +747,6 @@ def systemd_boot_installed(sysroot: str = "/") -> bool:
     )
 
 
-def sbctl_keys_path(sysroot: str, deployment: Deployment) -> str:
-    """Path to the sbctl db key, wherever it is stored.
-
-    On a booted system the keys live under the stateroot var, which is
-    visible at /var/lib/sbctl (or bind-mounted there). During install the
-    sysroot has no /var yet, so fall back to the stateroot var directly.
-    """
-    root = os.path.join(sysroot, "var/lib/sbctl")
-    if not os.path.isdir(root):
-        root = os.path.join(
-            sysroot, "ostree/deploy", deployment.stateroot, "var/lib/sbctl"
-        )
-    return os.path.join(root, "keys/db/db.key")
-
-
 def update_loader_entries(
     sysroot: str = "/",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
@@ -798,16 +756,8 @@ def update_loader_entries(
     sysroot = os.path.normpath(sysroot)
     staged: set[str] = set()
     binaries: set[str] = set()
-    efi_path = os.path.join(sysroot, "boot/efi")
-    entries_dir = os.path.join(efi_path, "loader/entries")
-    os.makedirs(entries_dir, exist_ok=True)
-    efi_linux_path = os.path.join(efi_path, "EFI/arkes")
-    os.makedirs(efi_linux_path, exist_ok=True)
-    next_deployment: Deployment | None = None
-    for _path, props, deployment in loader_entries(sysroot):
-        if not deployment.index:
-            next_deployment = deployment
 
+    for deployment in deployments(sysroot):
         name = f"arkes-{deployment.checksum_str}.efi"
         os_info = deployment.os_info
         version = os_info.get("VERSION", "0")
@@ -822,45 +772,56 @@ def update_loader_entries(
                     f"Unsafe character {char!r} found in boot title: {title!r}"
                 )
 
-        entryPath = os.path.join(entries_dir, f"arkes-{deployment.checksum_str}.conf")
-        with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
-            _ = f.write(f"title {title}\n")
-            _ = f.write(f"version {version_id}\n")
-            _ = f.write(f"uki /EFI/arkes/{name}\n")
-
-        staged.add(entryPath)
-        ukiPath = os.path.join(efi_linux_path, name)
+        ukiPath = deployment.uki
+        os.makedirs(os.path.dirname(ukiPath), exist_ok=True)
+        entryPath = deployment.loader_entry
+        os.makedirs(os.path.dirname(entryPath), exist_ok=True)
         binaries.add(ukiPath)
-        if os.path.isfile(ukiPath):
-            continue
+        staged.add(entryPath)
 
         def execOrChroot(deployment: Deployment, script: str) -> None:
-            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-                keys_dir = os.path.join(sysroot, "var/lib/sbctl")
-                deployment.chroot(
-                    script,
-                    sysroot=sysroot,
-                    binds=(
-                        [(keys_dir, "/var/lib/sbctl")] if os.path.isdir(keys_dir) else None
-                    ),
-                    onstdout=onstdout,
-                    onstderr=onstderr,
-                )
+            try:
+                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                    sbctl = os.path.join(sysroot, "var/lib/sbctl")
+                    deployment.chroot(
+                        script,
+                        binds=(
+                            [(sbctl, "/var/lib/sbctl")]
+                            if os.path.isdir(sbctl)
+                            else None
+                        ),
+                        onstdout=onstdout,
+                        onstderr=onstderr,
+                    )
 
-            else:
-                execute_("bash", "-c", script)
+                else:
+                    execute_("bash", "-c", script)
+
+            except subprocess.CalledProcessError as e:
+                onstderr(f"{e}\n".encode())
+
+        root = (
+            "/sysroot"
+            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
+            else sysroot
+        )
+        outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
+        if os.path.isfile(ukiPath):
+            with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
+                _ = f.write(f"title {title}\n")
+                _ = f.write(f"version {version_id}\n")
+                _ = f.write(f"uki /EFI/arkes/{name}\n")
+
+            if os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
+                execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
+
+            continue
 
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
-        ) as cmdlineFile:
-            _ = cmdlineFile.write(f"{props['options']}\n")
-            cmdlineFile.flush()
-            root = (
-                "/sysroot"
-                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl"))
-                else sysroot
-            )
-            outputPath = f"{root}/boot/efi/EFI/arkes/{name}"
+            mode="w", encoding="utf-8", prefix="arkes-cmdline-", dir="/tmp"
+        ) as f:
+            _ = f.write(deployment.kargs)
+            f.flush()
             execOrChroot(
                 deployment,
                 "\n".join(
@@ -872,11 +833,11 @@ def update_loader_entries(
                                 "sbctl",
                                 "bundle",
                                 "--cmdline",
-                                cmdlineFile.name,
+                                f.name,
                                 "--kernel-img",
-                                f"{root}{props['linux']}",
+                                f"{deployment.kernel}",
                                 "--initramfs",
-                                f"{root}{props['initrd']}",
+                                f"{deployment.initrd}",
                                 outputPath,
                             ]
                         ),
@@ -884,27 +845,43 @@ def update_loader_entries(
                 ),
             )
 
-        if os.path.isfile(sbctl_keys_path(sysroot, deployment)):
+        if os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
             execOrChroot(deployment, f"sbctl sign -s '{outputPath}'")
 
-    assert next_deployment is not None
+        with open(f"{entryPath}.new", "w", encoding="utf-8") as f:
+            _ = f.write(f"title {title}\n")
+            _ = f.write(f"version {version_id}\n")
+            _ = f.write(f"uki /EFI/arkes/{name}\n")
+
     for file in staged:
         os.replace(f"{file}.new", file)
 
+    efi = os.path.join(sysroot, "boot/efi")
     for file in chain(
-        iglob(os.path.join(efi_linux_path, "arkes-*.efi")),
-        iglob(os.path.join(entries_dir, "arkes-*.conf")),
+        iglob(os.path.join(efi, "EFI/arkes", "arkes-*.efi")),
+        iglob(os.path.join(efi, "loader/entries", "arkes-*.conf")),
+        iglob(os.path.join(efi, "loader/entries", "ostree-*.conf")),
     ):
         if file not in binaries | staged:
+            onstderr(f"Removed stale file: {file}".encode())
             os.unlink(file)
 
-    if booted_with_systemd_boot() and systemd_boot_installed(sysroot):
+    if not booted_with_systemd_boot() or not systemd_boot_installed(sysroot):
+        return
+
+    for deployment in sorted(deployments(sysroot), key=lambda d: d.index):
+        if not os.path.exists(deployment.loader_entry) or not os.path.exists(
+            deployment.uki
+        ):
+            continue
+
         execute_(
             "bootctl",
-            f"--esp-path={efi_path}",
+            f"--esp-path={os.path.join(sysroot, 'boot/efi')}",
             "set-default",
-            f"arkes-{next_deployment.checksum_str}.conf",
+            os.path.basename(deployment.loader_entry),
         )
+        break
 
 
 def update_bootloader(
@@ -921,7 +898,6 @@ def update_bootloader(
 
     chroot = partial(
         deployment.chroot,
-        sysroot=sysroot,
         onstdout=onstdout,
         onstderr=onstderr,
     )
@@ -931,18 +907,15 @@ def update_bootloader(
     else:
         chroot("bootctl update --esp-path=/sysroot/boot/efi --graceful")
 
-    if not os.path.isfile(sbctl_keys_path(sysroot, deployment)):
+    if not os.path.isfile(os.path.join(sysroot, "var/lib/sbctl/keys/db/db.key")):
         return
 
     def execOrChroot(deployment: Deployment, script: str) -> None:
         if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-            keys_dir = os.path.join(sysroot, "var/lib/sbctl")
+            sbctl = os.path.join(sysroot, "var/lib/sbctl")
             deployment.chroot(
                 script,
-                sysroot=sysroot,
-                binds=(
-                    [(keys_dir, "/var/lib/sbctl")] if os.path.isdir(keys_dir) else None
-                ),
+                binds=([(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else None),
                 onstdout=onstdout,
                 onstderr=onstderr,
             )
@@ -961,6 +934,19 @@ def update_bootloader(
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
-        sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+        sbctl verify --quiet 2>&1 |
+          while read -r line; do
+            case "$line" in
+            *" does not exist")
+              file="${line% does not exist}"
+              sbctl remove-file "${file##* }"
+              ;;
+            *" is not signed")
+              file="${line% is not signed}"
+              sbctl sign -s "${file##* }"
+              ;;
+            esac
+          done
+        sbctl verify
         """,
     )
