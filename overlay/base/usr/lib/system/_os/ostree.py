@@ -925,6 +925,9 @@ def update_bootloader(
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
-        sbctl verify | sed -E 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
+        sbctl verify \
+          | sed -E \
+              -e 's|^.* (/.+) does not exist$|sbctl remove-file "\\1"|e' \
+              -e 's|^.* (/.+) is not signed$|sbctl sign -s "\\1"|e'
         """,
     )
