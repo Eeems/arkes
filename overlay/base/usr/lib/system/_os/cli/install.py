@@ -257,14 +257,12 @@ def install(
             sbctl create-keys
             sbctl enroll-keys -m
             """,
-            sysroot=sysroot,
         )
 
     update_loader_entries(sysroot)
     update_bootloader(sysroot, deployment=deployment)
     deployment.chroot(
         shlex.join(["echo", f"root:{password}"]) + " | chpasswd",
-        sysroot=sysroot,
     )
 
     if not fastInstall:
