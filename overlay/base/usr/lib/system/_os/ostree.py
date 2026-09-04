@@ -782,19 +782,25 @@ def update_loader_entries(
             continue
 
         def execOrChroot(deployment: Deployment, script: str) -> None:
-            if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
-                sbctl = os.path.join(sysroot, "var/lib/sbctl")
-                deployment.chroot(
-                    script,
-                    binds=(
-                        [(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else None
-                    ),
-                    onstdout=onstdout,
-                    onstderr=onstderr,
-                )
+            try:
+                if os.path.exists(os.path.join(deployment.path, "usr/bin/sbctl")):
+                    sbctl = os.path.join(sysroot, "var/lib/sbctl")
+                    deployment.chroot(
+                        script,
+                        binds=(
+                            [(sbctl, "/var/lib/sbctl")]
+                            if os.path.isdir(sbctl)
+                            else None
+                        ),
+                        onstdout=onstdout,
+                        onstderr=onstderr,
+                    )
 
-            else:
-                execute_("bash", "-c", script)
+                else:
+                    execute_("bash", "-c", script)
+
+            except subprocess.CalledProcessError as e:
+                onstderr(f"{e}\n".encode())
 
         root = (
             "/sysroot"
