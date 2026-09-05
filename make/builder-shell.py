@@ -36,7 +36,7 @@ def command(args: Namespace) -> None:
         )
 
     branch = ref(branch)
-    image = f"ghcr.io/eeems/arkes-builder:{branch}"
+    image = f"quay.io/eeems/arkes-builder:{branch}"
     with tempfile.TemporaryDirectory() as tmpdir:
         __e = os.path.join(tmpdir, "__e")
         os.makedirs(__e)

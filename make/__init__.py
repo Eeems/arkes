@@ -96,7 +96,7 @@ OS_NAME = cast(str, _os.OS_NAME)
 IMAGE = cast(str, _os.IMAGE)
 REGISTRY = cast(str, _os.REGISTRY)
 REPO = cast(str, _os.REPO)
-BUILDER = "ghcr.io/eeems/arkes-builder"
+BUILDER = "quay.io/eeems/arkes-builder"
 
 
 def ci_log(*args: str) -> None:
