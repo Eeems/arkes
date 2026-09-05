@@ -113,7 +113,7 @@ jobs:
       contents: read
       packages: read
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ needs.builder.outputs.unique_tag }}
+      image: quay.io/eeems/arkes-builder:${{ needs.builder.outputs.unique_tag }}
       options: >-
         --privileged
         --security-opt seccomp=unconfined

@@ -57,7 +57,7 @@ def register(parser: ArgumentParser) -> None:
         help="Attach a blank disk to the vm, defaults to true with --install or --fast-install",
     )
     _ = parser.add_argument(
-        "--branch",
+        "--runner",
         default="iso-runner",
         help="iso-runner image ref to use, defaults to iso-runner.",
     )
@@ -96,13 +96,13 @@ def graphical_args() -> list[str]:
     return args
 
 
-def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
+def extract_boot(iso: str, workspace: str, runner: str) -> tuple[str, str, str]:
     data: bytes = subprocess.check_output(
         podman_cmd(
             "run",
             "--rm",
             f"--volume={iso}:/iso:ro",
-            f"{BUILDER}:{branch}",
+            f"{BUILDER}:{runner}",
             "isoinfo",
             "-R",
             "-i",
@@ -117,15 +117,15 @@ def extract_boot(iso: str, workspace: str, branch: str) -> tuple[str, str, str]:
                 value: str = arg.split("=", 1)[1]
                 assert value
                 return (
-                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", branch),
-                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", branch),
+                    extract(iso, workspace, "/arkes/x86_64/vmlinuz", runner),
+                    extract(iso, workspace, "/arkes/x86_64/initramfs.img", runner),
                     value,
                 )
 
     raise RuntimeError("Unable to find archisosearchuuid in the iso boot entry")
 
 
-def extract(iso: str, workspace: str, path: str, branch: str) -> str:
+def extract(iso: str, workspace: str, path: str, runner: str) -> str:
     dest: str = os.path.join(workspace, os.path.basename(path))
     with open(dest, "wb") as f:
         _ = subprocess.run(
@@ -133,7 +133,7 @@ def extract(iso: str, workspace: str, path: str, branch: str) -> str:
                 "run",
                 "--rm",
                 f"--volume={iso}:/iso:ro",
-                f"{BUILDER}:{branch}",
+                f"{BUILDER}:{runner}",
                 "isoinfo",
                 "-R",
                 "-i",
@@ -234,14 +234,14 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     graphical = cast(bool, args.graphical)
-    branch = ref(cast(str, args.branch))
+    runner = ref(cast(str, args.runner))
+    image: str = f"{BUILDER}:{runner}"
     fastInstall = cast(bool, args.fastInstall)
     _install = fastInstall or cast(bool, args.install)
     addDisk = _install or cast(bool, args.addDisk)
     with tempfile.TemporaryDirectory(
         prefix="iso-runner-", dir=workspace_path()
     ) as workspace:
-        image = f"{BUILDER}:{branch}"
         podman(
             "run",
             "--rm",
@@ -375,6 +375,7 @@ def install(
     proc: subprocess.Popen[bytes],
     *,
     fastInstall: bool = False,
+    secureBoot: bool = False,
 ) -> bool:
     return check(
         proc,
@@ -387,7 +388,7 @@ def install(
             --password=live \\
               --kernel-commandline="console=ttyS0,115200" \\
             {"--fast-install" if fastInstall else ""} \\
-            $(mountpoint -q /sys/firmware/efi/efivars && os install --help 2>&1 | grep -qF -- '--secure-boot' && echo --secure-boot)
+            {"--secure-boot" if secureBoot else ""}
         """,
     )
 

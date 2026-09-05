@@ -163,7 +163,7 @@ jobs:
         with:
           run: >-
             ./make.py test
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            --runner ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   test-upgrade:
@@ -282,7 +282,7 @@ jobs:
           run: >-
             ./make.py test
             --from ${{ steps.download-previous.outputs.path }}
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            --runner ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   release:
