@@ -30,7 +30,7 @@ jobs:
         id: meta
         run: |
           pip install pyxattr progressbar2
-          IMAGE_NAME=ghcr.io/eeems/arkes-builder
+          IMAGE_NAME=quay.io/eeems/arkes-builder
           HASH="$(python ./make/hash-niricfg.py --no-newline)"
           echo "tags=${IMAGE_NAME}:niricfg,${IMAGE_NAME}:${HASH}" >> "$GITHUB_OUTPUT"
           echo "missing=$(skopeo list-tags docker://$IMAGE_NAME | jq --arg hash "$HASH" 'any(.Tags[]; . == $hash) | not')" >> "$GITHUB_OUTPUT"
