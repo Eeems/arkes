@@ -377,10 +377,16 @@ def install(
     fastInstall: bool = False,
     secureBoot: bool = False,
 ) -> bool:
+    secure_boot_args = '"--secure-boot"' if secureBoot else '""'
     return check(
         proc,
         f"""
           sudo sed -i '1a RUN echo "nameserver 10.0.2.3" > /etc/resolv.conf' /etc/system/Systemfile
+          args="{secure_boot_args}"
+          if [ -n "$args" ] && ! os --help | grep -q -- '--secure-boot'; then
+            echo "boot: --secure-boot not supported by os, skipping" >&2
+            args=""
+          fi
           sudo os install \\
             --system-partition=/dev/vda2 \\
             --boot-partition=/dev/vda1 \\
@@ -388,7 +394,7 @@ def install(
             --password=live \\
               --kernel-commandline="console=ttyS0,115200" \\
             {"--fast-install" if fastInstall else ""} \\
-            {"--secure-boot" if secureBoot else ""}
+            $args
         """,
     )
 

@@ -99,14 +99,12 @@ def command(args: Namespace) -> None:
 
             else:
                 res = requests.get(
-                    "https://api.github.com/repos/Eeems/arkes/releases/runners/latest",
+                    "https://api.github.com/repos/Eeems/arkes/releases/tags/latest",
                     timeout=20,
                 )
                 res.raise_for_status()
                 prefix = f"arkes-{variant}-"
-                for line in cast(
-                    str, cast(dict[str, Any], res.json())["body"]
-                ).splitlines():
+                for line in cast(dict[str, str], res.json())["body"].splitlines():
                     cells = [
                         cell.strip() for cell in line.strip().strip("|").split("|")
                     ]
@@ -223,7 +221,6 @@ def command(args: Namespace) -> None:
                 error_exit(proc, cidfile)
 
             print("boot-test: phase 1: installing to target disk", file=sys.stderr)
-            # Force --secure-boot since test VM uses OVMF_CODE_4M.secboot.fd (Secure Boot enabled)
             if not install(proc, fastInstall=variant is not None, secureBoot=True):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
