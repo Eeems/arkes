@@ -933,13 +933,19 @@ def update_bootloader(
                 onstderr=onstderr,
             )
 
+    for boot_file in (
+        "/sysroot/boot/efi/EFI/BOOT/BOOTX64.EFI",
+        "/sysroot/boot/efi/EFI/systemd/systemd-bootx64.efi",
+    ):
+        execOrChroot(deployment, f"sbctl sign -s '{boot_file}'")
+
     execOrChroot(
         deployment,
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
         export SBCTL_UNICODE=0
-        sbctl verify --quiet 2>&1 | sed $'s/\\x1b\\[[0-9;]*m//g' |
+        sbctl verify --quiet 2>&1 |
           while read -r line; do
             case "$line" in
             *" does not exist")
