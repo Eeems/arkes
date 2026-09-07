@@ -47,7 +47,7 @@ jobs:
     name: arkes:${{ inputs.variant }} iso
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      image: quay.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt=seccomp=unconfined
@@ -123,7 +123,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      image: quay.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt=seccomp=unconfined
@@ -163,7 +163,7 @@ jobs:
         with:
           run: >-
             ./make.py test
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            --runner ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   test-upgrade:
@@ -171,7 +171,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      image: quay.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt=seccomp=unconfined
@@ -282,7 +282,7 @@ jobs:
           run: >-
             ./make.py test
             --from ${{ steps.download-previous.outputs.path }}
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            --runner ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   release:
@@ -293,7 +293,7 @@ jobs:
       - test-upgrade
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
+      image: quay.io/eeems/arkes-builder:${{ inputs.builder || github.head_ref || github.ref_name }}
       options: >-
         --privileged
         --security-opt=seccomp=unconfined

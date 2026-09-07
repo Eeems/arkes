@@ -785,11 +785,13 @@ def update_loader_entries(
                     sbctl = os.path.join(sysroot, "var/lib/sbctl")
                     deployment.chroot(
                         script,
-                        binds=(
-                            [(sbctl, "/var/lib/sbctl")]
-                            if os.path.isdir(sbctl)
-                            else None
-                        ),
+                        binds=[
+                            *(
+                                [(sbctl, "/var/lib/sbctl")]
+                                if os.path.isdir(sbctl)
+                                else []
+                            ),
+                        ],
                         onstdout=onstdout,
                         onstderr=onstderr,
                     )
@@ -835,9 +837,9 @@ def update_loader_entries(
                                 "--cmdline",
                                 f.name,
                                 "--kernel-img",
-                                f"{deployment.kernel}",
+                                os.path.relpath(deployment.kernel, deployment.path),
                                 "--initramfs",
-                                f"{deployment.initrd}",
+                                os.path.relpath(deployment.initrd, deployment.path),
                                 outputPath,
                             ]
                         ),
@@ -915,7 +917,9 @@ def update_bootloader(
             sbctl = os.path.join(sysroot, "var/lib/sbctl")
             deployment.chroot(
                 script,
-                binds=([(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else None),
+                binds=[
+                    *([(sbctl, "/var/lib/sbctl")] if os.path.isdir(sbctl) else []),
+                ],
                 onstdout=onstdout,
                 onstderr=onstderr,
             )
@@ -929,11 +933,18 @@ def update_bootloader(
                 onstderr=onstderr,
             )
 
+    for boot_file in (
+        "/sysroot/boot/efi/EFI/BOOT/BOOTX64.EFI",
+        "/sysroot/boot/efi/EFI/systemd/systemd-bootx64.efi",
+    ):
+        execOrChroot(deployment, f"sbctl sign -s '{boot_file}'")
+
     execOrChroot(
         deployment,
         """
         set -e
         export ESP_PATH=/sysroot/boot/efi
+        export SBCTL_UNICODE=0
         sbctl verify --quiet 2>&1 |
           while read -r line; do
             case "$line" in

@@ -71,7 +71,7 @@ def register(parser: ArgumentParser) -> None:
         help="Test installing and upgrading from the latest version of VARIANT, or from a local iso",
     )
     _ = parser.add_argument(
-        "--branch",
+        "--runner",
         default="iso-runner",
         help="iso-runner image ref to use, defaults to iso-runner.",
     )
@@ -84,8 +84,8 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     variant: str | None = cast(str | None, args.fromVariant)
-    branch: str = ref(cast(str, args.branch))
-    image: str = f"{BUILDER}:{branch}"
+    runner: str = ref(cast(str, args.runner))
+    image: str = f"{BUILDER}:{runner}"
     _ = atexit.register(clear_stdin)
     with tempfile.TemporaryDirectory(
         prefix="iso-runner-", dir=workspace_path()
@@ -104,9 +104,7 @@ def command(args: Namespace) -> None:
                 )
                 res.raise_for_status()
                 prefix = f"arkes-{variant}-"
-                for line in cast(
-                    str, cast(dict[str, Any], res.json())["body"]
-                ).splitlines():
+                for line in cast(dict[str, str], res.json())["body"].splitlines():
                     cells = [
                         cell.strip() for cell in line.strip().strip("|").split("|")
                     ]
@@ -158,8 +156,8 @@ def command(args: Namespace) -> None:
             "run",
             "--rm",
             *pod_args,
+            "--entrypoint=/usr/bin/qemu-img",
             image,
-            "qemu-img",
             "create",
             "-f",
             "qcow2",
@@ -169,9 +167,9 @@ def command(args: Namespace) -> None:
         podman(
             "run",
             "--rm",
+            "--entrypoint=/usr/bin/bash",
             *pod_args,
             image,
-            "bash",
             "-c",
             "cp /usr/share/OVMF/OVMF_VARS_4M.fd /workspace/OVMF_VARS_4M.fd",
         )
@@ -185,7 +183,7 @@ def command(args: Namespace) -> None:
         # enroll its boot entries.
         kernel: tuple[str, str, str] | None = None
         if variant is not None:
-            kernel = extract_boot(iso, workspace, branch)
+            kernel = extract_boot(iso, workspace, runner)
 
         proc: subprocess.Popen[bytes] = subprocess.Popen(
             podman_cmd(
@@ -223,7 +221,7 @@ def command(args: Namespace) -> None:
                 error_exit(proc, cidfile)
 
             print("boot-test: phase 1: installing to target disk", file=sys.stderr)
-            if not install(proc, fastInstall=variant is not None):
+            if not install(proc, fastInstall=variant is not None, secureBoot=True):
                 print("boot-test: os install failed", file=sys.stderr)
                 error_exit(proc, cidfile)
 
