@@ -212,7 +212,7 @@ jobs:
           run: >-
             ./make.py test
             --bios
-            --branch ${{ inputs.iso_runner || 'iso-runner' }}
+            --runner ${{ inputs.iso_runner || 'iso-runner' }}
             /var/lib/system/arkes-${{ inputs.variant }}-*.iso
 
   test-upgrade:
