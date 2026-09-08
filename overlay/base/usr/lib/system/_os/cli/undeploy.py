@@ -10,6 +10,7 @@ from typing import (
 
 from ..ostree import (
     undeploy,
+    update_bootloader,
     update_loader_entries,
 )
 from ..system import is_root
@@ -28,6 +29,7 @@ def command(args: Namespace) -> None:
 
     undeploy(cast(int, args.index))
     update_loader_entries()
+    update_bootloader()
 
 
 if __name__ == "__main__":
