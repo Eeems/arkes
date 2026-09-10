@@ -3,69 +3,41 @@ set -e
 UUID="${1:-$(date +"%Y-%m-%d-%H-%M-%S-00")}"
 echo "[system] Creating live bootloader"
 
-cat >/etc/system/grub.cfg <<EOF
-search --file --set=root /${UUID}.uuid
-set prefix=(\$root)'/grub'
-configfile \$prefix/grub.cfg
-EOF
-
 touch "/etc/system/archiso/${UUID}.uuid"
-truncate -s 32MB /etc/system/efiboot.img
-chronic mkfs.vfat /etc/system/efiboot.img
-chronic mmd -i /etc/system/efiboot.img EFI EFI/boot
+truncate -s 256MB /etc/system/efiboot.img
+chronic mkfs.vfat -n EFI /etc/system/efiboot.img
+chronic mmd -i /etc/system/efiboot.img EFI EFI/boot EFI/systemd EFI/CLOVER
 
-modules=(
-  all_video at_keyboard boot btrfs cat chain configfile echo efifwsetup
-  efinet exfat ext2 f2fs fat font gfxmenu gfxterm gzio halt hfsplus iso9660
-  jpeg keylayouts linux loadenv loopback lsefi lsefimmap minicmd normal ntfs
-  ntfscomp part_apple part_gpt part_msdos png read reboot regexp search
-  search_fs_file search_fs_uuid search_label serial sleep tpm udf usb
-  usbserial_common usbserial_ftdi usbserial_pl2303 usbserial_usbdebug video
-  xfs zstd
-)
+chronic mcopy -i /etc/system/efiboot.img \
+  /usr/lib/systemd/boot/efi/systemd-bootx64.efi ::EFI/boot/BOOTX64.EFI
+chronic mcopy -i /etc/system/efiboot.img \
+  /usr/lib/systemd/boot/efi/systemd-bootx64.efi ::EFI/systemd/systemd-bootx64.efi
 
-chronic grub-mkstandalone \
-  --format=x86_64-efi \
-  --themes="" \
-  --sbat=/usr/share/grub/sbat.csv \
-  --disable-shim-lock \
-  --output=BOOTx64.EFI \
-  --modules="${modules[*]}" \
-  boot/grub/grub.cfg=/etc/system/grub.cfg
+mkdir -p /tmp/clover-loader
+cp -a /etc/system/archiso/loader/. /tmp/clover-loader/
+sed -i "s/%UUID%/${UUID}/g" \
+  /tmp/clover-loader/entries/01-archiso-x86_64-linux.conf
+chronic mcopy -s -i /etc/system/efiboot.img /tmp/clover-loader ::loader
+rm -rf /tmp/clover-loader
 
-chronic mcopy -i /etc/system/efiboot.img BOOTx64.EFI ::EFI/boot
-rm BOOTx64.EFI
-chronic grub-mkimage \
-  --output=core.img \
-  --format=i386-pc \
-  --prefix=/boot/grub \
-  --config=/etc/system/grub.cfg \
-  all_video \
-  at_keyboard \
-  boot \
-  btrfs \
-  biosdisk \
-  iso9660 \
-  multiboot \
-  configfile \
-  echo \
-  halt \
-  reboot \
-  exfat \
-  ext2 \
-  linux \
-  ntfs \
-  usb \
-  sleep \
-  xfs \
-  zstd \
-  search
+mkdir -p /tmp/clover-esp/arkes/x86_64
+cp -a /usr/lib/modules/*/vmlinuz /tmp/clover-esp/arkes/x86_64/vmlinuz
+cp -a /usr/lib/modules/*/initramfs.img /tmp/clover-esp/arkes/x86_64/initramfs.img
+chronic mcopy -s -i /etc/system/efiboot.img /tmp/clover-esp/arkes ::arkes
+rm -rf /tmp/clover-esp
 
-mkdir -p /etc/system/archiso/{boot/grub,arkes/x86_64}
+chronic mcopy -s -i /etc/system/efiboot.img \
+  /etc/system/clover/CLOVER/. ::EFI/CLOVER/
+chronic mcopy -o -i /etc/system/efiboot.img \
+  /etc/system/clover-config.plist ::EFI/CLOVER/config.plist
 
-cat /usr/lib/grub/i386-pc/cdboot.img core.img >/etc/system/archiso/boot/grub/eltorito.img
+mkdir -p /etc/system/archiso/{boot/grub,EFI/CLOVER,arkes/x86_64}
 
-rm core.img
+cp /etc/system/clover/cdboot /etc/system/archiso/boot/grub/eltorito.img
+cp -a /etc/system/clover/CLOVER/. /etc/system/archiso/EFI/CLOVER/
+mkdir -p /etc/system/archiso/EFI/systemd
+cp -a /usr/lib/systemd/boot/efi/systemd-bootx64.efi \
+  /etc/system/archiso/EFI/systemd/
 
 cp -a /usr/lib/modules/*/vmlinuz /etc/system/archiso/arkes/x86_64
 cp -a /usr/lib/modules/*/initramfs.img /etc/system/archiso/arkes/x86_64
