@@ -26,7 +26,10 @@ from . import (
     podman,
     podman_cmd,
 )
-from .config import parse_config
+from .config import (
+    all_targets,
+    parse_config,
+)
 from .hash import hash
 from .pull import pull
 from .push import push
@@ -63,7 +66,16 @@ def command(args: Namespace) -> None:
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
-    for target in cast(list[str], args.target):
+    targets = cast(list[str], args.target)
+    invalid = [target for target in targets if target not in all_targets()]
+    if invalid:
+        print(
+            f"Invalid build target(s): {', '.join(invalid)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    for target in targets:
         build(target, cast(bool, args.cache))
         if cast(bool, args.push):
             push(target)

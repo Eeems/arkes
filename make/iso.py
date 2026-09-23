@@ -1,4 +1,6 @@
+import glob
 import json
+import os
 import subprocess
 import sys
 from argparse import (
@@ -16,6 +18,7 @@ from . import (
     is_root,
     podman_cmd,
 )
+from .config import all_targets
 
 kwds: dict[str, str] = {
     "help": "Build an ISO for a variant",
@@ -37,18 +40,27 @@ def command(args: Namespace) -> None:
         print("Must be run as root", file=sys.stderr)
         sys.exit(1)
 
-    storage_info = json.loads(
-        subprocess.check_output(
-            [*podman_cmd("info"), "--format", "json"],
-            text=True,
+    targets = cast(list[str], args.target)
+    invalid = [target for target in targets if target not in all_targets() - {"rootfs"}]
+    if invalid:
+        print(
+            f"Invalid ISO target(s): {', '.join(invalid)}",
+            file=sys.stderr,
         )
+        sys.exit(1)
+
+    storage_info = cast(
+        dict[str, dict[str, str]],
+        json.loads(
+            subprocess.check_output(
+                [*podman_cmd("info"), "--format", "json"],
+                text=True,
+            )
+        ),
     )
     store = storage_info["store"]
-    graph_root = store["graphRoot"]
-    run_root = store["runRoot"]
-    driver = store["graphDriverName"]
-
-    for target in cast(list[str], args.target):
+    for target in targets:
+        old_iso = glob.glob(f"/var/lib/system/arkes-{target}-*.iso")
         image = f"{REPO}:{target}"
         _ = in_system(
             "_build",
@@ -62,13 +74,15 @@ def command(args: Namespace) -> None:
             check=True,
             flags=[
                 "cap-add=SYS_ADMIN",
-                f"env=HOST_STORAGE_DRIVER={driver}",
+                f"env=HOST_STORAGE_DRIVER={store['graphDriverName']}",
             ],
             volumes=[
-                f"{graph_root}:/host-storage",
-                f"{run_root}:/host-runroot",
+                f"{store['graphRoot']}:/host-storage",
+                f"{store['runRoot']}:/host-runroot",
             ],
         )
+        for path in old_iso:
+            os.unlink(path)
 
 
 if __name__ == "__main__":

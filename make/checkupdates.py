@@ -24,6 +24,7 @@ from . import (
     in_system,
     is_root,
 )
+from .config import all_targets
 from .hash import hash
 from .pull import pull
 
@@ -47,6 +48,10 @@ def command(args: Namespace) -> None:
         sys.exit(1)
 
     target = cast(str, args.target)
+    if target not in all_targets():
+        print(f"Invalid variant: {target}", file=sys.stderr)
+        sys.exit(1)
+
     containerfile = f"variants/{target}.Containerfile"
     if target == "rootfs":
         containerfile = "rootfs.Containerfile"
