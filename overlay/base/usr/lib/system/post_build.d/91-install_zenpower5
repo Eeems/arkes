@@ -1,0 +1,10 @@
+#!/bin/bash
+case "$(grep vendor_id /proc/cpuinfo | cut -d: -f2 | uniq | xargs)" in
+AuthenticAMD)
+  family=$(grep "cpu family" /proc/cpuinfo | cut -d: -f2 | uniq | xargs)
+  if [ "$family" -ge 23 ] 2>/dev/null; then
+    echo "[system] Installing zenpower5-dkms"
+    chronic /usr/lib/system/install_aur_packages zenpower5-dkms
+  fi
+  ;;
+esac
