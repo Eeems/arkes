@@ -48,6 +48,7 @@ permissions:
   contents: write
   actions: write
   packages: write
+  id-token: write  # For cosign keyless signing
 
 jobs:
   run:
@@ -215,6 +216,35 @@ jobs:
             _ = f.write(f"name={name}\n")
             _ = f.write(f"digest={digest}")
           EOF
+
+      - name: Generate SBOM
+        if: inputs.push
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        if: inputs.push
+        uses: actions/upload-artifact@v8
+        with:
+          name: sbom-${{ inputs.variant }}
+          path: sbom.spdx.json
+          retention-days: 90
+
+      - name: Sign image with cosign
+        if: inputs.push
+        uses: sigstore/cosign-installer@v4
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Sign container image
+        if: inputs.push
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign sign --yes ${{ steps.image.outputs.name }}@${{ steps.image.outputs.digest }}
 
       - name: Upload image artifact
         uses: ./.github/actions/upload-image
