@@ -48,7 +48,7 @@ permissions:
   contents: write
   actions: write
   packages: write
-  id-token: write  # For cosign keyless signing
+  id-token: write
 
 jobs:
   run:

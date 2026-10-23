@@ -77,14 +77,14 @@ def command(args: Namespace) -> None:
             > /trivy/report.sarif
             trivy convert \
                 --format template \
-                --template @"/template.tpl" \
+                --template "@/template.tpl" \
                 /trivy/report.json \
             > /trivy/report.md
             trivy convert \
                 --format table \
                 /trivy/report.json
         fi
-        """.format(ci_flag="x" if in_ci else "")
+        """
 
     ret = in_system(
         "-c",

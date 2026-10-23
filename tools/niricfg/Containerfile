@@ -45,15 +45,7 @@ RUN <<EOT
   rm -rf /var/lib/apt/lists/*
 EOT
 
-RUN <<EOT
-  set -e
-  curl -LsSf -o /tmp/uv-install.sh https://astral.sh/uv/install.sh
-  # Verify the script (basic check - not empty, contains expected content)
-  test -s /tmp/uv-install.sh
-  grep -q 'astral.sh' /tmp/uv-install.sh
-  sh /tmp/uv-install.sh
-  rm /tmp/uv-install.sh
-EOT
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV FLUTTER_VERSION=3.44.8
 ENV FLUTTER_HOME=/root/flutter
