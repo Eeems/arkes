@@ -32,6 +32,6 @@ niri msg output eDP-1 vrr on
 echo "niri-resume-vrr-fix: done" >&2
 EOF
   chmod 0755 /usr/lib/system/niri-resume-vrr-fix
-  sed -i 's|^after_sleep_cmd = .*|after_sleep_cmd = /usr/lib/system/niri-resume-vrr-fix \&\& os display on|' /usr/share/hypr/hypridle.conf
+  sed -i 's|^\([[:space:]]*\)after_sleep_cmd[[:space:]]*=\(.*\)|\1after_sleep_cmd = /usr/lib/system/niri-resume-vrr-fix \&\& \2|' /usr/share/hypr/hypridle.conf
 fi
 EOT
