@@ -7,7 +7,7 @@ from argparse import (
 from collections.abc import Callable
 from typing import cast
 
-import xattr  # pyright:ignore [reportMissingTypeStubs]
+import xattr
 
 from ..system import execute, is_root
 

@@ -94,7 +94,7 @@ func main() {
 
 	caps := pb.Caps.CapSet(pb.Caps.All())
 
-	state, _, _, _, err := dockerfile2llb.Dockerfile2LLB(context.TODO(), df,
+	result, err := dockerfile2llb.Dockerfile2LLB(context.TODO(), df,
 		dockerfile2llb.ConvertOpt{
 			MetaResolver: &OfflineResolver{},
 			LLBCaps:      &caps,
@@ -106,6 +106,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	state := result.State
 
 	def, err := state.Marshal(context.TODO())
 	if err != nil {
