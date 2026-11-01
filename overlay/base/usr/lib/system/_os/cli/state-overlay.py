@@ -7,7 +7,7 @@ from argparse import (
 from collections.abc import Callable
 from typing import cast
 
-import xattr
+import xattr  # type: ignore[import-untyped]
 
 from ..system import execute, is_root
 
