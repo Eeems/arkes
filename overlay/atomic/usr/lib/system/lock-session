@@ -1,7 +1,0 @@
-#!/bin/sh
-
-if ! pidof hyprlock >/dev/null 2>&1; then
-  hyprlock --config /usr/share/hypr/hyprlock.conf &
-fi
-
-loginctl lock-session 2>/dev/null || true

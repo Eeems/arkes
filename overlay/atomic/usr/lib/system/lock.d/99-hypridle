@@ -1,0 +1,6 @@
+#!/bin/bash
+if ! pidof hyprlock; then
+  hyprlock --config /usr/share/hypr/hyprlock.conf --no-fade-in --immediate-render &
+  disown
+fi
+sleep 2

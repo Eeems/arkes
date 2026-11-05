@@ -13,7 +13,7 @@ COPY overlay/framework /
 
 RUN <<EOT
 if [ -f /usr/share/hypr/hypridle.conf ]; then
-  cat >/usr/lib/system/niri-resume-vrr-fix <<'EOF'
+  cat >/usr/lib/system/resume.d/98-niri-resume-vrr-fix <<'EOF'
 #!/bin/sh
 if ! pgrep -x niri >/dev/null 2>&1; then
   echo "niri-resume-vrr-fix: skipping - Niri not running" >&2
@@ -31,7 +31,6 @@ niri msg output eDP-1 on
 niri msg output eDP-1 vrr on
 echo "niri-resume-vrr-fix: done" >&2
 EOF
-  chmod 0755 /usr/lib/system/niri-resume-vrr-fix
-  sed -i 's|^\([[:space:]]*\)after_sleep_cmd[[:space:]]*=\(.*\)|\1after_sleep_cmd = /usr/lib/system/niri-resume-vrr-fix \&\& \2|' /usr/share/hypr/hypridle.conf
+  chmod 0755 /usr/lib/system/resume.d/98-niri-resume-vrr-fix
 fi
 EOT
