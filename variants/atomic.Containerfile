@@ -10,6 +10,7 @@ RUN /usr/lib/system/package_layer \
   adw-gtk-theme \
   awww \
   bluez-utils \
+  bootvine \
   brightnessctl \
   cups \
   cups-pdf \
