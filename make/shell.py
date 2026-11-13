@@ -12,6 +12,7 @@ from typing import (
 import _os.console  # pyright: ignore[reportMissingImports]
 
 from . import (
+    REPO,
     image_exists,
     podman_cmd,
 )
@@ -38,7 +39,7 @@ def register(parser: ArgumentParser) -> None:
 
 
 def command(args: Namespace) -> None:
-    image = f"ghcr.io/eeems/arkes:{cast(str, args.variant)}"
+    image = f"{REPO}:{cast(str, args.variant)}"
     if not image_exists(image, False, True):
         if not image_exists(image, True, True):
             print(f"{image} does not exist")

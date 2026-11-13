@@ -563,7 +563,7 @@ def export_stream(
         "--security-opt=label=disable",
         "--volume=/run/podman/podman.sock:/run/podman/podman.sock",
         f"system:{tag}",
-        "-c",
+        "-ec",
         setup,
         onstdout=onstdout,
         onstderr=onstderr,
