@@ -216,8 +216,8 @@ def install(
     commit_export(
         branch,
         setup="""
-        rm -f /etc
-        rm -rf /var/*
+        grep -E '[[:space:]]/etc(/|$)' /proc/mounts | awk '{print $2}' | sort -r | xargs -r umount -l
+        rm -rf /etc /var/*
         """,
     )
     deployment = deploy(branch, sysroot)

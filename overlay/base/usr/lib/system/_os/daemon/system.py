@@ -166,6 +166,19 @@ class Object(dbus.service.Object):
 
                 self.upgrade_stderr(b"PROGRESS 2/5 Committing to ostree\n")
                 commit_export(
+                    setup="""
+                    grep -E '[[:space:]]/etc(/|$)' /proc/mounts | awk '{print $2}' | sort -r | xargs -r umount -l
+                    rm -rf /etc /var/*
+                    find / -xdev \\
+                      \\( \\
+                        -path /dev \\
+                        -o -path /proc \\
+                        -o -path /sys \\
+                        -o -path /run \\
+                        -o -path /tmp \\
+                      \\) -prune -o -print0 \\
+                    | xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
+                    """,
                     onstdout=self.upgrade_stdout,
                     onstderr=self.upgrade_stderr,
                 )

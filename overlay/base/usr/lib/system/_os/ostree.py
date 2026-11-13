@@ -90,19 +90,7 @@ def commit(
 
 def commit_export(
     branch: str = "system",
-    setup: str = """
-    rm -f /etc
-    rm -rf /var/*
-    find / -xdev \\
-      \\( \\
-        -path /dev \\
-        -o -path /proc \\
-        -o -path /sys \\
-        -o -path /run \\
-        -o -path /tmp \\
-      \\) -prune -o -print0 \\
-    | xargs -0 -r -P$(nproc) -n500 touch -h -d "@1735689640"
-    """,
+    setup: str = "",
     onstdout: Callable[[bytes], None] = bytes_to_stdout,
     onstderr: Callable[[bytes], None] = bytes_to_stderr,
 ) -> None:
