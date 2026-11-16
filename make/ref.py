@@ -8,6 +8,15 @@ from typing import (
     cast,
 )
 
+if __name__ == "__main__":
+    import os
+    import sys
+
+    here = os.path.dirname(__file__)
+    for path in sys.path.copy():
+        if os.path.abspath(path) == os.path.abspath(here):
+            sys.path.remove(path)
+
 kwds: dict[str, str] = {
     "help": "What does this do?",
 }
