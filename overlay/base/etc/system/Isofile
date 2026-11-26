@@ -36,8 +36,6 @@ RUN /usr/lib/system/package_layer \
   syslinux \
   --add \
   apfsprogs \
-  bcachefs-dkms \
-  bcachefs-tools \
   broadcom-wl-dkms \
   btrfs-progs \
   dosfstools \
